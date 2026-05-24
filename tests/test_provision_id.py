@@ -1,4 +1,4 @@
-"""Tests for provision_id parsing per contract_version 1.0.1 (Step 13.5 + 16-17 LIVE 보완)."""
+"""Tests for provision_id parsing per contract_version 1.0.3 (Step 13.5 + 16-17 LIVE 보완)."""
 import pytest
 
 from korean_rnd_regs_mcp.provision_id import (

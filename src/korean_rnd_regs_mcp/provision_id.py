@@ -1,4 +1,4 @@
-"""provision_id parsing/formatting — see docs/api_contract.md (contract_version 1.0.1).
+"""provision_id parsing/formatting — see docs/api_contract.md (contract_version 1.0.3).
 
 Format: {doc_type}:{doc_id}[:{unit_id}]
 - doc_type: "law" or "admrul"

@@ -443,3 +443,135 @@ def test_live_api_error_message_no_url_no_key(monkeypatch):
         assert "ConnectionError" in msg or "FakeConnError" in msg  # type 정보는 유지
     else:
         pytest.fail("LawApiError가 발생해야 함")
+
+
+# === 8차 AI review 회귀 ( P0: requests 예외 포괄 catch) ===
+def test_live_api_handles_sslerror_without_url_leak(monkeypatch):
+    """RequestException subclass 전체(SSLError·ChunkedEncodingError·InvalidURL 등)도 catch + redact."""
+    import requests as requests_mod
+    from korean_rnd_regs_mcp.live_api import LawApiError, _request_with_retry
+
+    class FakeSSLError(requests_mod.exceptions.SSLError):
+        def __str__(self):
+            return f"SSL handshake failed at https://test.invalid/lawSearch.do?OC={_FAKE_KEY}"
+
+    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: (_ for _ in ()).throw(FakeSSLError()))
+
+    with pytest.raises(LawApiError) as exc_info:
+        _request_with_retry("https://test.invalid", {"OC": _FAKE_KEY}, max_retries=1)
+    msg = str(exc_info.value)
+    assert _FAKE_KEY not in msg, f"SSL error에서 키 누설: {msg}"
+    assert "OC=" not in msg
+    # type 정보(SSLError)는 trace에 유지
+    assert "SSLError" in msg or "FakeSSLError" in msg
+
+
+# === 8차 AI review LIVE 검증 P0 회귀 (wrapper filter) ===
+def test_get_law_detail_excludes_wrapper_elements(monkeypatch):
+    """장/절 wrapper(조문여부='전문')는 articles에서 제외 — 동일 조문번호 collision 방어.
+
+    LIVE 검증 발견: 혁신법 MST 260807 + 시행령 285767의 각 7개 조문번호에서 wrapper("제1장 총칙" 등)와
+    실제 조문이 동일 조문번호로 중복 등장. 직전 buggy 상태에서는 get_provision_detail("law:260807:JO0001")이
+    wrapper만 반환하고 실제 제1조(목적)는 못 받았음. 본 test는 fix 후 wrapper exclude 검증.
+    """
+    import requests as requests_mod
+    from korean_rnd_regs_mcp.live_api import LawApiClient
+
+    fake_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<법령>
+  <기본정보>
+    <법령ID>013774</법령ID>
+    <법령명_한글>국가연구개발혁신법</법령명_한글>
+    <법종구분>법률</법종구분>
+    <소관부처>과학기술정보통신부</소관부처>
+    <시행일자>20250228</시행일자>
+    <공포일자>20240227</공포일자>
+  </기본정보>
+  <조문>
+    <조문단위>
+      <조문번호>1</조문번호>
+      <조문여부>전문</조문여부>
+      <조문내용>제1장 총칙</조문내용>
+    </조문단위>
+    <조문단위>
+      <조문번호>1</조문번호>
+      <조문여부>조문</조문여부>
+      <조문제목>목적</조문제목>
+      <조문내용>제1조(목적) 이 법은 국가연구개발사업의 추진 체제를 ...</조문내용>
+    </조문단위>
+    <조문단위>
+      <조문번호>2</조문번호>
+      <조문여부>조문</조문여부>
+      <조문제목>정의</조문제목>
+      <조문내용>제2조(정의) 이 법에서 사용하는 용어의 뜻은 ...</조문내용>
+    </조문단위>
+  </조문>
+</법령>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_xml
+        headers = {"Content-Type": "application/xml"}
+
+    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    result = client.get_law_detail("260807")
+    # wrapper("제1장 총칙") 제외 → 실제 조문 2개만
+    assert len(result["articles"]) == 2, f"wrapper filter 실패: {result['articles']}"
+    titles = [a["조문제목"] for a in result["articles"]]
+    assert titles == ["목적", "정의"], f"제목 순서·내용 불일치: {titles}"
+    # 첫 조문이 wrapper가 아닌 실제 제1조인지 — JO0001 검색 시 wrapper만 반환되던 buggy 동작 회귀
+    first = result["articles"][0]
+    assert first["조문번호"] == "1"
+    assert "제1조(목적)" in first["조문내용"]
+    assert "제1장 총칙" not in first["조문내용"]
+
+
+def test_get_admin_rule_detail_excludes_wrapper_elements(monkeypatch):
+    """행정규칙도 동일 wrapper filter 적용 (일관성)."""
+    import requests as requests_mod
+    from korean_rnd_regs_mcp.live_api import LawApiClient
+
+    fake_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<행정규칙>
+  <기본정보>
+    <행정규칙ID>abc</행정규칙ID>
+    <행정규칙명>연구개발비 사용 기준</행정규칙명>
+    <소관부처명>과학기술정보통신부</소관부처명>
+    <시행일자>20240613</시행일자>
+  </기본정보>
+  <조문>
+    <조문단위>
+      <조문번호>1</조문번호>
+      <조문여부>전문</조문여부>
+      <조문내용>제1장 wrapper</조문내용>
+    </조문단위>
+    <조문단위>
+      <조문번호>1</조문번호>
+      <조문여부>조문</조문여부>
+      <조문제목>목적</조문제목>
+      <조문내용>제1조(목적) 본문</조문내용>
+    </조문단위>
+  </조문>
+  <별표>
+    <별표단위>
+      <별표번호>1</별표번호>
+      <별표제목>기준</별표제목>
+      <별표내용>별표 본문</별표내용>
+    </별표단위>
+  </별표>
+</행정규칙>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_xml
+        headers = {"Content-Type": "application/xml"}
+
+    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    result = client.get_admin_rule_detail("2100000278740")
+    assert len(result["articles"]) == 1, f"wrapper filter 실패: {result['articles']}"
+    assert result["articles"][0]["조문제목"] == "목적"
+    assert len(result["annexes"]) == 1

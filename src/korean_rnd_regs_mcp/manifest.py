@@ -1,7 +1,7 @@
 """rule_sets manifest schema + loader.
 
 본 모듈은 `rule_sets.yaml`을 읽어 검증된 RuleSet 객체 list로 반환한다.
-schema는 plan v3.2 Step 19에 정의된 12개 필드 + `api_doc_id`(실제 ID 값) 1개 = 13개.
+schema는 plan v3.2 Step 19에 정의된 13개 필드 + `api_doc_id`(실제 ID 값) 1개 = 총 14개.
 
 (`api_doc_id`는 plan에 명시되지 않았지만 LawApiClient 호출에 필수 — 누락 시 API call 불가.
 plan은 type만 정의했고 value는 implicit으로 가정한 듯하여 본 schema에서 명시 추가.)
@@ -50,7 +50,7 @@ class UnitTypes(str, Enum):
 
 
 class RuleSet(BaseModel):
-    """rule_sets.yaml 한 항목의 schema (13 fields).
+    """rule_sets.yaml 한 항목의 schema (총 14 fields).
 
     docs/api_contract.md §2와 plan v3.2 Step 19·20 참조.
     """

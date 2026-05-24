@@ -123,22 +123,18 @@ def _request_with_retry(
                     f"HTTP {response.status_code} (4xx)",
                 )
             return response
-        except requests.exceptions.Timeout as e:
+        except requests.exceptions.RequestException as e:
+            # 8차 AI review ( P0): Timeout/ConnectionError 외 SSLError·ChunkedEncodingError·
+            # InvalidURL 등도 catch — 누수 시 호출 URL(OC=<key>)가 trace에 노출되는 것을 차단.
+            # type 이름만 logger·재시도 message에 사용하여 e 본문 누출 방지.
             last_err = e
+            err_type = type(e).__name__
             if attempt < max_retries - 1:
-                logger.warning("Timeout (attempt %d/%d), backoff %.1fs", attempt + 1, max_retries, backoff)
+                logger.warning("%s (attempt %d/%d), backoff %.1fs", err_type, attempt + 1, max_retries, backoff)
                 time.sleep(backoff)
                 backoff *= 2
             else:
-                logger.error("Timeout after %d attempts", max_retries)
-        except requests.exceptions.ConnectionError as e:
-            last_err = e
-            if attempt < max_retries - 1:
-                logger.warning("ConnectionError (attempt %d/%d), backoff %.1fs", attempt + 1, max_retries, backoff)
-                time.sleep(backoff)
-                backoff *= 2
-            else:
-                logger.error("ConnectionError after %d attempts", max_retries)
+                logger.error("%s after %d attempts", err_type, max_retries)
     # SECURITY: last_err를 str()화하면 requests 라이브러리가 URL(OC=<key>)을 포함시킴 → key 누설.
     # type 이름만 사용하여 호출 URL과 query params가 절대 message·log·tool response에 노출되지 않게 함.
     err_type = type(last_err).__name__ if last_err else "Unknown"
@@ -321,6 +317,9 @@ class LawApiClient:
             #   - 법령명_한글 (underscore!), 법종구분 (구분명 아님), 소관부처 (명 없음)
             #   - 조문 list는 .//조문 wrapper 아래 .//조문단위 49개 형태
             #   - 법령일련번호는 response에 없음 — 호출 param mst를 그대로 사용
+            # 8차 AI review LIVE 검증 P0: <조문여부>=전문 element는 장/절/관 wrapper(예: "제1장 총칙")로
+            # 실제 조문이 아님. 동일 조문번호로 wrapper + 실제 조문이 함께 등장하여 (혁신법·시행령 7건 collision)
+            # JO0001 검색·상세조회 시 wrapper만 반환되는 silent bug 발생. 조문여부="조문"만 articles에 포함.
             articles = [
                 {
                     "조문번호": a.findtext("조문번호", ""),
@@ -332,6 +331,7 @@ class LawApiClient:
                     "structured": _build_article_structure(a),
                 }
                 for a in root.findall(".//조문단위")
+                if (a.findtext("조문여부") or "").strip() == "조문"
             ]
             result = {
                 "법령ID": root.findtext(".//법령ID", ""),
@@ -368,7 +368,7 @@ class LawApiClient:
         try:
             response = _request_with_retry(url, params)
             root = _parse_xml(response)
-            # 조문 (있을 수도 없을 수도)
+            # 조문 (있을 수도 없을 수도). 8차 AI review LIVE 검증: wrapper element 동일 filter 적용.
             articles = [
                 {
                     "조문번호": a.findtext("조문번호", ""),
@@ -380,6 +380,7 @@ class LawApiClient:
                     "structured": _build_article_structure(a),
                 }
                 for a in root.findall(".//조문단위")
+                if (a.findtext("조문여부") or "").strip() == "조문"
             ]
             # 별표 (Step 17 LIVE 검증: 별표내용 본문 직접 반환됨)
             annexes = [

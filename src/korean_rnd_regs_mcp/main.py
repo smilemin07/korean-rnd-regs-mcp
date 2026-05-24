@@ -499,7 +499,9 @@ def main() -> None:
         action="version",
         version=f"%(prog)s {__version__}",
     )
-    parser.parse_args()  # --version / --help는 여기서 exit. 다른 인자는 silent ignore (FastMCP가 stdin 처리)
+    # --version / --help는 argparse가 여기서 exit. 알 수 없는 인자도 argparse가 거부(exit 2).
+    # 인자 없으면 FastMCP stdio mode 진입.
+    parser.parse_args()
     asyncio.run(_run())
 
 
