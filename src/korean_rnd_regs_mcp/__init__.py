@@ -1,2 +1,2 @@
-def main() -> None:
-    print("Hello from korean-rnd-regs-mcp!")
+"""korean-rnd-regs-mcp — MCP server for Korean national R&D regulation review."""
+__version__ = "0.1.0"
