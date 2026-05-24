@@ -1,4 +1,4 @@
-"""Tests for provision_id parsing per contract_version 1.0.3 (Step 13.5 + 16-17 LIVE 보완)."""
+"""Tests for provision_id parsing per contract_version 0.1.0 (publish 시점 reset; pre-publish 이력 별도 보존)."""
 import pytest
 
 from korean_rnd_regs_mcp.provision_id import (
@@ -12,10 +12,10 @@ from korean_rnd_regs_mcp.provision_id import (
 
 
 def test_contract_version_pinned():
-    # 1.0.1: BP(별표) prefix 추가 (Step 16-17 LIVE 발견 반영, minor bump)
-    # 1.0.2: 조문 본문이 항·호 element에서 reconstruct되도록 fix (Step 30-31 E2E P0)
-    # 1.0.3: get_provision_detail에 article_structure·format_instructions·content_format 추가 (7차 AI review additive)
-    assert CONTRACT_VERSION == "1.0.3"
+    # pre-publish 내부 이력: 1.0.0 → 1.0.1 BP → 1.0.2 본문 reconstruct → 1.0.3 article_structure additive
+    #                        → 1.0.3 revision (wrapper element filter + requests 예외 포괄)
+    # publish 시점에 0.x.x 대역으로 reset (외부 사용자 0명, v0.2 가지조문 확장 시 0.2.0 minor bump 자연스러움)
+    assert CONTRACT_VERSION == "0.1.0"
 
 
 # === 정상 케이스: 조문(JO) 3개 ===

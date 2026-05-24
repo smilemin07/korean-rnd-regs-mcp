@@ -1,7 +1,8 @@
 # korean-rnd-regs-mcp API Contract
 
-- contract_version: **1.0.3**
-- 작성일: 2026-05-24 (1.0.0 → 1.0.1 BP → 1.0.2 본문 reconstruct → 1.0.3 article_structure·format_instructions additive)
+- contract_version: **0.1.0**
+- 작성일: 2026-05-24 (publish 시점 reset; pre-publish 내부 이력 1.0.0 → 1.0.1 BP → 1.0.2 본문 reconstruct → 1.0.3 article_structure additive → 1.0.3 revision wrapper filter는 §6 변경 이력 표에 보존)
+- semver 정책: 0.x.x 대역은 unstable signal — minor bump(0.1.0 → 0.2.0)도 breaking change 허용. v0.2 가지조문 확장 시 0.2.0 minor bump로 자연스럽게 처리 (1.0.x 유지 시 2.0 major bump 필요했음)
 - 변경 정책: 본 문서 변경은 외부 사용자 코드·Claude Desktop 캐시·README 예시를 깰 수 있으므로 0.1.0 publish 이후 신중히 (§6 참조)
 
 ## 1. 목적
@@ -109,7 +110,7 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
     },
     ...
   ],
-  "contract_version": "1.0.3",
+  "contract_version": "0.1.0",
   "disclaimer": "본 결과는 검토 후보일 뿐 법률 판단이 아닙니다. 출처를 직접 확인하세요."
 }
 ```
@@ -141,24 +142,32 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 
 ## 6. contract_version 관리
 
-- 본 문서 contract_version: **1.0.3** (line 3 참조; 0.1.0 publish 시점에 fix)
+- 본 문서 contract_version: **0.1.0** (line 3 참조; 첫 publish version)
 - 코드 상수: `korean_rnd_regs_mcp.provision_id.CONTRACT_VERSION`
-- 변경 정책:
+- 변경 정책 (0.x.x — unstable signal):
 
 | 변경 종류 | semver bump | 예시 |
 |---|---|---|
-| patch | 1.0.x | 오류 메시지 문구 수정, 내부 endpoint URL 변경 (외부 영향 없음) |
-| minor | 1.x.0 | 기존 provision_id가 그대로 valid 유지되는 추가 (예: 신규 doc_type, 신규 unit prefix) |
-| major | x.0.0 | provision_id 포맷 변경, 도구 응답 schema 변경 (외부 사용자 코드 깨뜨릴 가능성) |
+| patch | 0.1.x | 오류 메시지 문구 수정, 내부 endpoint URL 변경 (외부 영향 없음) |
+| minor | 0.x.0 | provision_id 포맷 확장(가지조문 등), 응답 schema 추가·변경 (0.x.x 대역에서는 minor도 breaking change 허용) |
+| major | 1.0.0 | API 안정화 선언 (semver 1.0+ 이후 SemVer 표준 적용) |
 
-### 변경 이력 (pre-publish)
+### 변경 이력
 
 | 버전 | 일자 | 변경 |
 |---|---|---|
-| 1.0.0 | 2026-05-24 | 초기 contract (JO 조문 prefix만) |
-| 1.0.1 | 2026-05-24 | BP(별표) prefix 추가 + `unit_type()` helper. Step 16-17 LIVE 검증으로 일부 행정규칙이 조문 없이 별표만 갖는 케이스 발견 |
-| 1.0.2 | 2026-05-24 | **조문 본문 reconstruct fix (P0)**. 직전 buggy 상태: `조문내용` field가 다항조문(예: 혁신법 제15조)에 대해 title repeat("제N조(...)")만 반환 — 실제 본문(항·호) 누락. fix: live_api.py의 `_build_article_content` helper가 `<조문내용>` + `<항>` (`<항내용>` + 중첩 `<호내용>`) 합쳐 단일 본문으로 반환. Step 30-31 Claude Desktop E2E에서 발견 |
-| 1.0.3 | 2026-05-24 | **LLM 환각 방어 (additive)**. 7차 AI review: Claude Desktop이 raw content를 받아 임의 부제("(중앙행정기관 직권 변경·중단)") 발명 + 호 번호 stripping 관찰. server측은 정확하므로 backward-compatible 추가만 — get_provision_detail 응답에 (a) `content_format: "plain_text_verbatim"` marker, (b) `format_instructions` (LLM 표시 정책 명시), (c) `article_structure` (machine-readable nested hierarchy with `number`/`text`/`source_text`/`subparagraphs`) 추가. docstring에도 verbatim·번호 유지 지시. 기존 `content` 그대로 유지 — 외부 사용자 코드 영향 없음 |
-| 1.0.3 (revision) | 2026-05-24 | **8차 AI review LIVE 검증 P0 fix (data 정합성)**. (1) `<조문여부>=전문` wrapper element(예: "제1장 총칙")가 동일 `<조문번호>`로 실제 조문과 중복 등장하여 `get_provision_detail("law:260807:JO0001")`이 wrapper만 반환하던 silent bug — `live_api.LawApiClient.get_law_detail`·`get_admin_rule_detail`에서 `조문여부="조문"` filter 추가. LIVE 검증: 혁신법 49→41, 시행령 76→68 articles. (2) `_request_with_retry`의 except 절을 `requests.exceptions.RequestException`으로 포괄하여 SSLError·ChunkedEncodingError 등의 누수 시 URL(OC=`<key>`) 노출 차단 ( P0). (3) docs §4.2에 `invalid_query` 코드 정식 등록. 응답 schema 변경 없음 — contract_version bump 불요 |
+| 0.1.0 | 2026-05-24 | **첫 publish version**. live_api 트랙(국가법령정보 OpenAPI) 기반 4 rule set 지원: 국가연구개발혁신법(MST 260807), 동 시행령(285767), 동 시행규칙(285043), 국가연구개발사업 연구개발비 사용 기준(admrul ID 2100000278740). 5 MCP tools(health, search_provision, suggest_review_sources, get_provision_detail, list_rule_sets), JO(조문)/BP(별표) provision_id, 표준 오류 코드 6종(auth_failed/rate_limited/parse_failed/not_found/invalid_provision_id/invalid_query) |
+
+### Pre-publish 내부 이력 (참고용, contract_version 적용 안 됨)
+
+publish 전 개발 중 사용한 임시 1.0.x 시리즈는 외부 사용자에게 노출된 적 없으며 본 publish 시점에 0.1.0 대역으로 reset. 내부 변경 사항 보존용 기록:
+
+| 내부 ver | 일자 | 변경 |
+|---|---|---|
+| 1.0.0 (internal) | 2026-05-24 | 초기 contract (JO 조문 prefix만) |
+| 1.0.1 (internal) | 2026-05-24 | BP(별표) prefix 추가 + `unit_type()` helper. Step 16-17 LIVE 검증으로 일부 행정규칙이 조문 없이 별표만 갖는 케이스 발견 |
+| 1.0.2 (internal) | 2026-05-24 | 조문 본문 reconstruct fix (P0). 직전 buggy 상태: `조문내용` field가 다항조문(예: 혁신법 제15조)에 대해 title repeat("제N조(...)")만 반환 — 실제 본문(항·호) 누락. fix: live_api.py의 `_build_article_content` helper가 `<조문내용>` + `<항>` (`<항내용>` + 중첩 `<호내용>`) 합쳐 단일 본문으로 반환. Step 30-31 Claude Desktop E2E에서 발견 |
+| 1.0.3 (internal) | 2026-05-24 | LLM 환각 방어 (additive). 7차 AI review: Claude Desktop이 raw content를 받아 임의 부제 발명 + 호 번호 stripping 관찰. get_provision_detail에 `content_format: "plain_text_verbatim"` marker, `format_instructions`, `article_structure`(nested hierarchy) 추가 |
+| 1.0.3 (revision, internal) | 2026-05-24 | 8차 AI review LIVE 검증 P0 fix. (1) `<조문여부>=전문` wrapper element collision — `live_api.LawApiClient.get_law_detail`·`get_admin_rule_detail`에서 `조문여부="조문"` filter 추가. LIVE 검증: 혁신법 49→41, 시행령 76→68. (2) `_request_with_retry`의 except 절을 `requests.exceptions.RequestException`으로 포괄 (SSLError 등 누수 시 URL 노출 차단). (3) docs §4.2에 `invalid_query` 코드 정식 등록 |
 
 - 도구 응답에 `contract_version` 필드 포함 권장 (search_provision·get_provision_detail·suggest_review_sources). 클라이언트가 호환 여부 확인 가능.

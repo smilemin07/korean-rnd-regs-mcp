@@ -351,7 +351,7 @@ def test_suggest_review_sources_propagates_search_errors(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "1.0.3"
+    assert result["contract_version"] == "0.1.0"
 
 
 # === _build_article_content (6차 AI P0 회귀) ===
