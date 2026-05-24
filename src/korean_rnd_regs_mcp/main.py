@@ -32,7 +32,7 @@ if not logger.handlers:
     )
     logger.addHandler(_handler)
 
-mcp = FastMCP("korean-rnd-regs-mcp")
+mcp = FastMCP("korean-rnd-regs-mcp", version=__version__)
 
 _DISCLAIMER = "본 결과는 검토 후보일 뿐 법률 판단이 아닙니다. 출처를 직접 확인하세요."
 _SNIPPET_MAX = 2000
@@ -46,18 +46,30 @@ _KEYWORD_STOPWORDS = frozenset({
     "어떻게", "무엇", "어떤", "어디서", "언제", "왜", "얼마", "몇",
     "받으려면", "받을", "받으면", "이라면", "인지", "인가요",
     "대한", "이번", "이전", "이후", "그러나", "그리고", "그래서",
+    # 6차 AI feedback: 흔한 동사형 어미·서술어 추가
+    "필요한가요", "변경되었나요", "되었나요", "되었습니까", "있었나요",
+    "있을까요", "없을까요", "되나요", "되었던가요",
+    "있습니다", "없습니다", "됩니다",
+    "주의사항은", "주의사항",
 })
 # 흔한 한국어 조사 (긴 것부터 정렬 — endswith 매칭 우선순위)
+# 6차 AI feedback: 1글자 조사 중 "이/가/의/에/도/만/로"는 명사 끝 음절에 자주 등장(false positive risk)
+# → "을/를/은/는/과/와"만 strip. 예: "특별평가" + "가" 조사 strip로 "특별평" 되는 버그 방지.
 _PARTICLES = (
     "에서는", "에서도", "으로는", "에게는",
     "에서", "으로", "에게", "한테", "까지", "부터", "조차", "마저",
     "와의", "과의",
-    "은", "는", "이", "가", "을", "를", "의", "에", "도", "만", "로", "와", "과",
+    "을", "를", "은", "는", "과", "와",
 )
 
 
 def _strip_particle(word: str) -> str:
-    """단어 끝의 조사 1-3글자 suffix 제거. 단어가 너무 짧아지면(<2자) 원본 유지."""
+    """단어 끝의 조사 suffix 제거. 단어가 너무 짧아지면(<2자) 원본 유지.
+
+    "특별평가" → "특별평가" (1글자 "가"는 strip 안 함; 명사 끝 음절에 자주 등장)
+    "특별평가를" → "특별평가"
+    "혁신법은" → "혁신법"
+    """
     for p in _PARTICLES:
         if word.endswith(p) and len(word) - len(p) >= 2:
             return word[: -len(p)]
@@ -156,6 +168,21 @@ async def search_provision(query: str) -> dict:
     응답 최상위에 짧은 `disclaimer` 1개만 두고, 각 결과에는 manifest 특유의 `warnings`만 첨부.
     snippet은 _SNIPPET_MAX (2000자)로 제한 — MCP output size limit 회피.
     """
+    # 6차 AI feedback: empty/공백/1글자 query 무차별 매칭 방어
+    query = (query or "").strip()
+    if len(query) < 2:
+        return {
+            "query": query,
+            "total": 0,
+            "results": [],
+            "errors": [{
+                "code": "invalid_query",
+                "message": "query는 의미 있는 검색을 위해 공백 제외 2자 이상이어야 합니다.",
+            }],
+            "contract_version": CONTRACT_VERSION,
+            "disclaimer": _DISCLAIMER,
+        }
+
     items = load_manifest()
     live_items = [rs for rs in items if rs.retrieval == Retrieval.LIVE_API]
     client = _get_client()
@@ -174,7 +201,9 @@ async def search_provision(query: str) -> dict:
                 articles = detail.get("articles", [])
                 annexes = detail.get("annexes", [])
         except LawApiError as e:
-            logger.warning("search_provision: %s detail 실패: %s", rs.id, e)
+            # 6차 AI feedback: log에 e 원본을 출력하지 않음 (sanitize 적용된 응답과 달리 log에 우연히 키 누설 risk).
+            # code와 rule_set_id만 log — message는 sanitize 거친 후 응답에만.
+            logger.warning("search_provision: rule_set=%s detail 실패, code=%s", rs.id, e.code)
             errors.append({"rule_set_id": rs.id, "code": e.code, "message": _sanitize_error_message(e.message)})
             continue
 
@@ -229,8 +258,11 @@ async def suggest_review_sources(question: str) -> dict:
 
     # 각 keyword로 search_provision 호출 후 통합 (provision_id로 dedupe)
     all_matches: dict[str, dict] = {}
+    all_errors: list[dict] = []  # 6차 AI feedback: search 실패를 "후보 없음"으로 위장하지 말 것
     for kw in keywords:
         res = await search_provision(kw)
+        for err in res.get("errors", []):
+            all_errors.append({**err, "keyword": kw})
         for m in res.get("results", []):
             pid = m["provision_id"]
             if pid in all_matches:
@@ -271,7 +303,7 @@ async def suggest_review_sources(question: str) -> dict:
         for title in seen_titles[rank]
     ]
 
-    return {
+    response = {
         "question": question,
         "extracted_keywords": keywords,
         "recommended_review_order": review_order,
@@ -280,6 +312,9 @@ async def suggest_review_sources(question: str) -> dict:
         "disclaimer": _DISCLAIMER,
         "contract_version": CONTRACT_VERSION,
     }
+    if all_errors:
+        response["errors"] = all_errors
+    return response
 
 
 @mcp.tool()

@@ -74,6 +74,14 @@ def test_strip_particle_keeps_short_words():
     assert _strip_particle("것은") == "것은"  # "것"만 남으면 1자, 원본 유지
 
 
+def test_strip_particle_keeps_noun_ending_in_ga():
+    """6차 AI feedback 회귀: '특별평가'의 끝 '가'를 조사로 잘못 strip하지 않아야 함."""
+    assert _strip_particle("특별평가") == "특별평가"
+    assert _strip_particle("정의") == "정의"  # '의'도 stay
+    assert _strip_particle("기준에") == "기준에"  # '에'도 stay
+    assert _strip_particle("연구개발비") == "연구개발비"  # '비' = noun, not particle
+
+
 def test_extract_keywords_strips_particles():
     result = _extract_keywords("특별평가를 받으려면 어떤 절차가 필요한가요?")
     assert "특별평가" in result
@@ -106,6 +114,16 @@ def test_make_snippet_no_match_returns_prefix():
 
 
 # === search_provision ===
+def test_search_provision_empty_query_returns_invalid(mock_client):
+    """6차 AI feedback 회귀: empty/공백/1글자 query는 invalid_query error 반환."""
+    for q in ["", " ", "  ", "법"]:
+        result = asyncio.run(search_provision(q))
+        assert result["total"] == 0, f"{q!r}: should not match"
+        assert "errors" in result
+        assert result["errors"][0]["code"] == "invalid_query"
+        assert "disclaimer" in result
+
+
 def test_search_provision_response_shape(mock_client):
     result = asyncio.run(search_provision("특별평가"))
     assert "query" in result
@@ -232,6 +250,17 @@ def test_suggest_review_sources_no_key_leak(mock_client):
     result = asyncio.run(suggest_review_sources("특별평가"))
     response_str = json.dumps(result, ensure_ascii=False)
     assert _FAKE_KEY not in response_str
+
+
+def test_suggest_review_sources_propagates_search_errors(mock_client):
+    """6차 AI feedback 회귀: 내부 search_provision 실패를 errors로 전파 (매칭 없음으로 위장 금지)."""
+    mock_client.get_law_detail.side_effect = LawApiError("parse_failed", "synthetic error")
+    mock_client.get_admin_rule_detail.side_effect = LawApiError("parse_failed", "synthetic error")
+    result = asyncio.run(suggest_review_sources("특별평가"))
+    assert "errors" in result, "search 실패가 suggest_review_sources errors로 전파되어야 함"
+    assert len(result["errors"]) >= 1
+    # error에 keyword 정보 포함
+    assert any("keyword" in e for e in result["errors"])
 
 
 # === list_rule_sets contract_version (Phase 3 보강) ===

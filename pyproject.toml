@@ -19,6 +19,7 @@ korean-rnd-regs-mcp = "korean_rnd_regs_mcp.main:main"
 [project.optional-dependencies]
 dev = [
     "build>=1,<2",
+    "hatchling>=1,<2",
     "pytest>=8,<9",
     "twine>=5,<7",
 ]
