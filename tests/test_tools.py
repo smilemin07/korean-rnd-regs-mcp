@@ -267,7 +267,70 @@ def test_suggest_review_sources_propagates_search_errors(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "1.0.1"
+    assert result["contract_version"] == "1.0.2"
+
+
+# === _build_article_content (6차 AI P0 회귀) ===
+def test_build_article_content_concatenates_hangs_and_hos():
+    """다항조문 본문이 조문내용 + 항(항내용 + 호) 형태로 reconstruct되는지 검증.
+
+    6차 AI feedback P0: 직전 buggy 상태는 조문내용(title repeat)만 반환하여 본문 누락.
+    """
+    import xml.etree.ElementTree as ET
+
+    from korean_rnd_regs_mcp.live_api import _build_article_content
+
+    xml = """
+    <조문단위>
+      <조문번호>15</조문번호>
+      <조문제목>특별평가</조문제목>
+      <조문내용>제15조(특별평가)</조문내용>
+      <항>
+        <항번호>①</항번호>
+        <항내용>① 중앙행정기관의 장은 다음 각 호의 사유</항내용>
+        <호>
+          <호번호>1.</호번호>
+          <호내용>1.  부정행위가 발생한 경우</호내용>
+        </호>
+        <호>
+          <호번호>2.</호번호>
+          <호내용>2.  참여제한이 확정된 경우</호내용>
+        </호>
+      </항>
+      <항>
+        <항번호>②</항번호>
+        <항내용>② 연구개발기관은 다음 경우 요청</항내용>
+      </항>
+    </조문단위>
+    """
+    elem = ET.fromstring(xml)
+    content = _build_article_content(elem)
+
+    # 조문내용 + 두 항 + 호 모두 포함
+    assert "제15조(특별평가)" in content
+    assert "① 중앙행정기관" in content
+    assert "1.  부정행위" in content
+    assert "2.  참여제한" in content
+    assert "② 연구개발기관" in content
+    # 길이 sanity: 조문내용만일 때보다 충분히 길어짐 (조문내용=14자, 항·호 합치면 ≥80자)
+    assert len(content) > 80
+
+
+def test_build_article_content_short_article_returns_intro_only():
+    """짧은 조문(항 없음)은 조문내용만 반환."""
+    import xml.etree.ElementTree as ET
+
+    from korean_rnd_regs_mcp.live_api import _build_article_content
+
+    xml = """
+    <조문단위>
+      <조문번호>1</조문번호>
+      <조문제목>목적</조문제목>
+      <조문내용>제1조(목적) 이 법은 ... 함을 목적으로 한다.</조문내용>
+    </조문단위>
+    """
+    elem = ET.fromstring(xml)
+    assert _build_article_content(elem) == "제1조(목적) 이 법은 ... 함을 목적으로 한다."
 
 
 # === live_api 보안 회귀 (Fix A 검증의 mock 버전) ===

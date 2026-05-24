@@ -145,6 +145,30 @@ def _request_with_retry(
     raise LawApiError(ERROR_PARSE_FAILED, f"네트워크 오류 (재시도 {max_retries}회 실패, 종류={err_type})")
 
 
+def _build_article_content(article_elem: ET.Element) -> str:
+    """조문 element의 전체 본문 reconstruct: 조문내용 + 항(항내용 + 호) 합침.
+
+    국가법령정보 OpenAPI 응답 구조:
+    - <조문내용>: 짧은 조문(항 없음)은 본문 전체. 다항조문(예: 혁신법 제15조)은 title repeat만 ("제15조(...)").
+    - <항>: 각 항이 <항내용>(예: "① ...본문...")과 <호>들(<호내용>="1. ...")을 포함.
+
+    본 헬퍼는 둘을 합쳐 사용자가 read 가능한 단일 본문으로 반환.
+    """
+    parts: list[str] = []
+    intro = (article_elem.findtext("조문내용") or "").strip()
+    if intro:
+        parts.append(intro)
+    for hang in article_elem.findall("항"):
+        hang_text = (hang.findtext("항내용") or "").strip()
+        if hang_text:
+            parts.append(hang_text)
+        for ho in hang.findall("호"):
+            ho_text = (ho.findtext("호내용") or "").strip()
+            if ho_text:
+                parts.append("  " + ho_text)  # 2-space indent for visual hierarchy
+    return "\n".join(parts)
+
+
 def _parse_xml(response: requests.Response) -> ET.Element:
     """Parse response as XML. Defend against HTML error pages."""
     content_type = response.headers.get("Content-Type", "").lower()
@@ -257,7 +281,9 @@ class LawApiClient:
                 {
                     "조문번호": a.findtext("조문번호", ""),
                     "조문제목": a.findtext("조문제목", ""),
-                    "조문내용": a.findtext("조문내용", ""),
+                    # 6차 AI feedback P0: 다항조문은 본문이 <항>·<호>에 있음.
+                    # _build_article_content가 조문내용 + 항(항내용 + 호) 모두 합침.
+                    "조문내용": _build_article_content(a),
                 }
                 for a in root.findall(".//조문단위")
             ]
@@ -301,7 +327,9 @@ class LawApiClient:
                 {
                     "조문번호": a.findtext("조문번호", ""),
                     "조문제목": a.findtext("조문제목", ""),
-                    "조문내용": a.findtext("조문내용", ""),
+                    # 6차 AI feedback P0: 다항조문은 본문이 <항>·<호>에 있음.
+                    # _build_article_content가 조문내용 + 항(항내용 + 호) 모두 합침.
+                    "조문내용": _build_article_content(a),
                 }
                 for a in root.findall(".//조문단위")
             ]

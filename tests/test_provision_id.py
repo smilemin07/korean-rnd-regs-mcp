@@ -13,7 +13,8 @@ from korean_rnd_regs_mcp.provision_id import (
 
 def test_contract_version_pinned():
     # 1.0.1: BP(별표) prefix 추가 (Step 16-17 LIVE 발견 반영, minor bump)
-    assert CONTRACT_VERSION == "1.0.1"
+    # 1.0.2: 조문 본문이 항·호 element에서 reconstruct되도록 fix (Step 30-31 E2E P0)
+    assert CONTRACT_VERSION == "1.0.2"
 
 
 # === 정상 케이스: 조문(JO) 3개 ===

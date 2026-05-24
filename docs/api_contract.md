@@ -1,7 +1,7 @@
 # korean-rnd-regs-mcp API Contract
 
-- contract_version: **1.0.1**
-- 작성일: 2026-05-24 (1.0.0 → 1.0.1 minor bump: Step 16-17 LIVE 검증으로 별표(BP) prefix 추가)
+- contract_version: **1.0.2**
+- 작성일: 2026-05-24 (1.0.0 → 1.0.1 BP prefix → 1.0.2 조문 본문 항·호 reconstruct fix)
 - 변경 정책: 본 문서 변경은 외부 사용자 코드·Claude Desktop 캐시·README 예시를 깰 수 있으므로 0.1.0 publish 이후 신중히 (§6 참조)
 
 ## 1. 목적
@@ -156,5 +156,6 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 |---|---|---|
 | 1.0.0 | 2026-05-24 | 초기 contract (JO 조문 prefix만) |
 | 1.0.1 | 2026-05-24 | BP(별표) prefix 추가 + `unit_type()` helper. Step 16-17 LIVE 검증으로 일부 행정규칙이 조문 없이 별표만 갖는 케이스 발견 |
+| 1.0.2 | 2026-05-24 | **조문 본문 reconstruct fix (P0)**. 직전 buggy 상태: `조문내용` field가 다항조문(예: 혁신법 제15조)에 대해 title repeat("제N조(...)")만 반환 — 실제 본문(항·호) 누락. fix: live_api.py의 `_build_article_content` helper가 `<조문내용>` + `<항>` (`<항내용>` + 중첩 `<호내용>`) 합쳐 단일 본문으로 반환. Step 30-31 Claude Desktop E2E에서 발견 |
 
 - 도구 응답에 `contract_version` 필드 포함 권장 (search_provision·get_provision_detail·suggest_review_sources). 클라이언트가 호환 여부 확인 가능.
