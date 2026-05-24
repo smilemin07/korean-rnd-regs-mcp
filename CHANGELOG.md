@@ -15,7 +15,7 @@
 - `suggest_review_sources` — 자연어 질문 → 키워드 추출 → 검토 후보 + 추천 순서
 
 #### MCP Prompts (1종 — v0.2 plan 1·3 보강을 v0.1.0에 미리 포함)
-- `review_regulation` — 다층적 규정 검토 워크플로 자동 적용. Claude Desktop의 prompts 메뉴에서 선택 시, 본 server의 13개 규정을 위계 순서로 cross-reference하여 근거 조항 verbatim 인용과 함께 답변. review-regulations skill 패턴을 본 server 도구 호출 형태로 자동화 — 외부 사용자도 별도 skill 설치 없이 동일한 깊이의 검토 가능
+- `review_regulation` — 다층적 규정 검토 워크플로 자동 적용. Claude Desktop의 prompts 메뉴에서 선택 시, 본 server의 13개 규정을 위계 순서로 cross-reference하여 근거 조항 verbatim 인용과 함께 답변. 본 프로젝트 저자의 표준 규정 검토 워크플로 패턴(Tier 1 → Tier 2 → Supplementary, provision_id verbatim 인용)을 본 server 도구 호출 형태로 자동화 — 외부 사용자도 별도 skill 설치 없이 표준 워크플로 기반의 1차 검토 가능. 단, 매뉴얼·부처별 운영규정·관리지침은 본 server 미커버 (별도 자료 확인 필요)
 
 #### Manifest (13개 rule set — 4개 MVP + 9개 v0.2 보강을 v0.1.0에 미리 포함)
 
@@ -59,6 +59,17 @@ Supplementary — 신고·포상금·부패행위·청탁금지·공익신고자
 ### Tests
 - 67 unit tests (mock 기반, 네트워크 미사용) — manifest 13건 검증, prompt template substitution, schema B fallback 등 포함
 - LIVE API 통합 테스트는 v0.2에서 @pytest.mark.network 마커로 분리 예정
+
+### 9차 AI review 추가 fix (publish 직전)
+
+ +  합의 발견 사항 반영:
+
+- live_api.py `_FLAT_ARTICLE_PATTERN`: 제목 내부 괄호 대응을 위해 lazy match로 변경 (`r'제(\d+)조(?:의(\d+))?\s*\((.+?)\)\s*(.*)'`). 괄호 자체는 필수 유지 → 장/절/관 wrapper("제1장 총칙" 등) 자동 제외 효과 유지
+- live_api.py 가지조문 collision 방지: 표준 schema + 평면 schema 양쪽에서 가지조문(제15조의2 등) skip. contract 0.1.0의 provision_id가 JO + 숫자만 지원하므로 가지조문은 본 조문과 조문번호 충돌 (예: rnd_funding_standard에 제10조의2/제11조의2/제15조의2 등 8건 LIVE 발견). v0.2 prefix 확장 시 자동 활성화 예정
+- rule_sets.yaml unit_types 정정: rnd_funding_standard·facility_equipment_standard 둘 다 평면 schema fallback으로 조문 본문도 풍부함이 확인되어 annex → both 변경. 조문 117개/46개 본문이 search 대상에 포함됨
+- rule_sets.yaml + manifest.py HierarchyRank Enum 확장: Supplementary 법률 rank 1→5, Supplementary 시행령 rank 2→6. 직전엔 부패방지법(rank 1)이 혁신법 시행령(rank 2)보다 먼저 추천되던 정렬 오염을 해결 — 표준 위계 순서(혁신법 family → 행정규칙 → Supplementary) 보장
+- pyproject.toml sdist 정리: CLAUDE.md(Andy 내부 노트) + .claude/(redirect notice + project-local skill) public sdist에서 명시적 exclude. README/CHANGELOG/SECURITY/LICENSE만 노출
+- README.md 정리: vault 절대 경로(`REDACTED_PATH/Library/...`) 제거 + 일반 설명으로 대체, "동일한 깊이" → "표준 워크플로 기반 1차 검토"로 표현 약화 (매뉴얼·운영규정·관리지침 미커버 명시), stale "4개 rule set"·"63 passed" 정정
 
 ### Known Limitations (v0.2 / v0.3 deferred)
 - 가지조문(예: 제15조의2): 현재 provision_id 포맷이 `JO` + 숫자만 지원 — 검색·상세조회에서 누락. v0.2 prefix 확장 예정

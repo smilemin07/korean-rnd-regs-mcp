@@ -74,7 +74,7 @@ rule_sets:
     api_target: admrul
     api_id_type: admrul_id
     api_doc_id: "2100000278740"
-    unit_types: annex
+    unit_types: both
     query:
       - 국가연구개발사업 연구개발비 사용 기준
       - 연구개발비 사용 기준
@@ -83,7 +83,8 @@ rule_sets:
     effective_date: "2024-06-13"
     source_url: https://www.law.go.kr/행정규칙/국가연구개발사업연구개발비사용기준
     known_limitations:
-      - "본 행정규칙은 조문 없이 별표 30개로 구성 — search_provision은 별표 본문에서 검색 필요"
+      - "본 행정규칙은 평면 schema(<조문내용> root 직속) — get_admin_rule_detail의 fallback으로 조문 117개 + 별표 30개 모두 검색"
+      - "가지조문 8건(예: 제10조의2, 제15조의2) 검색·상세조회 누락 — v0.2 prefix 확장 예정 (현재는 silent skip으로 collision 방지)"
       - "일부 별표는 HWP/PDF 첨부파일 형태 — 별표내용 필드가 비어있으면 source_url 별도 확인"
 
   - id: simultaneous_research_limit
@@ -114,7 +115,7 @@ rule_sets:
     api_target: admrul
     api_id_type: admrul_id
     api_doc_id: "2100000278230"
-    unit_types: annex
+    unit_types: both
     query:
       - 국가연구개발 시설 장비 관리
       - 시설 장비 표준지침
@@ -123,7 +124,7 @@ rule_sets:
     effective_date: "2026-04-23"
     source_url: https://www.law.go.kr/행정규칙/국가연구개발시설ㆍ장비의관리등에관한표준지침
     known_limitations:
-      - "본 행정규칙은 조문 없이 별표 13개로 구성 — search_provision은 별표 본문에서 검색 필요"
+      - "본 행정규칙은 평면 schema(<조문내용> root 직속) — get_admin_rule_detail의 fallback으로 조문 46개 + 별표 13개 모두 검색"
 
   - id: research_note_guideline
     title: 국가연구개발사업 연구노트 지침
@@ -150,7 +151,7 @@ rule_sets:
   - id: anti_corruption_act
     title: 부패방지 및 국민권익위원회의 설치와 운영에 관한 법률
     tier: "Supplementary"
-    hierarchy_rank: 1
+    hierarchy_rank: 5
     retrieval: live_api
     api_target: law
     api_id_type: MST
@@ -169,7 +170,7 @@ rule_sets:
   - id: anti_corruption_decree
     title: 부패방지 및 국민권익위원회의 설치와 운영에 관한 법률 시행령
     tier: "Supplementary"
-    hierarchy_rank: 2
+    hierarchy_rank: 6
     retrieval: live_api
     api_target: law
     api_id_type: MST
@@ -187,7 +188,7 @@ rule_sets:
   - id: improper_solicitation_act
     title: 부정청탁 및 금품등 수수의 금지에 관한 법률
     tier: "Supplementary"
-    hierarchy_rank: 1
+    hierarchy_rank: 5
     retrieval: live_api
     api_target: law
     api_id_type: MST
@@ -206,7 +207,7 @@ rule_sets:
   - id: improper_solicitation_decree
     title: 부정청탁 및 금품등 수수의 금지에 관한 법률 시행령
     tier: "Supplementary"
-    hierarchy_rank: 2
+    hierarchy_rank: 6
     retrieval: live_api
     api_target: law
     api_id_type: MST
@@ -224,7 +225,7 @@ rule_sets:
   - id: public_interest_whistleblower_act
     title: 공익신고자 보호법
     tier: "Supplementary"
-    hierarchy_rank: 1
+    hierarchy_rank: 5
     retrieval: live_api
     api_target: law
     api_id_type: MST
@@ -243,7 +244,7 @@ rule_sets:
   - id: public_interest_whistleblower_decree
     title: 공익신고자 보호법 시행령
     tier: "Supplementary"
-    hierarchy_rank: 2
+    hierarchy_rank: 6
     retrieval: live_api
     api_target: law
     api_id_type: MST

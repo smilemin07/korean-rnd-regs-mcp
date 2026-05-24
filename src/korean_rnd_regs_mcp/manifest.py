@@ -21,10 +21,16 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class HierarchyRank(int, Enum):
-    LAW = 1            # 법률
-    DECREE = 2         # 시행령
-    RULE = 3           # 시행규칙
-    ADMIN_RULE = 4     # 행정규칙
+    LAW = 1            # 법률 (혁신법 family — Tier 1)
+    DECREE = 2         # 시행령 (혁신법 family — Tier 1)
+    RULE = 3           # 시행규칙 (혁신법 family — Tier 1)
+    ADMIN_RULE = 4     # 행정규칙 (Tier 2)
+    # Supplementary (부패방지법·청탁금지법·공익신고자보호법 등) — Tier 1 검토 후순위로 추천
+    # 9차 AI review ( +  합의 P1): rank=1로 두면 혁신법(rank 1)과 동순위가 되어
+    # suggest_review_sources의 recommended_review_order에서 Supplementary 법률이 혁신법 시행령(rank 2)보다
+    # 먼저 추천되는 정렬 오염 발생 → Supplementary는 rank 5/6으로 명확히 후순위.
+    SUPP_LAW = 5       # Supplementary 법률
+    SUPP_DECREE = 6    # Supplementary 시행령
 
 
 class Retrieval(str, Enum):

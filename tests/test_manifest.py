@@ -49,11 +49,15 @@ def test_api_doc_id_unique_per_target():
 
 
 def test_hierarchy_rank_matches_api_target():
-    """law api_target은 rank 1-3, admrul은 rank 4."""
+    """law api_target은 rank 1/2/3/5/6, admrul은 rank 4.
+
+    rank 5/6은 Supplementary 법률·시행령 (부패방지법 등) — 혁신법 family(1-3)와 분리하여
+    추천 순서에서 후순위로 처리. 9차 AI review 합의 P1 반영.
+    """
     for rs in load_manifest():
         if rs.api_target == ApiTarget.LAW:
-            assert rs.hierarchy_rank.value in (1, 2, 3), (
-                f"{rs.id}: law는 rank 1-3이어야 함, 실제 {rs.hierarchy_rank.value}"
+            assert rs.hierarchy_rank.value in (1, 2, 3, 5, 6), (
+                f"{rs.id}: law는 rank 1/2/3/5/6이어야 함, 실제 {rs.hierarchy_rank.value}"
             )
         elif rs.api_target == ApiTarget.ADMRUL:
             assert rs.hierarchy_rank.value == 4, (

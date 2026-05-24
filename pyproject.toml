@@ -74,6 +74,8 @@ packages = ["src/korean_rnd_regs_mcp"]
 "src/korean_rnd_regs_mcp/rule_sets.yaml" = "korean_rnd_regs_mcp/rule_sets.yaml"
 
 [tool.hatch.build.targets.sdist]
+# 9차 AI review ( P1): sdist는 PyPI publish 시 외부 사용자에게 전체 공개되므로,
+# Andy 내부 작업 노트(CLAUDE.md, .claude/) 와 vault 경로는 제외. README/CHANGELOG/SECURITY/LICENSE만 노출.
 include = [
     "src/korean_rnd_regs_mcp/**/*.py",
     "src/korean_rnd_regs_mcp/**/*.yaml",
@@ -83,10 +85,14 @@ include = [
     "CHANGELOG.md",
     "SECURITY.md",
     "LICENSE",
-    "CLAUDE.md",
     "env.example",
     ".gitignore",
     "pyproject.toml",
+]
+exclude = [
+    "CLAUDE.md",
+    ".claude/",
+    ".claude/**",
 ]
 
 [tool.pytest.ini_options]

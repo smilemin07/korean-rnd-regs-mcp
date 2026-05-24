@@ -17,8 +17,11 @@ from cachetools import TTLCache
 from .provision_id import CONTRACT_VERSION
 
 # 평면 schema(root 직속 <조문내용>) 행정규칙 파싱용 정규식.
-# "제N조[의M](제목) 본문..." 패턴. LIVE 검증: 동시수행 과제 수 제한, 연구노트 지침 등.
-_FLAT_ARTICLE_PATTERN = re.compile(r'제(\d+)조(?:의(\d+))?\s*\(([^)]*)\)\s*(.*)', re.DOTALL)
+# "제N조[의M](제목) 본문..." 패턴. LIVE 검증: 동시수행 과제 수 제한, 연구노트 지침, 연구개발비 사용 기준 등.
+# 9차 AI review ( P0): 제목 내부 괄호 대응 위해 `.+?` lazy match 사용 (단순 `[^)]*`는
+# "(중소기업(A) 기준)" 같은 중첩 괄호에서 매칭 끊김). 괄호 자체는 필수 — 장/절/관 wrapper
+# ("제1장 총칙" 등) 자동 제외 효과 유지.
+_FLAT_ARTICLE_PATTERN = re.compile(r'제(\d+)조(?:의(\d+))?\s*\((.+?)\)\s*(.*)', re.DOTALL)
 
 logger = logging.getLogger("rnd-regs-mcp.live_api")
 
@@ -217,18 +220,33 @@ def _build_article_structure(article_elem: ET.Element) -> dict:
 def _parse_flat_article(elem: ET.Element) -> Optional[dict]:
     """평면 schema(root 직속 <조문내용>) 행정규칙 한 element를 article dict로 변환.
 
-    일부 행정규칙(예: 동시수행 과제 수 제한, 연구노트 지침)은 `<조문단위>` wrapper 없이
-    `<조문내용>` element가 root 직속으로 평면 배치됨. 이 schema를 fallback으로 지원.
-    LIVE 검증: 두 행정규칙 모두 "제N조(제목) 본문..." 패턴 일관 매칭.
+    일부 행정규칙(예: 동시수행 과제 수 제한, 연구노트 지침, 연구개발비 사용 기준)은 `<조문단위>`
+    wrapper 없이 `<조문내용>` element가 root 직속으로 평면 배치됨. 이 schema를 fallback으로 지원.
 
-    가지조문(예: 제15조의2)의 가지번호는 contract 0.1.0에서 표현 불가 — 정규식은 매칭하나
-    JO unit_id에는 본 조문번호만 사용됨 → 가지조문 collision 가능 (v0.2 prefix 확장 시 해결).
+    9차 AI review 합의 P1 ( + ): 가지조문(제15조의2 등) silent skip.
+    - 현재 contract 0.1.0 provision_id는 JO + 숫자만 지원 — 가지번호 표현 불가
+    - 정규식이 가지조문 매칭하면 본 조문(제15조)과 동일 조문번호=15로 collision 발생
+    - 예: rnd_funding_standard에 제10조의2/제11조의2/제15조의2/제16조의2/제17조의2 등 8건 LIVE 발견
+    - skip + logger.warning으로 누락 통지. v0.2 prefix 확장 시 자동 활성화 예정.
     """
     text = (elem.text or "").strip()
+    if not text:
+        return None
     m = _FLAT_ARTICLE_PATTERN.match(text)
     if not m:
+        # wrapper element("제1장 총칙", "제1절 사용용도" 등) 또는 매칭 실패 — silent skip 정상
+        # 매칭 실패 진단을 위해 head만 debug log (사용자 응답에는 노출 안 됨)
+        if text and text.startswith("제") and "조" in text[:20]:
+            logger.debug("flat schema parse miss: head=%s...", text[:80])
         return None
-    no, _gaji, title, _body = m.groups()
+    no, gaji, title, _body = m.groups()
+    if gaji:
+        # 가지조문 — contract 0.1.0 미지원, skip하여 collision 방지
+        logger.warning(
+            "flat schema: 가지조문 제%s조의%s(%s) skip — contract 0.1.0 미지원 (v0.2 deferred)",
+            no, gaji, title,
+        )
+        return None
     first_line = text.split('\n', 1)[0]
     return {
         "조문번호": no,
@@ -350,6 +368,8 @@ class LawApiClient:
             # 8차 AI review LIVE 검증 P0: <조문여부>=전문 element는 장/절/관 wrapper(예: "제1장 총칙")로
             # 실제 조문이 아님. 동일 조문번호로 wrapper + 실제 조문이 함께 등장하여 (혁신법·시행령 7건 collision)
             # JO0001 검색·상세조회 시 wrapper만 반환되는 silent bug 발생. 조문여부="조문"만 articles에 포함.
+            # 9차 AI review 합의 P1: 가지조문(<조문가지번호> 채워진 element)도 skip — 현재 contract 0.1.0
+            # provision_id가 JO + 숫자만 지원하므로 가지조문은 본 조문과 collision (예: 제15조 ↔ 제15조의2).
             articles = [
                 {
                     "조문번호": a.findtext("조문번호", ""),
@@ -362,6 +382,7 @@ class LawApiClient:
                 }
                 for a in root.findall(".//조문단위")
                 if (a.findtext("조문여부") or "").strip() == "조문"
+                and not (a.findtext("조문가지번호") or "").strip()
             ]
             result = {
                 "법령ID": root.findtext(".//법령ID", ""),
@@ -398,7 +419,7 @@ class LawApiClient:
         try:
             response = _request_with_retry(url, params)
             root = _parse_xml(response)
-            # 조문 (있을 수도 없을 수도). 8차 AI review LIVE 검증: wrapper element 동일 filter 적용.
+            # 조문 (있을 수도 없을 수도). 8차/9차 AI review: wrapper element + 가지조문 동일 filter 적용.
             articles = [
                 {
                     "조문번호": a.findtext("조문번호", ""),
@@ -411,6 +432,7 @@ class LawApiClient:
                 }
                 for a in root.findall(".//조문단위")
                 if (a.findtext("조문여부") or "").strip() == "조문"
+                and not (a.findtext("조문가지번호") or "").strip()
             ]
             # 평면 schema fallback: 일부 행정규칙은 <조문단위> 없이 root 직속 <조문내용> 사용.
             # LIVE 검증: 동시수행 과제 수 제한(ID 2100000196149), 연구노트 지침(ID 2100000207982).

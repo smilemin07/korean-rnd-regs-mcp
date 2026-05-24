@@ -89,8 +89,8 @@ def test_list_rule_sets_returns_live_api_items():
         "public_interest_whistleblower_act", "public_interest_whistleblower_decree",
     }
     assert ids == expected, f"id 불일치: 누락={expected - ids}, 추가={ids - expected}"
-    # 모든 항목이 필수 field
+    # 모든 항목이 필수 field. rank 5/6 = Supplementary 법률/시행령 (9차 AI review 추가)
     for rs in result["rule_sets"]:
         assert rs["api_target"] in ("law", "admrul")
-        assert rs["hierarchy_rank"] in (1, 2, 3, 4)
+        assert rs["hierarchy_rank"] in (1, 2, 3, 4, 5, 6)
         assert rs["unit_types"] in ("article", "annex", "both")
