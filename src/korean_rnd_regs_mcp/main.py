@@ -37,6 +37,14 @@ mcp = FastMCP("korean-rnd-regs-mcp", version=__version__)
 _DISCLAIMER = "본 결과는 검토 후보일 뿐 법률 판단이 아닙니다. 출처를 직접 확인하세요."
 _SNIPPET_MAX = 2000
 _LAW_GO_KR_BASE = "https://www.law.go.kr"
+_VERBATIM_INSTRUCTIONS = (
+    "본 응답의 content / article_structure는 국가법령정보 OpenAPI에서 직접 받은 법령 원문을 "
+    "재구성한 것입니다 (plain text verbatim). 사용자에게 표시할 때 다음 정책을 엄격히 준수: "
+    "(1) 임의 부제·요약·paraphrase 추가 금지 — 원문에 없는 '(중앙행정기관 직권 변경·중단)' 같은 "
+    "헤더 발명 금지. (2) 항(①②③) 번호와 호(1./2./3.) 번호 prefix를 stripping 금지. "
+    "(3) 줄바꿈·들여쓰기를 유지. (4) 항·호 hierarchy는 article_structure 필드로 machine-readable "
+    "제공되므로 LLM이 직접 reformat할 필요 없음. 법령 검토의 정확성 훼손 방지를 위해 verbatim 인용."
+)
 _RANK_NAMES = {1: "법률", 2: "시행령", 3: "시행규칙", 4: "행정규칙"}
 _KEYWORD_STOPWORDS = frozenset({
     "대해", "관련", "관해", "관하여", "경우", "에서", "으로", "에게",
@@ -319,11 +327,17 @@ async def suggest_review_sources(question: str) -> dict:
 
 @mcp.tool()
 async def get_provision_detail(provision_id: str) -> dict:
-    """provision_id로 단일 조문/별표 본문 재조회 (Step 22a 법령 + Step 22b 행정규칙 통합).
+    """provision_id로 단일 조문/별표 본문 재조회 — 응답은 법령 원문 verbatim.
+
+    중요 (LLM 표시 정책): 응답의 `content`와 `article_structure` 는 국가법령정보 OpenAPI의
+    법령 원문을 그대로 재구성한 것입니다. 사용자에게 표시할 때 임의 부제 추가·요약·paraphrase
+    를 절대 추가하지 말고, 항(①②③)·호(1./2./3.) 번호와 줄바꿈을 모두 유지하여 원문을
+    그대로 인용해야 합니다 (법령 검토의 정확성 훼손 방지). 자세한 정책은 응답의
+    `format_instructions` 필드 참조.
 
     provision_id 포맷: {doc_type}:{doc_id}[:{unit_id}]
     - unit_id 생략 시 document-level 요약 반환
-    - unit_id가 JO… 면 조문 본문, BP… 면 별표 본문 (행정규칙 한정)
+    - unit_id가 JO… 면 조문 본문 + article_structure, BP… 면 별표 본문 (행정규칙 한정)
     """
     try:
         pid = parse_provision_id(provision_id)
@@ -400,6 +414,9 @@ async def get_provision_detail(provision_id: str) -> dict:
                     "unit_id": pid.unit_id,
                     "title": (art.get("조문제목") or "").strip(),
                     "content": (art.get("조문내용") or "").strip(),
+                    "content_format": "plain_text_verbatim",
+                    "article_structure": art.get("structured"),
+                    "format_instructions": _VERBATIM_INSTRUCTIONS,
                     "effective_date": rs.effective_date,
                     "contract_version": CONTRACT_VERSION,
                     "disclaimer": _DISCLAIMER,

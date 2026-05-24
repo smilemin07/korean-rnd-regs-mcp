@@ -39,8 +39,30 @@ def mock_client(monkeypatch):
         "시행일자": "20250228",
         "공포일자": "20240227",
         "articles": [
-            {"조문번호": "15", "조문제목": "특별평가", "조문내용": "제15조(특별평가) 특별평가 본문..."},
-            {"조문번호": "21", "조문제목": "간접비계상", "조문내용": "제21조 간접비 본문..."},
+            {
+                "조문번호": "15",
+                "조문제목": "특별평가",
+                "조문내용": "제15조(특별평가) 특별평가 본문...",
+                "structured": {
+                    "title": "제15조(특별평가)",
+                    "paragraphs": [
+                        {
+                            "number": "①",
+                            "text": "중앙행정기관의 장은 다음 각 호...",
+                            "source_text": "① 중앙행정기관의 장은 다음 각 호...",
+                            "subparagraphs": [
+                                {"number": "1.", "text": "부정행위 발생", "source_text": "1. 부정행위 발생"},
+                            ],
+                        },
+                    ],
+                },
+            },
+            {
+                "조문번호": "21",
+                "조문제목": "간접비계상",
+                "조문내용": "제21조 간접비 본문...",
+                "structured": {"title": "제21조(간접비계상)", "paragraphs": []},
+            },
         ],
     }
     client.get_admin_rule_detail.return_value = {
@@ -217,6 +239,68 @@ def test_get_provision_detail_no_key_leak(mock_client):
     assert _FAKE_KEY[:6] not in response_str
 
 
+# === 7차 AI feedback: LLM 환각 방어 (article_structure + format_instructions) ===
+def test_get_provision_detail_article_includes_verbatim_metadata(mock_client):
+    """7차 AI feedback 회귀: content가 verbatim임을 명시하는 metadata 포함."""
+    result = asyncio.run(get_provision_detail("law:260807:JO0015"))
+    assert result.get("content_format") == "plain_text_verbatim"
+    assert "format_instructions" in result
+    instructions = result["format_instructions"]
+    # 핵심 지시 키워드 확인
+    assert "verbatim" in instructions.lower() or "그대로" in instructions
+    assert "임의" in instructions  # "임의 부제·요약·paraphrase 금지"
+    assert "번호" in instructions  # 항·호 번호 stripping 금지
+
+
+def test_get_provision_detail_article_includes_article_structure(mock_client):
+    """7차 AI feedback 회귀: machine-readable nested hierarchy."""
+    result = asyncio.run(get_provision_detail("law:260807:JO0015"))
+    structure = result.get("article_structure")
+    assert structure is not None
+    assert "title" in structure
+    assert "paragraphs" in structure
+    # mock에서 ①항 1개 + 1호 1개 정의
+    paragraphs = structure["paragraphs"]
+    assert len(paragraphs) >= 1
+    p = paragraphs[0]
+    assert "number" in p and "text" in p and "source_text" in p
+    assert p["number"] == "①"
+    # number prefix가 text에서는 stripped (source_text에는 유지)
+    assert p["text"].startswith("중앙행정기관") or p["text"].startswith("①")
+    assert p["source_text"].startswith("①")
+    if p.get("subparagraphs"):
+        sub = p["subparagraphs"][0]
+        assert "number" in sub and "text" in sub and "source_text" in sub
+
+
+def test_build_paragraph_strips_number_prefix():
+    """_build_paragraph 헬퍼: number 분리 + source_text 보존."""
+    import xml.etree.ElementTree as ET
+
+    from korean_rnd_regs_mcp.live_api import _build_paragraph
+
+    xml = """
+    <항>
+      <항번호>①</항번호>
+      <항내용>① 중앙행정기관의 장은 ...</항내용>
+      <호>
+        <호번호>1.</호번호>
+        <호내용>1.  부정행위 발생</호내용>
+      </호>
+    </항>
+    """
+    elem = ET.fromstring(xml)
+    result = _build_paragraph(elem)
+    assert result["number"] == "①"
+    assert result["text"] == "중앙행정기관의 장은 ..."  # ① stripped
+    assert result["source_text"] == "① 중앙행정기관의 장은 ..."  # 원문 보존
+    assert len(result["subparagraphs"]) == 1
+    sub = result["subparagraphs"][0]
+    assert sub["number"] == "1."
+    assert sub["text"] == "부정행위 발생"  # "1." stripped (lstrip로 공백도)
+    assert sub["source_text"] == "1.  부정행위 발생"
+
+
 # === suggest_review_sources ===
 def test_suggest_review_sources_extracts_keywords_after_particle_strip(mock_client):
     result = asyncio.run(suggest_review_sources("특별평가를 받으려면 어떤 절차?"))
@@ -267,7 +351,7 @@ def test_suggest_review_sources_propagates_search_errors(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "1.0.2"
+    assert result["contract_version"] == "1.0.3"
 
 
 # === _build_article_content (6차 AI P0 회귀) ===

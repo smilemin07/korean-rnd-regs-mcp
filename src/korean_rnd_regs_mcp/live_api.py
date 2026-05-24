@@ -152,7 +152,7 @@ def _build_article_content(article_elem: ET.Element) -> str:
     - <조문내용>: 짧은 조문(항 없음)은 본문 전체. 다항조문(예: 혁신법 제15조)은 title repeat만 ("제15조(...)").
     - <항>: 각 항이 <항내용>(예: "① ...본문...")과 <호>들(<호내용>="1. ...")을 포함.
 
-    본 헬퍼는 둘을 합쳐 사용자가 read 가능한 단일 본문으로 반환.
+    본 헬퍼는 둘을 합쳐 사용자가 read 가능한 단일 본문으로 반환 (plain text verbatim).
     """
     parts: list[str] = []
     intro = (article_elem.findtext("조문내용") or "").strip()
@@ -167,6 +167,50 @@ def _build_article_content(article_elem: ET.Element) -> str:
             if ho_text:
                 parts.append("  " + ho_text)  # 2-space indent for visual hierarchy
     return "\n".join(parts)
+
+
+def _build_subparagraph(ho_elem: ET.Element) -> dict:
+    """호 element를 number·text·source_text dict로 변환.
+
+    XML의 <호번호>("1.")와 <호내용>("1.  본문...")을 분리하여 외부 사용자가
+    번호와 본문을 따로 처리할 수 있게 함. source_text는 원문 보존.
+    """
+    number = (ho_elem.findtext("호번호") or "").strip()
+    source_text = (ho_elem.findtext("호내용") or "").strip()
+    # 호내용은 number prefix를 포함하므로(예: "1.  본문..."), text에서는 제거
+    if number and source_text.startswith(number):
+        text = source_text[len(number):].lstrip()
+    else:
+        text = source_text
+    return {"number": number, "text": text, "source_text": source_text}
+
+
+def _build_paragraph(hang_elem: ET.Element) -> dict:
+    """항 element를 number·text·source_text·subparagraphs dict로 변환."""
+    number = (hang_elem.findtext("항번호") or "").strip()
+    source_text = (hang_elem.findtext("항내용") or "").strip()
+    if number and source_text.startswith(number):
+        text = source_text[len(number):].lstrip()
+    else:
+        text = source_text
+    return {
+        "number": number,
+        "text": text,
+        "source_text": source_text,
+        "subparagraphs": [_build_subparagraph(ho) for ho in hang_elem.findall("호")],
+    }
+
+
+def _build_article_structure(article_elem: ET.Element) -> dict:
+    """조문 element를 machine-readable nested hierarchy로 변환.
+
+    plain text content와 같은 데이터를 외부 사용자 코드가 파싱 없이 활용 가능한 형태.
+    chat LLM이 임의로 재포맷하는 risk 방어 (원문 hierarchy를 명시).
+    """
+    return {
+        "title": (article_elem.findtext("조문내용") or "").strip(),  # "제N조(제목)" 형태
+        "paragraphs": [_build_paragraph(h) for h in article_elem.findall("항")],
+    }
 
 
 def _parse_xml(response: requests.Response) -> ET.Element:
@@ -284,6 +328,8 @@ class LawApiClient:
                     # 6차 AI feedback P0: 다항조문은 본문이 <항>·<호>에 있음.
                     # _build_article_content가 조문내용 + 항(항내용 + 호) 모두 합침.
                     "조문내용": _build_article_content(a),
+                    # 7차 AI feedback P1: machine-readable nested hierarchy (LLM 재포맷 방어).
+                    "structured": _build_article_structure(a),
                 }
                 for a in root.findall(".//조문단위")
             ]
@@ -330,6 +376,8 @@ class LawApiClient:
                     # 6차 AI feedback P0: 다항조문은 본문이 <항>·<호>에 있음.
                     # _build_article_content가 조문내용 + 항(항내용 + 호) 모두 합침.
                     "조문내용": _build_article_content(a),
+                    # 7차 AI feedback P1: machine-readable nested hierarchy (LLM 재포맷 방어).
+                    "structured": _build_article_structure(a),
                 }
                 for a in root.findall(".//조문단위")
             ]
