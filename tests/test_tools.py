@@ -528,6 +528,50 @@ def test_get_law_detail_excludes_wrapper_elements(monkeypatch):
     assert "제1장 총칙" not in first["조문내용"]
 
 
+def test_get_admin_rule_detail_flat_schema_fallback(monkeypatch):
+    """평면 schema (root 직속 <조문내용>) 행정규칙도 articles로 정상 파싱.
+
+    LIVE 검증: 동시수행 과제 수 제한(ID 2100000196149) + 연구노트 지침(ID 2100000207982)이
+    <조문단위> wrapper 없이 root 직속 <조문내용> 평면 배치 사용. v0.1.0 publish에 본 schema 지원 추가.
+    """
+    import requests as requests_mod
+    from korean_rnd_regs_mcp.live_api import LawApiClient
+
+    fake_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<AdmRulService>
+  <행정규칙기본정보>
+    <행정규칙ID>flat_test</행정규칙ID>
+    <행정규칙명>국가연구개발사업 동시수행 연구개발과제 수 제한 기준</행정규칙명>
+    <소관부처명>과학기술정보통신부</소관부처명>
+    <시행일자>20210101</시행일자>
+  </행정규칙기본정보>
+  <조문내용>제1조(목적) 이 기준은 「국가연구개발혁신법 시행령」 제64조에 따라 ...</조문내용>
+  <조문내용>제2조(동시수행제한제외과제 알림 등) ① 중앙행정기관의 장은 ...</조문내용>
+  <조문내용>제3조(동시수행가능과제수 확인 등) ① 연구자는 ...</조문내용>
+</AdmRulService>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_xml
+        headers = {"Content-Type": "application/xml"}
+
+    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    result = client.get_admin_rule_detail("2100000196149")
+    # 평면 schema fallback 작동 — 3개 조문 모두 파싱
+    assert len(result["articles"]) == 3, f"평면 schema fallback 실패: {result['articles']}"
+    titles = [a["조문제목"] for a in result["articles"]]
+    assert titles == ["목적", "동시수행제한제외과제 알림 등", "동시수행가능과제수 확인 등"]
+    # 조문번호 추출 정확성
+    nos = [a["조문번호"] for a in result["articles"]]
+    assert nos == ["1", "2", "3"]
+    # 조문내용 verbatim 보존
+    assert result["articles"][0]["조문내용"].startswith("제1조(목적)")
+    # structured는 평면이라 paragraphs 빈 list
+    assert result["articles"][0]["structured"]["paragraphs"] == []
+
+
 def test_get_admin_rule_detail_excludes_wrapper_elements(monkeypatch):
     """행정규칙도 동일 wrapper filter 적용 (일관성)."""
     import requests as requests_mod

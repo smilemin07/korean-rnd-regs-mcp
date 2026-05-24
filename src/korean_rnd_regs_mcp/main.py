@@ -458,6 +458,99 @@ async def get_provision_detail(provision_id: str) -> dict:
     }
 
 
+_REVIEW_PROMPT_TEMPLATE = """당신은 국가연구개발 규정 검토 전문가입니다. 다음 상황에 대해 본 MCP server(korean-rnd-regs-mcp)의 도구를 활용하여 다층적 규정 검토를 수행하시기 바랍니다.
+
+== 검토 상황 ==
+{situation}
+
+== 검토 절차 (반드시 본 순서 준수) ==
+
+1. 핵심 쟁점 파악
+   - 위 상황의 핵심 쟁점·키워드 추출 (예: 참여제한, 연구비 집행, 변경 절차)
+   - 관련 규정 범주 판단
+
+2. suggest_review_sources(question="{situation}") 도구 호출
+   - 응답의 extracted_keywords·candidates·recommended_review_order 검토
+   - recommended_review_order 가 검토 우선순위 (법률 → 시행령 → 시행규칙 → 행정규칙)
+
+3. 우선순위 위계에 따라 각 후보 조문 본문 verbatim 조회
+   - 각 candidate 의 provision_id 로 get_provision_detail(provision_id=...) 호출
+   - 응답의 content 필드는 OpenAPI 원문 verbatim — 절대 임의 부제·요약·paraphrase 추가 금지
+   - 항(①②③)·호(1.2.3.) 번호 prefix 와 줄바꿈을 그대로 유지
+   - article_structure 필드는 machine-readable nested hierarchy 로 활용 가능
+
+4. Tier 2 키워드 cross-check (해당 시 추가 검색)
+   - "연구개발비/예산/비목/집행" → rnd_funding_standard 별표
+   - "동시수행/과제 수/중복참여" → simultaneous_research_limit
+   - "시설/장비/기자재/공동활용" → facility_equipment_standard 별표
+   - "연구노트/실험노트/연구기록" → research_note_guideline
+
+5. Supplementary 검토 (해당 시)
+   - "신고/포상금/부패행위/공직자 행동강령" → anti_corruption_act + decree
+   - "부정청탁/금품수수/접대" → improper_solicitation_act + decree
+   - "공익신고/신변보호/연구부정행위 신고" → public_interest_whistleblower_act + decree
+
+== 출력 형식 ==
+
+## 【규정 검토 결과】
+
+### 상황 요약
+[1-2문장 핵심 요약]
+
+### 검토 규정
+- Tier 1 (법률·시행령·시행규칙): [규정명 list]
+- Tier 2 (행정규칙): [규정명 list, 해당 시]
+- Supplementary: [규정명 list, 해당 시]
+
+### 핵심 답변
+[1-3문장 결론]
+
+### 근거 조항
+각 근거에 대해:
+- 규정명·조문번호·provision_id 명시 (예: 국가연구개발혁신법 제15조 — law:260807:JO0015)
+- 조문 본문 verbatim 인용 (편집·요약 금지)
+- 본 상황에의 적용 해석
+
+### 모호한 부분 / 한계
+- 본 MCP server cover 범위 밖 (예: 국가연구개발혁신법 매뉴얼, 부처별 운영규정·관리지침)
+- 재량(할 수 있다) vs 의무(하여야 한다) 표현 구분
+- 가지조문(예: 제15조의2) 검색·상세조회 누락 가능 — v0.2 deferred
+- 시행령 별표(혁신법 시행령 별표 1~7 등) 미검색 — v0.3 deferred
+
+### 권고 조치
+- 필요한 후속 절차·문서 (있을 경우)
+- 본 도구로 cover 안 되는 자료(매뉴얼·운영규정·관리지침)는 별도 확인 권고
+- 법률 판단이 필요한 사안(소송·제재 비례성·승소 가능성)은 변호사 자문 권고
+
+== 핵심 규칙 ==
+
+- 본 MCP server 응답의 contract_version·errors 필드는 반드시 확인
+- 모든 주장에 provision_id + 조문 verbatim 인용
+- 규정에 없는 해석·솔루션 제안 금지
+- 본 검토는 법률 판단이 아닌 검토 후보 제시 — 최종 판단은 사용자 책임
+- 한국어 격식체로 답변
+"""
+
+
+@mcp.prompt(
+    name="review_regulation",
+    title="다층적 규정 검토",
+    description=(
+        "국가연구개발 규정에 대한 다층적 검토 워크플로 — 혁신법·시행령·시행규칙·핵심 행정규칙 + "
+        "Supplementary(부패방지·청탁금지·공익신고자보호)를 자동으로 cross-reference하여 근거 조항 "
+        "verbatim 인용과 함께 답변. review-regulations skill의 Tier 1-2 + Supplementary 검토 패턴을 "
+        "본 MCP server 도구(suggest_review_sources, get_provision_detail)로 자동 적용."
+    ),
+)
+def review_regulation_prompt(situation: str) -> str:
+    """다층적 규정 검토를 위한 prompt template.
+
+    Args:
+        situation: 검토 대상 상황·질문 (자연어. 예: "연구기관이 공동연구기관 추가를 요청했으나 ...")
+    """
+    return _REVIEW_PROMPT_TEMPLATE.format(situation=situation)
+
+
 @mcp.tool()
 async def list_rule_sets() -> dict:
     """등록된 규정 문서(rule set) 목록 — MVP는 live_api retrieval 대상만 반환."""

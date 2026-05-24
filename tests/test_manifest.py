@@ -9,9 +9,9 @@ from korean_rnd_regs_mcp.manifest import (
 
 
 def test_load_manifest_returns_at_least_mvp_items():
-    """Step 20 입력 후: 최소 4건 (혁신법 본법·시행령·시행규칙 + 연구개발비 사용 기준)."""
+    """v0.1.0 publish 범위: 최소 13건 (혁신법 family 4 + Tier 2 신규 3 + Supplementary 6)."""
     items = load_manifest()
-    assert len(items) >= 4
+    assert len(items) >= 13
 
 
 def test_all_required_fields_populated():
@@ -62,7 +62,13 @@ def test_hierarchy_rank_matches_api_target():
 
 
 def test_mvp_entries_present():
-    """MVP rule set 4개의 id가 모두 존재."""
+    """v0.1.0 publish 범위 13개 rule set id 모두 존재."""
     ids = {rs.id for rs in load_manifest()}
-    expected = {"innovation_act", "innovation_decree", "innovation_rule", "rnd_funding_standard"}
+    expected = {
+        "innovation_act", "innovation_decree", "innovation_rule", "rnd_funding_standard",
+        "simultaneous_research_limit", "facility_equipment_standard", "research_note_guideline",
+        "anti_corruption_act", "anti_corruption_decree",
+        "improper_solicitation_act", "improper_solicitation_decree",
+        "public_interest_whistleblower_act", "public_interest_whistleblower_decree",
+    }
     assert expected.issubset(ids), f"누락 entries: {expected - ids}"

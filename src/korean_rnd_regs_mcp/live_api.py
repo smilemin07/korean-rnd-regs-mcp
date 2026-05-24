@@ -5,6 +5,7 @@ Sync API; wrap with asyncio.to_thread when called from FastMCP tools.
 """
 import logging
 import os
+import re
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
@@ -14,6 +15,10 @@ import requests
 from cachetools import TTLCache
 
 from .provision_id import CONTRACT_VERSION
+
+# 평면 schema(root 직속 <조문내용>) 행정규칙 파싱용 정규식.
+# "제N조[의M](제목) 본문..." 패턴. LIVE 검증: 동시수행 과제 수 제한, 연구노트 지침 등.
+_FLAT_ARTICLE_PATTERN = re.compile(r'제(\d+)조(?:의(\d+))?\s*\(([^)]*)\)\s*(.*)', re.DOTALL)
 
 logger = logging.getLogger("rnd-regs-mcp.live_api")
 
@@ -209,6 +214,31 @@ def _build_article_structure(article_elem: ET.Element) -> dict:
     }
 
 
+def _parse_flat_article(elem: ET.Element) -> Optional[dict]:
+    """평면 schema(root 직속 <조문내용>) 행정규칙 한 element를 article dict로 변환.
+
+    일부 행정규칙(예: 동시수행 과제 수 제한, 연구노트 지침)은 `<조문단위>` wrapper 없이
+    `<조문내용>` element가 root 직속으로 평면 배치됨. 이 schema를 fallback으로 지원.
+    LIVE 검증: 두 행정규칙 모두 "제N조(제목) 본문..." 패턴 일관 매칭.
+
+    가지조문(예: 제15조의2)의 가지번호는 contract 0.1.0에서 표현 불가 — 정규식은 매칭하나
+    JO unit_id에는 본 조문번호만 사용됨 → 가지조문 collision 가능 (v0.2 prefix 확장 시 해결).
+    """
+    text = (elem.text or "").strip()
+    m = _FLAT_ARTICLE_PATTERN.match(text)
+    if not m:
+        return None
+    no, _gaji, title, _body = m.groups()
+    first_line = text.split('\n', 1)[0]
+    return {
+        "조문번호": no,
+        "조문제목": title or "",
+        "조문내용": text,
+        # 평면 schema는 항·호 hierarchy element가 없음 — paragraphs 빈 list 반환
+        "structured": {"title": first_line, "paragraphs": []},
+    }
+
+
 def _parse_xml(response: requests.Response) -> ET.Element:
     """Parse response as XML. Defend against HTML error pages."""
     content_type = response.headers.get("Content-Type", "").lower()
@@ -382,6 +412,14 @@ class LawApiClient:
                 for a in root.findall(".//조문단위")
                 if (a.findtext("조문여부") or "").strip() == "조문"
             ]
+            # 평면 schema fallback: 일부 행정규칙은 <조문단위> 없이 root 직속 <조문내용> 사용.
+            # LIVE 검증: 동시수행 과제 수 제한(ID 2100000196149), 연구노트 지침(ID 2100000207982).
+            if not articles:
+                articles = [
+                    parsed
+                    for elem in root.findall("./조문내용")
+                    if (parsed := _parse_flat_article(elem)) is not None
+                ]
             # 별표 (Step 17 LIVE 검증: 별표내용 본문 직접 반환됨)
             annexes = [
                 {

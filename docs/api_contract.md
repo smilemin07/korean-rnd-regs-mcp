@@ -156,7 +156,7 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 
 | 버전 | 일자 | 변경 |
 |---|---|---|
-| 0.1.0 | 2026-05-24 | **첫 publish version**. live_api 트랙(국가법령정보 OpenAPI) 기반 4 rule set 지원: 국가연구개발혁신법(MST 260807), 동 시행령(285767), 동 시행규칙(285043), 국가연구개발사업 연구개발비 사용 기준(admrul ID 2100000278740). 5 MCP tools(health, search_provision, suggest_review_sources, get_provision_detail, list_rule_sets), JO(조문)/BP(별표) provision_id, 표준 오류 코드 6종(auth_failed/rate_limited/parse_failed/not_found/invalid_provision_id/invalid_query) |
+| 0.1.0 | 2026-05-24 | **첫 publish version**. live_api 트랙(국가법령정보 OpenAPI) 기반 **13 rule set 지원** (v0.2 plan 보강 1·3을 미리 포함): Tier 1 혁신법 family 3개(MST 260807/285767/285043), Tier 2 핵심 행정규칙 4개(admrul ID 2100000278740/2100000196149/2100000278230/2100000207982 — review-regulations 표준 Tier 2 전체), Supplementary 6개(부패방지법·청탁금지법·공익신고자보호법 + 시행령). 5 MCP tools + **1 MCP prompt(`review_regulation` — 다층적 검토 워크플로 자동 적용)**, JO(조문)/BP(별표) provision_id, 표준 오류 코드 6종(auth_failed/rate_limited/parse_failed/not_found/invalid_provision_id/invalid_query), 행정규칙 XML schema 2종 모두 지원(표준 `<조문단위>` + 평면 `<조문내용>` fallback) |
 
 ### Pre-publish 내부 이력 (참고용, contract_version 적용 안 됨)
 

@@ -19,24 +19,51 @@
 
 ## 기능
 
-5개 MCP tool 제공:
+**5개 MCP tool**:
 
 | Tool | 용도 |
 |---|---|
 | `health` | 서비스 상태·API 키 설정 여부 확인 |
-| `list_rule_sets` | 등록된 4개 규정 목록·hierarchy rank·문서 ID 조회 |
+| `list_rule_sets` | 등록된 13개 규정 목록·hierarchy rank·문서 ID 조회 |
 | `search_provision` | 조문·별표 본문에서 키워드 검색 → snippet + provision_id 후보 list |
 | `get_provision_detail` | provision_id로 단일 조문/별표 본문 verbatim 조회 (LLM 임의 부제 발명 방어 metadata 포함) |
 | `suggest_review_sources` | 자연어 질문 → 키워드 추출 → 검토할 규정·조문 후보 + 추천 검토 순서 (법률 → 시행령 → 시행규칙 → 행정규칙) |
 
-지원 규정 (v0.1.0):
+**1개 MCP prompt** (Claude Desktop의 prompts 메뉴에서 선택 가능):
+
+| Prompt | 용도 |
+|---|---|
+| `review_regulation` | **다층적 규정 검토 워크플로 자동 적용** — 13개 규정을 위계 순서로 cross-reference하여 근거 조항 verbatim 인용과 함께 답변. 상황만 입력하면 도구 호출·우선순위·출력 형식이 자동 진행 |
+
+**지원 규정 (v0.1.0, 총 13개)**:
+
+Tier 1 — 핵심 법률·시행령·시행규칙 (혁신법 family):
 
 | ID | 명칭 | 종류 | MST/ID |
 |---|---|---|---|
-| `innovation_act` | 국가연구개발혁신법 | 법률 (2025-02-28 시행) | MST 260807 |
-| `innovation_decree` | 국가연구개발혁신법 시행령 | 대통령령 (2026-05-06 시행) | MST 285767 |
-| `innovation_rule` | 국가연구개발혁신법 시행규칙 | 과기정통부령 (2026-03-25 시행) | MST 285043 |
-| `rnd_funding_standard` | 국가연구개발사업 연구개발비 사용 기준 | 행정규칙 (2024-06-13 시행) | admrul ID 2100000278740 |
+| `innovation_act` | 국가연구개발혁신법 | 법률 (2025-02-28) | MST 260807 |
+| `innovation_decree` | 국가연구개발혁신법 시행령 | 대통령령 (2026-05-06) | MST 285767 |
+| `innovation_rule` | 국가연구개발혁신법 시행규칙 | 과기정통부령 (2026-03-25) | MST 285043 |
+
+Tier 2 — 핵심 행정규칙 (4개 — review-regulations 표준 Tier 2 전체):
+
+| ID | 명칭 | 시행일 | admrul ID |
+|---|---|---|---|
+| `rnd_funding_standard` | 국가연구개발사업 연구개발비 사용 기준 | 2024-06-13 | 2100000278740 |
+| `simultaneous_research_limit` | 국가연구개발사업 동시수행 연구개발과제 수 제한 기준 | 2021-01-01 | 2100000196149 |
+| `facility_equipment_standard` | 국가연구개발 시설·장비의 관리 등에 관한 표준지침 | 2026-04-23 | 2100000278230 |
+| `research_note_guideline` | 국가연구개발사업 연구노트 지침 | 2022-01-01 | 2100000207982 |
+
+Supplementary — 신고·포상금·부패행위·청탁금지·공익신고자보호 검토용 cross-reference:
+
+| ID | 명칭 | 종류 | MST |
+|---|---|---|---|
+| `anti_corruption_act` | 부패방지 및 국민권익위원회의 설치와 운영에 관한 법률 | 법률 (2025-01-21) | 268657 |
+| `anti_corruption_decree` | 동 시행령 | 대통령령 (2026-03-03) | 283781 |
+| `improper_solicitation_act` | 부정청탁 및 금품등 수수의 금지에 관한 법률 (청탁금지법/김영란법) | 법률 (2025-01-21) | 268655 |
+| `improper_solicitation_decree` | 동 시행령 | 대통령령 (2025-12-30) | 281817 |
+| `public_interest_whistleblower_act` | 공익신고자 보호법 | 법률 (2026-02-01) | 268861 |
+| `public_interest_whistleblower_decree` | 동 시행령 | 대통령령 (2024-08-07) | 264451 |
 
 ---
 
@@ -117,7 +144,25 @@ korean-rnd-regs-mcp --version
 
 ## 사용 예시
 
-### 예시 1: 자연어 질문 → 검토 시작점 찾기
+### 예시 0 (권장): MCP prompt — 다층적 규정 검토 자동 워크플로
+
+Claude Desktop의 좌하단 `+` 또는 `/` 메뉴에서 **review_regulation** prompt를 선택하면, situation 입력칸이 표시됩니다. 상황을 자연어로 입력하면 본 server의 도구가 자동으로 호출되어 13개 규정을 위계 순서대로 cross-reference한 결과가 출력됩니다.
+
+예시 입력 (situation):
+```
+연구기관이 공문으로 정식 절차를 밟아 공동연구기관 추가를 요청했으나 전문기관이 접수 후 무응답으로 방치한 상태에서, 최종평가가 진행됐으며 '극히 불량' 등급을 받음. 현장실태조사 결과도 좋지 않아 제재조치평가위원회에서 '참여제한 2년 처분'을 받게 됨. 위 상황에서 적용 가능한 규정과 검토 포인트는?
+```
+
+자동으로 적용되는 워크플로:
+1. `suggest_review_sources` 호출 → 키워드 추출 + 13개 규정 cross-search
+2. recommended_review_order에 따라 법률 → 시행령 → 시행규칙 → 행정규칙 순서로 `get_provision_detail` 호출
+3. Tier 2 키워드 cross-check (참여제한 → rnd_funding_standard, 동시수행 등)
+4. Supplementary cross-check (해당 시)
+5. 출력 format: 검토 규정 · 핵심 답변 · 근거 조항(verbatim) · 모호한 부분 · 권고 조치
+
+본 prompt는 `REDACTED_PATH/Library/CloudStorage//.claude/skills/review-regulations/SKILL.md`의 워크플로 패턴(원 저자: 본 프로젝트 저자)을 본 MCP server 도구 호출 형태로 자동화한 것입니다. 외부 사용자도 별도 skill 설치 없이 동일한 깊이의 검토를 받을 수 있습니다.
+
+### 예시 1: 자연어 질문 → 검토 시작점 찾기 (저수준 도구 직접 사용)
 
 질문: "특별평가를 받으려면 어떤 절차가 필요한가요?"
 
@@ -211,7 +256,8 @@ contract_version: **0.1.0** (첫 publish)
 
 - **가지조문** (예: 제15조의2, 제5조의3): 현재 provision_id 포맷이 `JO` + 숫자만 지원. 가지조문은 검색·상세조회에서 누락됨. v0.2에서 prefix 확장 예정.
 - **법령 시행령 별표** (혁신법 시행령 별표 1~7 등): 현재 `unit_types: article`로 설정되어 별표 미검색. v0.3에서 `get_law_detail`에 annexes 파싱 추가 예정.
-- **PDF 색인·OCR·SQLite FTS5**: 기관별 운영규정·매뉴얼 등 OpenAPI 미공개 자료의 검색은 v0.3 이후.
+- **PDF 색인·OCR·SQLite FTS5**: 기관별 운영규정(예: 국토교통부소관 연구개발사업 운영규정), 부처별 관리지침(예: 국토교통 연구개발사업 관리지침), 매뉴얼(국가연구개발혁신법 매뉴얼 등) OpenAPI 미공개 자료의 검색은 v0.3 이후. 본 자료들이 필요한 검토는 본 MCP server cover 범위 밖이므로 별도 확인 필요.
+- **다관점 분석** (해석이 갈리는 모호한 규정, 제재 비례성 판단, 감사 리스크 평가 등): 본 MCP server는 자료 layer만 제공하며 다관점 분석은 LLM의 reasoning에 의존. `review_regulation` prompt는 단일 패스 분석에 최적화되어 있으며, 다관점이 필요한 사안은 변호사 자문을 권고드립니다.
 
 검토 결과가 의심스러우면 항상 응답의 `source_url`을 직접 확인하시기 바랍니다.
 

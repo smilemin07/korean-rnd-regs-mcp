@@ -85,3 +85,175 @@ rule_sets:
     known_limitations:
       - "본 행정규칙은 조문 없이 별표 30개로 구성 — search_provision은 별표 본문에서 검색 필요"
       - "일부 별표는 HWP/PDF 첨부파일 형태 — 별표내용 필드가 비어있으면 source_url 별도 확인"
+
+  - id: simultaneous_research_limit
+    title: 국가연구개발사업 동시수행 연구개발과제 수 제한 기준
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000196149"
+    unit_types: article
+    query:
+      - 동시수행 연구개발과제 수 제한
+      - 동시수행 과제 수 제한
+      - 동시수행
+    license_status: public_data
+    effective_date: "2021-01-01"
+    source_url: https://www.law.go.kr/행정규칙/국가연구개발사업동시수행연구개발과제수제한기준
+    known_limitations:
+      - "본 행정규칙은 평면 schema(<조문내용> root 직속) — get_admin_rule_detail의 fallback으로 처리"
+      - "가지조문(예: 제5조의2) 검색·상세조회 누락 가능 — v0.2 prefix 확장 예정"
+
+  - id: facility_equipment_standard
+    title: 국가연구개발 시설·장비의 관리 등에 관한 표준지침
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000278230"
+    unit_types: annex
+    query:
+      - 국가연구개발 시설 장비 관리
+      - 시설 장비 표준지침
+      - 연구시설 연구장비
+    license_status: public_data
+    effective_date: "2026-04-23"
+    source_url: https://www.law.go.kr/행정규칙/국가연구개발시설ㆍ장비의관리등에관한표준지침
+    known_limitations:
+      - "본 행정규칙은 조문 없이 별표 13개로 구성 — search_provision은 별표 본문에서 검색 필요"
+
+  - id: research_note_guideline
+    title: 국가연구개발사업 연구노트 지침
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000207982"
+    unit_types: article
+    query:
+      - 국가연구개발사업 연구노트 지침
+      - 연구노트 지침
+      - 연구노트
+    license_status: public_data
+    effective_date: "2022-01-01"
+    source_url: https://www.law.go.kr/행정규칙/국가연구개발사업연구노트지침
+    known_limitations:
+      - "본 행정규칙은 평면 schema(<조문내용> root 직속) — get_admin_rule_detail의 fallback으로 처리"
+      - "부처별 자체 연구노트 관리지침은 별도 — 본 manifest는 과기정통부 표준 지침만 포함"
+
+  # === Supplementary: 부패방지·청탁금지·공익신고자보호 (신고·보상금·금품수수·공직자행동강령 검토) ===
+
+  - id: anti_corruption_act
+    title: 부패방지 및 국민권익위원회의 설치와 운영에 관한 법률
+    tier: "Supplementary"
+    hierarchy_rank: 1
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "268657"
+    unit_types: article
+    query:
+      - 부패방지 및 국민권익위원회
+      - 부패방지법
+      - 국민권익위원회
+    license_status: public_data
+    effective_date: "2025-01-21"
+    source_url: https://www.law.go.kr/법령/부패방지및국민권익위원회의설치와운영에관한법률
+    known_limitations:
+      - "R&D 분야 신고·포상금·부패행위 검토 시 cross-reference"
+
+  - id: anti_corruption_decree
+    title: 부패방지 및 국민권익위원회의 설치와 운영에 관한 법률 시행령
+    tier: "Supplementary"
+    hierarchy_rank: 2
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "283781"
+    unit_types: article
+    query:
+      - 부패방지 및 국민권익위원회 시행령
+      - 부패방지법 시행령
+    license_status: public_data
+    effective_date: "2026-03-03"
+    source_url: https://www.law.go.kr/법령/부패방지및국민권익위원회의설치와운영에관한법률시행령
+    known_limitations:
+      - "별표·서식 검색은 v0.2 deferred (시행령 별표 미지원)"
+
+  - id: improper_solicitation_act
+    title: 부정청탁 및 금품등 수수의 금지에 관한 법률
+    tier: "Supplementary"
+    hierarchy_rank: 1
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "268655"
+    unit_types: article
+    query:
+      - 부정청탁 및 금품등 수수
+      - 청탁금지법
+      - 김영란법
+    license_status: public_data
+    effective_date: "2025-01-21"
+    source_url: https://www.law.go.kr/법령/부정청탁및금품등수수의금지에관한법률
+    known_limitations:
+      - "공직자·연구자 금품수수·부정청탁 사례 검토 시 cross-reference"
+
+  - id: improper_solicitation_decree
+    title: 부정청탁 및 금품등 수수의 금지에 관한 법률 시행령
+    tier: "Supplementary"
+    hierarchy_rank: 2
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "281817"
+    unit_types: article
+    query:
+      - 부정청탁 및 금품등 수수 시행령
+      - 청탁금지법 시행령
+    license_status: public_data
+    effective_date: "2025-12-30"
+    source_url: https://www.law.go.kr/법령/부정청탁및금품등수수의금지에관한법률시행령
+    known_limitations:
+      - "별표·서식 검색은 v0.2 deferred"
+
+  - id: public_interest_whistleblower_act
+    title: 공익신고자 보호법
+    tier: "Supplementary"
+    hierarchy_rank: 1
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "268861"
+    unit_types: article
+    query:
+      - 공익신고자 보호법
+      - 공익신고자
+      - 공익신고
+    license_status: public_data
+    effective_date: "2026-02-01"
+    source_url: https://www.law.go.kr/법령/공익신고자보호법
+    known_limitations:
+      - "연구부정행위 신고·신변보호·보상금 검토 시 cross-reference"
+
+  - id: public_interest_whistleblower_decree
+    title: 공익신고자 보호법 시행령
+    tier: "Supplementary"
+    hierarchy_rank: 2
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "264451"
+    unit_types: article
+    query:
+      - 공익신고자 보호법 시행령
+      - 공익신고자보호법 시행령
+    license_status: public_data
+    effective_date: "2024-08-07"
+    source_url: https://www.law.go.kr/법령/공익신고자보호법시행령
+    known_limitations:
+      - "별표·서식 검색은 v0.2 deferred"
