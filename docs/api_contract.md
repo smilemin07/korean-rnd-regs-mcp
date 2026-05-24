@@ -93,17 +93,44 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 - 공개 API: `parse(str) -> ProvisionId`, `build(doc_type, doc_id, unit_id=None) -> str`, `unit_type(unit_id) -> str` (article/annex/document), `ProvisionId` dataclass, `InvalidProvisionId` 예외, `CONTRACT_VERSION` 상수.
 - 테스트: `tests/test_provision_id.py` (정상 조문 3건 + 별표 2건 + malformed 6건 + helper 4건 + round-trip 3건).
 
-## 4. 표준 오류 코드
+## 4. 표준 오류 코드 + envelope
 
-도구 응답의 `error.code` 필드는 다음 표준 코드 사용:
+### 4.1 envelope shape
+
+모든 MCP 도구의 오류는 응답 최상위 `errors` 필드(list)에 적재. 단일 오류도 list로 표현하여 partial failure(예: search_provision에서 일부 rule_set 실패)와 일관성 유지.
+
+```
+{
+  "errors": [
+    {
+      "code": "<표준 코드 — 아래 §4.2>",
+      "message": "<오류 설명. LAW_API_KEY 값은 항상 마스킹>",
+      "rule_set_id": "<선택 — search_provision 등 multi-doc 도구에서만>"
+    },
+    ...
+  ],
+  "contract_version": "1.0.1",
+  "disclaimer": "본 결과는 검토 후보일 뿐 법률 판단이 아닙니다. 출처를 직접 확인하세요."
+}
+```
+
+성공 응답에는 `errors`가 없거나 빈 list. 도구별 success 응답 schema는 별도 정리 예정 (v0.2 우선순위).
+
+### 4.2 표준 코드
 
 | 코드 | 의미 | 발생 시점 |
 |---|---|---|
 | `auth_failed` | OpenAPI 인증 실패 | API 응답 401/403 또는 본문에 인증 오류 |
 | `rate_limited` | rate limit 초과 | API 응답 429 또는 일일 호출 제한 도달 |
-| `parse_failed` | 응답 파싱 실패 | Content-Type이 XML 아님 (예: HTML 에러 페이지) 또는 XML 파싱 예외 |
+| `parse_failed` | 응답 파싱 실패 | Content-Type이 XML 아님 (예: HTML 에러 페이지), XML 파싱 예외, 또는 네트워크 오류 (재시도 모두 실패; message는 type name만 노출하여 URL/key 누설 차단) |
 | `not_found` | 검색 결과 0건 또는 상세조회 대상 없음 | API 응답에 항목 없음 |
 | `invalid_provision_id` | provision_id 포맷 위반 | `parse()` 호출 시 `InvalidProvisionId` 발생 |
+
+### 4.3 보안 정책
+
+- LawApiError.message는 `_request_with_retry`에서 type name만 사용하여 URL/query params (특히 `OC=<key>`)가 절대 포함되지 않음 (source layer 차단).
+- main.py의 도구 응답 출력 직전 `_sanitize_error_message`가 LAW_API_KEY 값을 추가 redact (defense-in-depth).
+- 도구 응답의 어느 필드에도 LAW_API_KEY 값·앞자리·hash 미포함.
 
 ## 5. 응답 길이 정책
 

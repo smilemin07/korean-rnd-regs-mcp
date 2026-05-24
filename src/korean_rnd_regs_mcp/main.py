@@ -1,9 +1,11 @@
 """korean-rnd-regs-mcp main entry — stdio MCP server."""
+import argparse
 import asyncio
 import logging
 import os
 import re
 import sys
+from urllib.parse import urljoin
 
 from dotenv import load_dotenv
 from fastmcp import FastMCP
@@ -34,6 +36,7 @@ mcp = FastMCP("korean-rnd-regs-mcp")
 
 _DISCLAIMER = "본 결과는 검토 후보일 뿐 법률 판단이 아닙니다. 출처를 직접 확인하세요."
 _SNIPPET_MAX = 2000
+_LAW_GO_KR_BASE = "https://www.law.go.kr"
 _RANK_NAMES = {1: "법률", 2: "시행령", 3: "시행규칙", 4: "행정규칙"}
 _KEYWORD_STOPWORDS = frozenset({
     "대해", "관련", "관해", "관하여", "경우", "에서", "으로", "에게",
@@ -44,14 +47,67 @@ _KEYWORD_STOPWORDS = frozenset({
     "받으려면", "받을", "받으면", "이라면", "인지", "인가요",
     "대한", "이번", "이전", "이후", "그러나", "그리고", "그래서",
 })
+# 흔한 한국어 조사 (긴 것부터 정렬 — endswith 매칭 우선순위)
+_PARTICLES = (
+    "에서는", "에서도", "으로는", "에게는",
+    "에서", "으로", "에게", "한테", "까지", "부터", "조차", "마저",
+    "와의", "과의",
+    "은", "는", "이", "가", "을", "를", "의", "에", "도", "만", "로", "와", "과",
+)
+
+
+def _strip_particle(word: str) -> str:
+    """단어 끝의 조사 1-3글자 suffix 제거. 단어가 너무 짧아지면(<2자) 원본 유지."""
+    for p in _PARTICLES:
+        if word.endswith(p) and len(word) - len(p) >= 2:
+            return word[: -len(p)]
+    return word
 
 
 def _extract_keywords(question: str, max_count: int = 5) -> list[str]:
-    """질문에서 2자 이상 한글 단어 + stopword 제외 → 최대 max_count개."""
+    """질문에서 2자 이상 한글 단어 → 조사 strip → stopword 제외 → 최대 max_count개."""
     raw = re.findall(r"[가-힣]{2,}", question)
-    deduped = list(dict.fromkeys(raw))  # 순서 보존 dedupe
+    stripped = [_strip_particle(w) for w in raw]
+    # 조사 strip 후 길이 2 미만 제거
+    valid = [w for w in stripped if len(w) >= 2]
+    deduped = list(dict.fromkeys(valid))
     filtered = [w for w in deduped if w not in _KEYWORD_STOPWORDS]
     return filtered[:max_count]
+
+
+def _sanitize_error_message(msg: str) -> str:
+    """Defense-in-depth: 도구 응답으로 error message 출력 전 LAW_API_KEY 값이 우연히 포함됐는지 확인 + redact.
+
+    Source(_request_with_retry)는 이미 type name만 사용하여 안전하나, 향후 코드 변경·외부 라이브러리 변경으로
+    키가 섞일 가능성에 대비한 second layer.
+    """
+    if not msg:
+        return msg
+    key = os.environ.get("LAW_API_KEY", "")
+    if key and key in msg:
+        msg = msg.replace(key, "<KEY-REDACTED>")
+    return msg
+
+
+def _make_snippet(content: str, query: str, max_len: int = _SNIPPET_MAX) -> str:
+    """match 위치를 중심으로 잘라 snippet 생성. 최종 길이가 max_len을 절대 초과하지 않음 (ellipsis 포함 계산)."""
+    if len(content) <= max_len:
+        return content
+    idx = content.find(query)
+    if idx < 0:
+        return content[:max_len]
+    # ellipsis 자리(앞 3 + 뒤 3 = 6자) 예약: content 슬라이스는 max_len-6 이내로 제한
+    content_budget = max(1, max_len - 6)
+    half = content_budget // 2
+    start = max(0, idx - half)
+    end = min(len(content), start + content_budget)
+    snippet = content[start:end]
+    if start > 0:
+        snippet = "..." + snippet
+    if end < len(content):
+        snippet = snippet + "..."
+    # 최종 안전망 — 어떤 경우에도 max_len 초과 금지
+    return snippet[:max_len]
 
 # Lazy LawApiClient singleton — first call instantiates with current env
 _client_instance: LawApiClient | None = None
@@ -64,15 +120,15 @@ def _get_client() -> LawApiClient:
     return _client_instance
 
 
-def _build_match(rs, unit_id: str, unit_type: str, title: str, content: str) -> dict:
-    """단일 검색 결과 dict 생성."""
+def _build_match(rs, unit_id: str, unit_type: str, title: str, snippet: str) -> dict:
+    """단일 검색 결과 dict 생성. snippet은 호출자가 _make_snippet으로 미리 생성."""
     return {
         "provision_id": build_provision_id(rs.api_target.value, rs.api_doc_id, unit_id),
         "document_title": rs.title,
         "unit_id": unit_id,
         "unit_type": unit_type,
         "title": title or "(제목없음)",
-        "snippet": content[:_SNIPPET_MAX],
+        "snippet": snippet,
         "warnings": list(rs.known_limitations),
     }
 
@@ -119,7 +175,7 @@ async def search_provision(query: str) -> dict:
                 annexes = detail.get("annexes", [])
         except LawApiError as e:
             logger.warning("search_provision: %s detail 실패: %s", rs.id, e)
-            errors.append({"rule_set_id": rs.id, "code": e.code, "message": e.message})
+            errors.append({"rule_set_id": rs.id, "code": e.code, "message": _sanitize_error_message(e.message)})
             continue
 
         # article 검색
@@ -130,7 +186,8 @@ async def search_provision(query: str) -> dict:
                 if query in title or query in content:
                     art_no = (art.get("조문번호") or "").strip()
                     if art_no.isdigit():
-                        matches.append(_build_match(rs, f"JO{int(art_no):04d}", "article", title, content))
+                        snippet = _make_snippet(content, query)
+                        matches.append(_build_match(rs, f"JO{int(art_no):04d}", "article", title, snippet))
 
         # annex 검색
         if rs.unit_types in (UnitTypes.ANNEX, UnitTypes.BOTH):
@@ -140,7 +197,8 @@ async def search_provision(query: str) -> dict:
                 if query in title or query in content:
                     ann_no = (ann.get("별표번호") or "").strip()
                     if ann_no.isdigit():
-                        matches.append(_build_match(rs, f"BP{int(ann_no):04d}", "annex", title, content))
+                        snippet = _make_snippet(content, query)
+                        matches.append(_build_match(rs, f"BP{int(ann_no):04d}", "annex", title, snippet))
 
     response = {
         "query": query,
@@ -236,8 +294,9 @@ async def get_provision_detail(provision_id: str) -> dict:
         pid = parse_provision_id(provision_id)
     except InvalidProvisionId as e:
         return {
-            "error": {"code": "invalid_provision_id", "message": str(e)},
+            "errors": [{"code": "invalid_provision_id", "message": str(e)}],
             "contract_version": CONTRACT_VERSION,
+            "disclaimer": _DISCLAIMER,
         }
 
     # manifest에서 매칭 rule_set 찾기
@@ -250,11 +309,12 @@ async def get_provision_detail(provision_id: str) -> dict:
     )
     if rs is None:
         return {
-            "error": {
+            "errors": [{
                 "code": "not_found",
                 "message": f"manifest에 {pid.doc_type}:{pid.doc_id} 항목 없음",
-            },
+            }],
             "contract_version": CONTRACT_VERSION,
+            "disclaimer": _DISCLAIMER,
         }
 
     client = _get_client()
@@ -269,8 +329,9 @@ async def get_provision_detail(provision_id: str) -> dict:
             annexes = detail.get("annexes", [])
     except LawApiError as e:
         return {
-            "error": {"code": e.code, "message": e.message},
+            "errors": [{"code": e.code, "message": _sanitize_error_message(e.message)}],
             "contract_version": CONTRACT_VERSION,
+            "disclaimer": _DISCLAIMER,
         }
 
     # document-level (unit_id 없음)
@@ -283,6 +344,7 @@ async def get_provision_detail(provision_id: str) -> dict:
             "effective_date": rs.effective_date,
             "articles_count": len(articles),
             "contract_version": CONTRACT_VERSION,
+            "disclaimer": _DISCLAIMER,
             "warnings": list(rs.known_limitations),
         }
         if pid.doc_type == "admrul":
@@ -305,6 +367,7 @@ async def get_provision_detail(provision_id: str) -> dict:
                     "content": (art.get("조문내용") or "").strip(),
                     "effective_date": rs.effective_date,
                     "contract_version": CONTRACT_VERSION,
+                    "disclaimer": _DISCLAIMER,
                     "warnings": list(rs.known_limitations),
                 }
 
@@ -315,6 +378,9 @@ async def get_provision_detail(provision_id: str) -> dict:
             no = (ann.get("별표번호") or "").strip()
             if no.isdigit() and int(no) == target_no:
                 attached = (ann.get("별표서식파일링크") or "").strip()
+                # 상대 path(/LSW/...) → 절대 URL 변환
+                if attached and not attached.startswith(("http://", "https://")):
+                    attached = urljoin(_LAW_GO_KR_BASE, attached)
                 return {
                     "provision_id": provision_id,
                     "document_title": rs.title,
@@ -326,15 +392,17 @@ async def get_provision_detail(provision_id: str) -> dict:
                     "attached_file_url": attached or None,
                     "effective_date": rs.effective_date,
                     "contract_version": CONTRACT_VERSION,
+                    "disclaimer": _DISCLAIMER,
                     "warnings": list(rs.known_limitations),
                 }
 
     return {
-        "error": {
+        "errors": [{
             "code": "not_found",
             "message": f"{provision_id}의 unit을 detail 응답에서 찾지 못함",
-        },
+        }],
         "contract_version": CONTRACT_VERSION,
+        "disclaimer": _DISCLAIMER,
     }
 
 
@@ -345,6 +413,7 @@ async def list_rule_sets() -> dict:
     live_items = [rs for rs in items if rs.retrieval == Retrieval.LIVE_API]
     return {
         "total": len(live_items),
+        "contract_version": CONTRACT_VERSION,
         "rule_sets": [
             {
                 "id": rs.id,
@@ -368,6 +437,17 @@ async def _run() -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="korean-rnd-regs-mcp",
+        description="국가연구개발 규정 검토용 MCP server (stdio mode). 인자 없이 실행하면 stdio MCP 서버가 시작됩니다.",
+        epilog="Claude Desktop·Claude Code 등 MCP 클라이언트에서 자동 실행됨. 직접 실행 시 stdin EOF 발생 시 종료.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
+    parser.parse_args()  # --version / --help는 여기서 exit. 다른 인자는 silent ignore (FastMCP가 stdin 처리)
     asyncio.run(_run())
 
 

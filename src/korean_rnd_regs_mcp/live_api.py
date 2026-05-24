@@ -139,7 +139,10 @@ def _request_with_retry(
                 backoff *= 2
             else:
                 logger.error("ConnectionError after %d attempts", max_retries)
-    raise LawApiError(ERROR_PARSE_FAILED, f"네트워크 오류 (재시도 {max_retries}회 실패): {last_err}")
+    # SECURITY: last_err를 str()화하면 requests 라이브러리가 URL(OC=<key>)을 포함시킴 → key 누설.
+    # type 이름만 사용하여 호출 URL과 query params가 절대 message·log·tool response에 노출되지 않게 함.
+    err_type = type(last_err).__name__ if last_err else "Unknown"
+    raise LawApiError(ERROR_PARSE_FAILED, f"네트워크 오류 (재시도 {max_retries}회 실패, 종류={err_type})")
 
 
 def _parse_xml(response: requests.Response) -> ET.Element:
