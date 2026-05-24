@@ -15,10 +15,24 @@
 | 작업 | endpoint | 핵심 응답 필드 |
 |---|---|---|
 | 검색 | `GET https://www.law.go.kr/DRF/lawSearch.do?target=law&query=<keyword>&OC=<api_key>&type=XML` | `법령ID`, `법령일련번호`(=MST 후보), `법령명한글`, `법령구분명`, `시행일자`, `공포일자`, `소관부처명` |
-| 상세 | `GET https://www.law.go.kr/DRF/lawService.do?target=law&MST=<법령일련번호>&OC=<api_key>&type=XML` | 조문 list (`조문번호`/`조문제목`/`조문내용`), 부칙, 별표 정보 |
+| 상세 | `GET https://www.law.go.kr/DRF/lawService.do?target=law&MST=<법령일련번호>&OC=<api_key>&type=XML` | `<기본정보>` 안에 `법령ID`·`법령명_한글`·`법종구분`·`소관부처`·`시행일자`·`공포일자`; `<조문>` wrapper 아래 `<조문단위>` list (`조문번호`/`조문제목`/`조문내용`); 부칙·별표 정보 |
 
 - **두 ID(`법령ID`·`법령일련번호`) 모두 보존 필수.** 검색에서 받은 `법령일련번호`를 상세조회의 `MST` 파라미터로 그대로 사용한다.
 - `MST` vs `ID`: `lawService.do`는 둘 중 하나로 호출 가능. 본 plan은 **MST** 사용 (korean-law-mcp 기존 패턴 + 검색 응답에서 항상 제공됨). `ID`만 보존하고 MST를 버리면 상세조회 깨짐.
+
+#### 2.1.1 search ↔ detail XML schema 불일치 (중요 — 2026-05-24 발견)
+
+법령 search 응답과 detail 응답은 동일 도메인이지만 **XML field 이름이 다름**. 단순 복사 시 detail 파싱이 빈 문자열로 실패하는 silent bug 발생. 다음 매핑을 정확히 사용:
+
+| 의미 | search 응답 (lawSearch.do) | detail 응답 (lawService.do) |
+|---|---|---|
+| 법령명 | `법령명한글` | `법령명_한글` (underscore!) |
+| 법령 분류 | `법령구분명` | `법종구분` (다른 이름) |
+| 소관부처 | `소관부처명` | `소관부처` (명 없음) |
+| 법령일련번호 | `법령일련번호` (응답 있음) | (응답 없음 — 호출 param `MST` 그대로 사용) |
+| 조문 list path | (search는 list 없음) | `.//조문단위` 49개 (`.//조문`은 wrapper 1개만) |
+
+본 프로젝트의 `live_api.py` `LawApiClient` dataclass는 두 응답을 흡수하여 **일관된 dict key (`법령명한글`·`법령구분명`·`소관부처명` 등)로 반환**한다 — 외부 사용자는 schema 차이를 신경 쓸 필요 없음. 단 내부 구현 시 위 매핑을 반드시 적용.
 
 ### 2.2 행정규칙 (admrul)
 

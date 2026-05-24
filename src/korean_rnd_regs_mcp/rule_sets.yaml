@@ -1,0 +1,84 @@
+# korean-rnd-regs-mcp — rule_sets manifest
+#
+# schema: src/korean_rnd_regs_mcp/manifest.py (Pydantic RuleSet model, 13 fields)
+# 단계: plan v3.2 Step 19(schema 정의) + Step 20(MVP 4개 항목 입력)
+#
+# 본 4개 항목은 Step 16-17 LIVE 검증으로 MST/ID 확인 완료.
+# 추가 항목 (기관별 운영규정, 매뉴얼 등)은 v0.3 이후 prebuilt_index로 확장 예정.
+
+rule_sets:
+  # === Tier 1: 핵심 법률·시행령·시행규칙 (혁신법 family) ===
+
+  - id: innovation_act
+    title: 국가연구개발혁신법
+    tier: "Tier 1"
+    hierarchy_rank: 1
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "260807"
+    unit_types: article
+    query:
+      - 국가연구개발혁신법
+      - 혁신법
+    license_status: public_data
+    effective_date: "2025-02-28"
+    source_url: https://www.law.go.kr/법령/국가연구개발혁신법
+    known_limitations: []
+
+  - id: innovation_decree
+    title: 국가연구개발혁신법 시행령
+    tier: "Tier 1"
+    hierarchy_rank: 2
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "285767"
+    unit_types: both
+    query:
+      - 국가연구개발혁신법 시행령
+      - 혁신법 시행령
+    license_status: public_data
+    effective_date: "2026-05-06"
+    source_url: https://www.law.go.kr/법령/국가연구개발혁신법시행령
+    known_limitations:
+      - "별표 1~7(연구개발비 지원기준·사용용도·등록범위·참여제한·제재부가금 등) 포함 — 별표 본문은 응답 필드에 있으면 반환, 일부는 첨부파일(HWP/PDF) 형태로 source_url 별도 확인"
+
+  - id: innovation_rule
+    title: 국가연구개발혁신법 시행규칙
+    tier: "Tier 1"
+    hierarchy_rank: 3
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "285043"
+    unit_types: both
+    query:
+      - 국가연구개발혁신법 시행규칙
+      - 혁신법 시행규칙
+    license_status: public_data
+    effective_date: "2026-03-25"
+    source_url: https://www.law.go.kr/법령/국가연구개발혁신법시행규칙
+    known_limitations: []
+
+  # === Tier 2: 핵심 행정규칙 ===
+
+  - id: rnd_funding_standard
+    title: 국가연구개발사업 연구개발비 사용 기준
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000278740"
+    unit_types: annex
+    query:
+      - 국가연구개발사업 연구개발비 사용 기준
+      - 연구개발비 사용 기준
+      - 연구개발비 사용기준
+    license_status: public_data
+    effective_date: "2024-06-13"
+    source_url: https://www.law.go.kr/행정규칙/국가연구개발사업연구개발비사용기준
+    known_limitations:
+      - "본 행정규칙은 조문 없이 별표 30개로 구성 — search_provision은 별표 본문에서 검색 필요"
+      - "일부 별표는 HWP/PDF 첨부파일 형태 — 별표내용 필드가 비어있으면 source_url 별도 확인"

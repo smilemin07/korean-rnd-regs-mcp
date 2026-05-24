@@ -30,9 +30,17 @@ def test_health_reports_unset_key(monkeypatch):
     assert result["api_key_configured"] is False
 
 
-def test_list_rule_sets_returns_stub():
+def test_list_rule_sets_returns_live_api_items():
+    """Step 20 입력 후: 혁신법 본법·시행령·시행규칙 + 연구개발비 사용 기준 = 4건."""
     result = asyncio.run(list_rule_sets())
     assert "rule_sets" in result
     assert isinstance(result["rule_sets"], list)
-    assert result["rule_sets"] == []
-    assert "note" in result
+    assert result["total"] == 4
+    assert len(result["rule_sets"]) == 4
+    ids = {rs["id"] for rs in result["rule_sets"]}
+    assert ids == {"innovation_act", "innovation_decree", "innovation_rule", "rnd_funding_standard"}
+    # 모든 항목이 필수 field
+    for rs in result["rule_sets"]:
+        assert rs["api_target"] in ("law", "admrul")
+        assert rs["hierarchy_rank"] in (1, 2, 3, 4)
+        assert rs["unit_types"] in ("article", "annex", "both")

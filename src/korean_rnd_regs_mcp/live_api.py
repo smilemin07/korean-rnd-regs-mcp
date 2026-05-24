@@ -246,26 +246,83 @@ class LawApiClient:
         try:
             response = _request_with_retry(url, params)
             root = _parse_xml(response)
+            # lawService.do?target=law 의 응답 schema는 search와 다름:
+            #   - 법령명_한글 (underscore!), 법종구분 (구분명 아님), 소관부처 (명 없음)
+            #   - 조문 list는 .//조문 wrapper 아래 .//조문단위 49개 형태
+            #   - 법령일련번호는 response에 없음 — 호출 param mst를 그대로 사용
             articles = [
                 {
                     "조문번호": a.findtext("조문번호", ""),
                     "조문제목": a.findtext("조문제목", ""),
                     "조문내용": a.findtext("조문내용", ""),
                 }
-                for a in root.findall(".//조문")
+                for a in root.findall(".//조문단위")
             ]
             result = {
                 "법령ID": root.findtext(".//법령ID", ""),
-                "법령일련번호": root.findtext(".//법령일련번호", "") or mst,
-                "법령명한글": root.findtext(".//법령명한글", ""),
-                "법령구분명": root.findtext(".//법령구분명", ""),
-                "소관부처명": root.findtext(".//소관부처명", ""),
+                "법령일련번호": mst,
+                "법령명한글": root.findtext(".//법령명_한글", ""),
+                "법령구분명": root.findtext(".//법종구분", ""),
+                "소관부처명": root.findtext(".//소관부처", ""),
                 "시행일자": root.findtext(".//시행일자", ""),
                 "공포일자": root.findtext(".//공포일자", ""),
                 "articles": articles,
             }
             if not articles and not result["법령명한글"]:
                 raise LawApiError(ERROR_NOT_FOUND, f"법령 상세 결과 없음: MST={mst}")
+            self._detail_cache[cache_key] = result
+            return result
+        except LawApiError as e:
+            self._record_failure(cache_key, e)
+            raise
+
+    # --- 행정규칙 상세 ---
+    def get_admin_rule_detail(self, admrul_id: str) -> dict:
+        """행정규칙 상세 (lawService.do?target=admrul&ID=...).
+
+        조문 + 별표(`별표단위` 안의 별표번호·별표제목·별표내용·별표서식파일링크) 반환.
+        Step 17 LIVE 검증: 일부 행정규칙은 조문 0개 + 별표만 30개 구성.
+        """
+        self._require_key()
+        cache_key = ("get_admin_rule_detail", admrul_id)
+        cached = self._check_caches(cache_key, self._detail_cache)
+        if cached is not None:
+            return cached
+        url = f"{self.base_url}/lawService.do"
+        params = {"OC": self.api_key, "target": "admrul", "type": "XML", "ID": admrul_id}
+        try:
+            response = _request_with_retry(url, params)
+            root = _parse_xml(response)
+            # 조문 (있을 수도 없을 수도)
+            articles = [
+                {
+                    "조문번호": a.findtext("조문번호", ""),
+                    "조문제목": a.findtext("조문제목", ""),
+                    "조문내용": a.findtext("조문내용", ""),
+                }
+                for a in root.findall(".//조문단위")
+            ]
+            # 별표 (Step 17 LIVE 검증: 별표내용 본문 직접 반환됨)
+            annexes = [
+                {
+                    "별표번호": ann.findtext("별표번호", ""),
+                    "별표제목": ann.findtext("별표제목", ""),
+                    "별표내용": ann.findtext("별표내용", ""),
+                    "별표서식파일링크": ann.findtext("별표서식파일링크", ""),
+                }
+                for ann in root.findall(".//별표단위")
+            ]
+            result = {
+                "행정규칙ID": root.findtext(".//행정규칙ID", ""),
+                "행정규칙일련번호": admrul_id,
+                "행정규칙명": root.findtext(".//행정규칙명", ""),
+                "소관부처명": root.findtext(".//소관부처명", ""),
+                "시행일자": root.findtext(".//시행일자", ""),
+                "articles": articles,
+                "annexes": annexes,
+            }
+            if not articles and not annexes:
+                raise LawApiError(ERROR_NOT_FOUND, f"행정규칙 상세 결과 없음: ID={admrul_id}")
             self._detail_cache[cache_key] = result
             return result
         except LawApiError as e:
