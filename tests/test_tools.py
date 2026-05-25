@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from korean_rnd_regs_mcp import main as main_module
-from korean_rnd_regs_mcp.live_api import LawApiClient, LawApiError
+from korean_rnd_regs_mcp.live_api import LawApiClient, LawApiError, ResolvedDocId
 from korean_rnd_regs_mcp.main import (
     _extract_keywords,
     _make_snippet,
@@ -79,6 +79,14 @@ def mock_client(monkeypatch):
             },
         ],
     }
+    def _resolve_passthrough(title, api_target, manifest_doc_id):
+        return ResolvedDocId(
+            doc_id=manifest_doc_id,
+            effective_date="",
+            is_updated=False,
+            manifest_doc_id=manifest_doc_id,
+        )
+    client.resolve_latest_doc_id.side_effect = _resolve_passthrough
     monkeypatch.setattr(main_module, "_client_instance", client)
     return client
 
@@ -619,3 +627,220 @@ def test_get_admin_rule_detail_excludes_wrapper_elements(monkeypatch):
     assert len(result["articles"]) == 1, f"wrapper filter 실패: {result['articles']}"
     assert result["articles"][0]["조문제목"] == "목적"
     assert len(result["annexes"]) == 1
+
+
+# === search-first (resolve_latest_doc_id) 패턴 테스트 ===
+
+
+def test_resolve_latest_doc_id_no_change():
+    """manifest ID와 동일하면 is_updated=False."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient, SearchResult, DocumentRef
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    sr = SearchResult(total=1, page=1, page_size=5, items=[
+        DocumentRef(doc_type="law", doc_id="260807", title="국가연구개발혁신법",
+                    extra={"시행일자": "20250228"}),
+    ])
+    client.search_laws = MagicMock(return_value=sr)
+    result = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "260807")
+    assert result.doc_id == "260807"
+    assert result.is_updated is False
+
+
+def test_resolve_latest_doc_id_detects_update():
+    """검색 결과 ID가 manifest ID와 다르면 is_updated=True."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient, SearchResult, DocumentRef
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    sr = SearchResult(total=1, page=1, page_size=5, items=[
+        DocumentRef(doc_type="admrul", doc_id="2100000999999",
+                    title="국가연구개발사업 연구개발비 사용 기준",
+                    extra={"시행일자": "20260311"}),
+    ])
+    client.search_admin_rules = MagicMock(return_value=sr)
+    result = client.resolve_latest_doc_id(
+        "국가연구개발사업 연구개발비 사용 기준", "admrul", "2100000278740",
+    )
+    assert result.doc_id == "2100000999999"
+    assert result.is_updated is True
+    assert result.effective_date == "2026-03-11"
+    assert result.manifest_doc_id == "2100000278740"
+
+
+def test_resolve_latest_doc_id_fallback_on_error():
+    """검색 실패 시 manifest ID fallback."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    client.search_laws = MagicMock(side_effect=LawApiError("parse_failed", "test"))
+    result = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "260807")
+    assert result.doc_id == "260807"
+    assert result.is_updated is False
+
+
+def test_resolve_latest_doc_id_cache_hit():
+    """두 번째 호출은 캐시에서 반환."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient, SearchResult, DocumentRef
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    sr = SearchResult(total=1, page=1, page_size=5, items=[
+        DocumentRef(doc_type="law", doc_id="999999", title="국가연구개발혁신법",
+                    extra={"시행일자": "20260506"}),
+    ])
+    client.search_laws = MagicMock(return_value=sr)
+    r1 = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "260807")
+    r2 = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "260807")
+    assert r1 == r2
+    assert client.search_laws.call_count == 1
+
+
+def test_search_provision_uses_resolved_id(mock_client):
+    """search_provision이 resolved doc_id로 detail API를 호출하는지 검증."""
+    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
+        doc_id="NEW_ID" if mid == "260807" else mid,
+        effective_date="2026-05-06" if mid == "260807" else "",
+        is_updated=(mid == "260807"),
+        manifest_doc_id=mid,
+    )
+    result = asyncio.run(search_provision("특별평가"))
+    assert result["total"] >= 1
+    for m in result["results"]:
+        if m["rule_set_id"] == "innovation_act":
+            assert "NEW_ID" in m["provision_id"]
+            assert "revision_notice" in m
+            assert "개정 반영" in m["revision_notice"]
+
+
+def test_search_provision_revision_notice_absent_when_same(mock_client):
+    """ID 변경 없으면 revision_notice 없음."""
+    result = asyncio.run(search_provision("특별평가"))
+    for m in result["results"]:
+        assert "revision_notice" not in m
+
+
+def test_get_provision_detail_uses_resolved_id(mock_client):
+    """get_provision_detail이 resolved ID로 상세 조회."""
+    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
+        doc_id="NEW_MST" if mid == "260807" else mid,
+        effective_date="2026-05-06" if mid == "260807" else "",
+        is_updated=(mid == "260807"),
+        manifest_doc_id=mid,
+    )
+    result = asyncio.run(get_provision_detail("law:260807:JO0015"))
+    assert result.get("revision_notice")
+    assert "개정 반영" in result["revision_notice"]
+    assert result["effective_date"] == "2026-05-06"
+    mock_client.get_law_detail.assert_called_with("NEW_MST")
+
+
+def test_get_provision_detail_with_resolved_doc_id_in_provision_id(mock_client):
+    """회귀: search_provision이 반환한 resolved doc_id로 get_provision_detail 호출 시 정상 동작."""
+    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
+        doc_id="NEW_MST" if mid == "260807" else mid,
+        effective_date="2026-05-06" if mid == "260807" else "",
+        is_updated=(mid == "260807"),
+        manifest_doc_id=mid,
+    )
+    # NEW_MST는 manifest에 없지만, resolve fallback으로 innovation_act에 매칭되어야 함
+    result = asyncio.run(get_provision_detail("law:NEW_MST:JO0015"))
+    assert "errors" not in result or not result.get("errors")
+    assert result.get("unit_type") == "article"
+    assert result.get("title") == "특별평가"
+
+
+def test_resolve_latest_doc_id_picks_latest_by_date():
+    """여러 검색 결과 중 시행일자가 가장 최신인 문서를 선택."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient, SearchResult, DocumentRef
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    sr = SearchResult(total=2, page=1, page_size=5, items=[
+        DocumentRef(doc_type="admrul", doc_id="OLD_ID",
+                    title="국가연구개발사업 연구개발비 사용 기준",
+                    extra={"시행일자": "20240613"}),
+        DocumentRef(doc_type="admrul", doc_id="NEW_ID",
+                    title="국가연구개발사업 연구개발비 사용 기준",
+                    extra={"시행일자": "20260311"}),
+    ])
+    client.search_admin_rules = MagicMock(return_value=sr)
+    result = client.resolve_latest_doc_id(
+        "국가연구개발사업 연구개발비 사용 기준", "admrul", "OLD_ID",
+    )
+    assert result.doc_id == "NEW_ID"
+    assert result.effective_date == "2026-03-11"
+
+
+def test_resolve_latest_doc_id_no_title_match_falls_back():
+    """검색 결과에 title이 일치하는 항목이 없으면 manifest ID fallback."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient, SearchResult, DocumentRef
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    sr = SearchResult(total=1, page=1, page_size=5, items=[
+        DocumentRef(doc_type="law", doc_id="999999", title="다른 법률",
+                    extra={"시행일자": "20260101"}),
+    ])
+    client.search_laws = MagicMock(return_value=sr)
+    result = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "260807")
+    assert result.doc_id == "260807"
+    assert result.is_updated is False
+
+
+def test_resolve_latest_doc_id_failure_uses_short_ttl_cache():
+    """Codex P0: transient 실패는 5분 캐시에 저장되어 빠르게 복구 가능."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient, SearchResult, DocumentRef
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+
+    client.search_laws = MagicMock(side_effect=LawApiError("parse_failed", "transient"))
+    r1 = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "260807")
+    assert r1.doc_id == "260807"
+    assert r1.is_updated is False
+
+    # failure 캐시에 저장됨 — success 캐시에는 없어야 함
+    cache_key = ("resolve", "law", "국가연구개발혁신법")
+    assert cache_key not in client._id_resolution_cache
+    assert cache_key in client._id_resolution_failure_cache
+
+    # failure 캐시 수동 만료 후 성공 시 복구
+    del client._id_resolution_failure_cache[cache_key]
+    sr = SearchResult(total=1, page=1, page_size=5, items=[
+        DocumentRef(doc_type="law", doc_id="NEW_MST", title="국가연구개발혁신법",
+                    extra={"시행일자": "20260506"}),
+    ])
+    client.search_laws = MagicMock(return_value=sr)
+    r2 = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "260807")
+    assert r2.doc_id == "NEW_MST"
+    assert r2.is_updated is True
+
+
+def test_resolve_latest_doc_id_middle_dot_normalization():
+    """중간점 문자 차이(U+00B7 vs U+318D)가 있어도 title matching 성공."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient, SearchResult, DocumentRef
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    sr = SearchResult(total=1, page=1, page_size=5, items=[
+        DocumentRef(doc_type="admrul", doc_id="NEW_ID",
+                    title="국가연구개발 시설ㆍ장비의 관리 등에 관한 표준지침",
+                    extra={"시행일자": "20260423"}),
+    ])
+    client.search_admin_rules = MagicMock(return_value=sr)
+    result = client.resolve_latest_doc_id(
+        "국가연구개발 시설·장비의 관리 등에 관한 표준지침", "admrul", "OLD_ID",
+    )
+    assert result.doc_id == "NEW_ID"
+    assert result.is_updated is True
+
+
+def test_resolve_no_key_leak(mock_client):
+    """resolve 응답에 API key 미포함."""
+    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
+        doc_id="UPDATED_ID", effective_date="2026-01-01",
+        is_updated=True, manifest_doc_id=mid,
+    )
+    result = asyncio.run(search_provision("특별평가"))
+    response_str = json.dumps(result, ensure_ascii=False)
+    assert _FAKE_KEY not in response_str
+
+
+def test_suggest_review_sources_works_with_resolved_ids(mock_client):
+    """suggest_review_sources가 resolved ID로도 정상 동작 (rule_set_id 기반 lookup)."""
+    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
+        doc_id="CHANGED_ID" if mid == "260807" else mid,
+        effective_date="2026-05-06" if mid == "260807" else "",
+        is_updated=(mid == "260807"),
+        manifest_doc_id=mid,
+    )
+    result = asyncio.run(suggest_review_sources("특별평가 절차는 어떻게 되나요?"))
+    assert result["total"] >= 1
+    assert len(result["recommended_review_order"]) >= 1

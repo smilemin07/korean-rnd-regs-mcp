@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from fastmcp import FastMCP
 
 from . import __version__
-from .live_api import LawApiClient, LawApiError
+from .live_api import LawApiClient, LawApiError, ResolvedDocId
 from .manifest import ApiTarget, Retrieval, UnitTypes, load_manifest
 from .provision_id import (
     CONTRACT_VERSION,
@@ -147,10 +147,22 @@ def _get_client() -> LawApiClient:
     return _client_instance
 
 
-def _build_match(rs, unit_id: str, unit_type: str, title: str, snippet: str) -> dict:
+async def _resolve_doc_id(rs, client: LawApiClient) -> ResolvedDocId:
+    return await asyncio.to_thread(
+        client.resolve_latest_doc_id,
+        rs.title,
+        rs.api_target.value,
+        rs.api_doc_id,
+    )
+
+
+def _build_match(rs, unit_id: str, unit_type: str, title: str, snippet: str,
+                 resolved: ResolvedDocId | None = None) -> dict:
     """단일 검색 결과 dict 생성. snippet은 호출자가 _make_snippet으로 미리 생성."""
-    return {
-        "provision_id": build_provision_id(rs.api_target.value, rs.api_doc_id, unit_id),
+    doc_id = resolved.doc_id if resolved else rs.api_doc_id
+    result = {
+        "provision_id": build_provision_id(rs.api_target.value, doc_id, unit_id),
+        "rule_set_id": rs.id,
         "document_title": rs.title,
         "unit_id": unit_id,
         "unit_type": unit_type,
@@ -158,6 +170,13 @@ def _build_match(rs, unit_id: str, unit_type: str, title: str, snippet: str) -> 
         "snippet": snippet,
         "warnings": list(rs.known_limitations),
     }
+    if resolved and resolved.is_updated:
+        result["revision_notice"] = (
+            f"개정 반영: 시행일 {resolved.effective_date} "
+            f"(manifest 기준 ID {resolved.manifest_doc_id} → 최신 ID {resolved.doc_id})"
+        )
+        result["effective_date"] = resolved.effective_date
+    return result
 
 
 @mcp.tool()
@@ -207,17 +226,17 @@ async def search_provision(query: str) -> dict:
 
     for rs in live_items:
         try:
+            resolved = await _resolve_doc_id(rs, client)
+            doc_id = resolved.doc_id
             if rs.api_target == ApiTarget.LAW:
-                detail = await asyncio.to_thread(client.get_law_detail, rs.api_doc_id)
+                detail = await asyncio.to_thread(client.get_law_detail, doc_id)
                 articles = detail.get("articles", [])
-                annexes: list = []  # law detail은 별표 미반환 (시행령 별표는 v0.3 이후)
+                annexes: list = []
             else:  # admrul
-                detail = await asyncio.to_thread(client.get_admin_rule_detail, rs.api_doc_id)
+                detail = await asyncio.to_thread(client.get_admin_rule_detail, doc_id)
                 articles = detail.get("articles", [])
                 annexes = detail.get("annexes", [])
         except LawApiError as e:
-            # log에 e 원본을 출력하지 않음 (sanitize 적용된 응답과 달리 log에 우연히 키 누설 risk).
-            # code와 rule_set_id만 log — message는 sanitize 거친 후 응답에만.
             logger.warning("search_provision: rule_set=%s detail 실패, code=%s", rs.id, e.code)
             errors.append({"rule_set_id": rs.id, "code": e.code, "message": _sanitize_error_message(e.message)})
             continue
@@ -231,7 +250,7 @@ async def search_provision(query: str) -> dict:
                     art_no = (art.get("조문번호") or "").strip()
                     if art_no.isdigit():
                         snippet = _make_snippet(content, query)
-                        matches.append(_build_match(rs, f"JO{int(art_no):04d}", "article", title, snippet))
+                        matches.append(_build_match(rs, f"JO{int(art_no):04d}", "article", title, snippet, resolved))
 
         # annex 검색
         if rs.unit_types in (UnitTypes.ANNEX, UnitTypes.BOTH):
@@ -242,7 +261,7 @@ async def search_provision(query: str) -> dict:
                     ann_no = (ann.get("별표번호") or "").strip()
                     if ann_no.isdigit():
                         snippet = _make_snippet(content, query)
-                        matches.append(_build_match(rs, f"BP{int(ann_no):04d}", "annex", title, snippet))
+                        matches.append(_build_match(rs, f"BP{int(ann_no):04d}", "annex", title, snippet, resolved))
 
     response = {
         "query": query,
@@ -287,16 +306,15 @@ async def suggest_review_sources(question: str) -> dict:
                 m_copy["matched_keywords"] = [kw]
                 all_matches[pid] = m_copy
 
-    # manifest 참조해 hierarchy_rank 정렬
-    rs_by_doc = {
-        (rs.api_target.value, rs.api_doc_id): rs
+    # manifest 참조해 hierarchy_rank 정렬 — rule_set_id 기반 (search-first로 doc_id가 변경될 수 있으므로)
+    rs_by_id = {
+        rs.id: rs
         for rs in load_manifest()
         if rs.retrieval == Retrieval.LIVE_API
     }
 
     def _rank_key(match: dict) -> tuple:
-        pid = parse_provision_id(match["provision_id"])
-        rs = rs_by_doc.get((pid.doc_type, pid.doc_id))
+        rs = rs_by_id.get(match.get("rule_set_id", ""))
         return (rs.hierarchy_rank.value if rs else 99, match["provision_id"])
 
     candidates = sorted(all_matches.values(), key=_rank_key)
@@ -304,8 +322,7 @@ async def suggest_review_sources(question: str) -> dict:
     # recommended_review_order — 후보가 속한 hierarchy 순서로 unique document list
     seen_titles: dict[int, list[str]] = {}
     for m in candidates:
-        pid = parse_provision_id(m["provision_id"])
-        rs = rs_by_doc.get((pid.doc_type, pid.doc_id))
+        rs = rs_by_id.get(m.get("rule_set_id", ""))
         if rs:
             rank = rs.hierarchy_rank.value
             seen_titles.setdefault(rank, [])
@@ -355,14 +372,25 @@ async def get_provision_detail(provision_id: str) -> dict:
             "disclaimer": _DISCLAIMER,
         }
 
-    # manifest에서 매칭 rule_set 찾기
+    # manifest에서 매칭 rule_set 찾기 (manifest doc_id 직접 매칭)
+    live_items = [r for r in load_manifest() if r.retrieval == Retrieval.LIVE_API]
     rs = next(
-        (
-            r for r in load_manifest()
-            if r.api_doc_id == pid.doc_id and r.api_target.value == pid.doc_type
-        ),
+        (r for r in live_items if r.api_doc_id == pid.doc_id and r.api_target.value == pid.doc_type),
         None,
     )
+    # Fallback: pid.doc_id가 resolved(최신) ID일 수 있음 — search-first로 확인
+    client = _get_client()
+    if rs is None:
+        for r in live_items:
+            if r.api_target.value != pid.doc_type:
+                continue
+            try:
+                res = await _resolve_doc_id(r, client)
+                if res.doc_id == pid.doc_id:
+                    rs = r
+                    break
+            except Exception:
+                continue
     if rs is None:
         return {
             "errors": [{
@@ -372,15 +400,15 @@ async def get_provision_detail(provision_id: str) -> dict:
             "contract_version": CONTRACT_VERSION,
             "disclaimer": _DISCLAIMER,
         }
-
-    client = _get_client()
     try:
+        resolved = await _resolve_doc_id(rs, client)
+        doc_id = resolved.doc_id
         if pid.doc_type == "law":
-            detail = await asyncio.to_thread(client.get_law_detail, pid.doc_id)
+            detail = await asyncio.to_thread(client.get_law_detail, doc_id)
             articles = detail.get("articles", [])
             annexes: list = []
         else:  # admrul
-            detail = await asyncio.to_thread(client.get_admin_rule_detail, pid.doc_id)
+            detail = await asyncio.to_thread(client.get_admin_rule_detail, doc_id)
             articles = detail.get("articles", [])
             annexes = detail.get("annexes", [])
     except LawApiError as e:
@@ -390,6 +418,14 @@ async def get_provision_detail(provision_id: str) -> dict:
             "disclaimer": _DISCLAIMER,
         }
 
+    eff_date = resolved.effective_date if resolved.is_updated else rs.effective_date
+    _revision = None
+    if resolved.is_updated:
+        _revision = (
+            f"개정 반영: 시행일 {resolved.effective_date} "
+            f"(manifest 기준 ID {resolved.manifest_doc_id} → 최신 ID {resolved.doc_id})"
+        )
+
     # document-level (unit_id 없음)
     if pid.unit_id is None:
         result = {
@@ -397,7 +433,7 @@ async def get_provision_detail(provision_id: str) -> dict:
             "document_title": rs.title,
             "document_source_url": rs.source_url,
             "unit_type": "document",
-            "effective_date": rs.effective_date,
+            "effective_date": eff_date,
             "articles_count": len(articles),
             "contract_version": CONTRACT_VERSION,
             "disclaimer": _DISCLAIMER,
@@ -405,6 +441,8 @@ async def get_provision_detail(provision_id: str) -> dict:
         }
         if pid.doc_type == "admrul":
             result["annexes_count"] = len(annexes)
+        if _revision:
+            result["revision_notice"] = _revision
         return result
 
     # article (JO)
@@ -413,7 +451,7 @@ async def get_provision_detail(provision_id: str) -> dict:
         for art in articles:
             no = (art.get("조문번호") or "").strip()
             if no.isdigit() and int(no) == target_no:
-                return {
+                resp = {
                     "provision_id": provision_id,
                     "document_title": rs.title,
                     "document_source_url": rs.source_url,
@@ -424,11 +462,14 @@ async def get_provision_detail(provision_id: str) -> dict:
                     "content_format": "plain_text_verbatim",
                     "article_structure": art.get("structured"),
                     "format_instructions": _VERBATIM_INSTRUCTIONS,
-                    "effective_date": rs.effective_date,
+                    "effective_date": eff_date,
                     "contract_version": CONTRACT_VERSION,
                     "disclaimer": _DISCLAIMER,
                     "warnings": list(rs.known_limitations),
                 }
+                if _revision:
+                    resp["revision_notice"] = _revision
+                return resp
 
     # annex (BP)
     elif pid.unit_id.startswith("BP"):
@@ -437,10 +478,9 @@ async def get_provision_detail(provision_id: str) -> dict:
             no = (ann.get("별표번호") or "").strip()
             if no.isdigit() and int(no) == target_no:
                 attached = (ann.get("별표서식파일링크") or "").strip()
-                # 상대 path(/LSW/...) → 절대 URL 변환
                 if attached and not attached.startswith(("http://", "https://")):
                     attached = urljoin(_LAW_GO_KR_BASE, attached)
-                return {
+                resp = {
                     "provision_id": provision_id,
                     "document_title": rs.title,
                     "document_source_url": rs.source_url,
@@ -449,11 +489,14 @@ async def get_provision_detail(provision_id: str) -> dict:
                     "title": (ann.get("별표제목") or "").strip(),
                     "content": (ann.get("별표내용") or "").strip(),
                     "attached_file_url": attached or None,
-                    "effective_date": rs.effective_date,
+                    "effective_date": eff_date,
                     "contract_version": CONTRACT_VERSION,
                     "disclaimer": _DISCLAIMER,
                     "warnings": list(rs.known_limitations),
                 }
+                if _revision:
+                    resp["revision_notice"] = _revision
+                return resp
 
     return {
         "errors": [{

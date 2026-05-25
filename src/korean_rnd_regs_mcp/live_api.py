@@ -64,6 +64,15 @@ class ProvisionRef:
 
 
 @dataclass(frozen=True)
+class ResolvedDocId:
+    """Dynamic ID resolution result — search-first 패턴으로 최신 문서 ID를 확인한 결과."""
+    doc_id: str
+    effective_date: str       # ISO format "2026-03-11" or raw "20260311"
+    is_updated: bool          # True if doc_id differs from manifest_doc_id
+    manifest_doc_id: str
+
+
+@dataclass(frozen=True)
 class SearchResult:
     """검색 응답 wrapper."""
     total: int
@@ -287,6 +296,8 @@ class LawApiClient:
         self._search_cache: TTLCache = TTLCache(maxsize=100, ttl=86400)
         self._detail_cache: TTLCache = TTLCache(maxsize=50, ttl=86400)
         self._failure_cache: TTLCache = TTLCache(maxsize=200, ttl=300)
+        self._id_resolution_cache: TTLCache = TTLCache(maxsize=50, ttl=86400)
+        self._id_resolution_failure_cache: TTLCache = TTLCache(maxsize=50, ttl=300)
 
     def _require_key(self) -> None:
         if not self.api_key:
@@ -468,6 +479,75 @@ class LawApiClient:
         except LawApiError as e:
             self._record_failure(cache_key, e)
             raise
+
+    # --- 최신 문서 ID 동적 해석 (search-first 패턴) ---
+    @staticmethod
+    def _normalize_title(title: str) -> str:
+        t = re.sub(r'\s+', '', title)
+        t = t.replace('ㆍ', '·')  # HANGUL LETTER ARAEA → MIDDLE DOT
+        return t
+
+    @staticmethod
+    def _format_date(raw: str) -> str:
+        raw = (raw or "").strip()
+        if len(raw) == 8 and raw.isdigit():
+            return f"{raw[:4]}-{raw[4:6]}-{raw[6:8]}"
+        return raw
+
+    def resolve_latest_doc_id(
+        self,
+        title: str,
+        api_target: str,
+        manifest_doc_id: str,
+    ) -> ResolvedDocId:
+        """manifest title로 검색하여 최신 문서 ID를 반환. 실패 시 manifest ID fallback."""
+        cache_key = ("resolve", api_target, title)
+        cached = self._id_resolution_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        cached_fail = self._id_resolution_failure_cache.get(cache_key)
+        if cached_fail is not None:
+            return cached_fail
+
+        fallback = ResolvedDocId(
+            doc_id=manifest_doc_id,
+            effective_date="",
+            is_updated=False,
+            manifest_doc_id=manifest_doc_id,
+        )
+        try:
+            if api_target == "law":
+                sr = self.search_laws(title, page_size=5)
+            else:
+                sr = self.search_admin_rules(title, page_size=5)
+        except LawApiError:
+            logger.warning("resolve_latest_doc_id: search 실패, manifest ID fallback (target=%s)", api_target)
+            self._id_resolution_failure_cache[cache_key] = fallback
+            return fallback
+
+        norm_title = self._normalize_title(title)
+        best: ResolvedDocId | None = None
+        for item in sr.items:
+            if self._normalize_title(item.title) != norm_title:
+                continue
+            raw_date = item.extra.get("시행일자", "")
+            resolved = ResolvedDocId(
+                doc_id=item.doc_id,
+                effective_date=self._format_date(raw_date),
+                is_updated=(item.doc_id != manifest_doc_id),
+                manifest_doc_id=manifest_doc_id,
+            )
+            if best is None or raw_date > (best.effective_date.replace("-", "") if best else ""):
+                best = resolved
+
+        result = best if best is not None else fallback
+        if result.is_updated:
+            logger.info(
+                "resolve_latest_doc_id: %s updated %s -> %s (시행일 %s)",
+                title, manifest_doc_id, result.doc_id, result.effective_date,
+            )
+        self._id_resolution_cache[cache_key] = result
+        return result
 
     # --- 행정규칙 검색 ---
     def search_admin_rules(self, query: str, page: int = 1, page_size: int = 10) -> SearchResult:
