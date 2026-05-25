@@ -65,7 +65,7 @@ Supplementary — 신고·포상금·부패행위·청탁금지·공익신고자
 
 ## 사전 준비: LAW_API_KEY 발급
 
-본 서버는 [국가법령정보 OpenAPI](https://open.law.go.kr) 를 호출합니다. 무료이며 가입·신청 후 즉시 발급됩니다.
+본 MCP 서버는 [국가법령정보 OpenAPI](https://open.law.go.kr)를 호출합니다.
 
 ### 이미 키를 보유하고 있는 경우
 
