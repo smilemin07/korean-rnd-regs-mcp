@@ -1,11 +1,12 @@
-"""korean-rnd-regs-mcp main entry — stdio MCP server."""
+"""korean-rnd-regs-mcp main entry — stdio / HTTP MCP server."""
 import argparse
 import asyncio
+import contextvars
 import logging
 import os
 import re
 import sys
-from urllib.parse import urljoin
+from urllib.parse import urljoin, parse_qs
 
 from dotenv import load_dotenv
 from fastmcp import FastMCP
@@ -136,11 +137,18 @@ def _make_snippet(content: str, query: str, max_len: int = _SNIPPET_MAX) -> str:
     # 최종 안전망 — 어떤 경우에도 max_len 초과 금지
     return snippet[:max_len]
 
-# Lazy LawApiClient singleton — first call instantiates with current env
+_request_api_key: contextvars.ContextVar[str] = contextvars.ContextVar("_request_api_key", default="")
+
 _client_instance: LawApiClient | None = None
+_client_by_key: dict[str, LawApiClient] = {}
 
 
 def _get_client() -> LawApiClient:
+    key = _request_api_key.get("")
+    if key:
+        if key not in _client_by_key:
+            _client_by_key[key] = LawApiClient(env_override={"LAW_API_KEY": key})
+        return _client_by_key[key]
     global _client_instance
     if _client_instance is None:
         _client_instance = LawApiClient()
@@ -627,26 +635,65 @@ async def list_rule_sets() -> dict:
     }
 
 
-async def _run() -> None:
+async def _run_stdio() -> None:
     logger.info("korean-rnd-regs-mcp stdio server starting")
     await mcp.run_stdio_async()
+
+
+class _OCKeyMiddleware:
+    """ASGI middleware: URL의 ?oc= 파라미터를 추출하여 요청별 LAW_API_KEY로 설정."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            qs = scope.get("query_string", b"").decode()
+            params = parse_qs(qs)
+            oc = params.get("oc", [""])[0]
+            token = _request_api_key.set(oc)
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                _request_api_key.reset(token)
+        else:
+            await self.app(scope, receive, send)
+
+
+async def _run_http(host: str, port: int) -> None:
+    logger.info("korean-rnd-regs-mcp HTTP server starting on %s:%d", host, port)
+    from starlette.middleware import Middleware
+    await mcp.run_http_async(
+        transport="streamable-http",
+        host=host,
+        port=port,
+        middleware=[Middleware(_OCKeyMiddleware)],
+    )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="korean-rnd-regs-mcp",
-        description="국가연구개발 규정 검토용 MCP server (stdio mode). 인자 없이 실행하면 stdio MCP 서버가 시작됩니다.",
-        epilog="Claude Desktop·Claude Code 등 MCP 클라이언트에서 자동 실행됨. 직접 실행 시 stdin EOF 발생 시 종료.",
+        description="국가연구개발 규정 검토용 MCP server. 기본은 stdio, --http로 원격 배포용 HTTP 모드.",
+        epilog="Claude Desktop·Claude Code → stdio (기본). Claude.ai 웹 커넥터 → --http.",
     )
     parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
     )
-    # --version / --help는 argparse가 여기서 exit. 알 수 없는 인자도 argparse가 거부(exit 2).
-    # 인자 없으면 FastMCP stdio mode 진입.
-    parser.parse_args()
-    asyncio.run(_run())
+    parser.add_argument(
+        "--http",
+        action="store_true",
+        help="HTTP (streamable-http) 모드로 실행. PORT 환경변수 또는 기본 8080 포트 사용.",
+    )
+    args = parser.parse_args()
+
+    if args.http or os.environ.get("PORT"):
+        port = int(os.environ.get("PORT", "8080"))
+        asyncio.run(_run_http("0.0.0.0", port))
+    else:
+        asyncio.run(_run_stdio())
 
 
 if __name__ == "__main__":

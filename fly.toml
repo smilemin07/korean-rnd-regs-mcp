@@ -1,0 +1,20 @@
+# fly.toml app configuration file generated for korean-rnd-regs-mcp on 2026-05-25T20:14:38+09:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'korean-rnd-regs-mcp'
+primary_region = 'nrt'
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '256mb'

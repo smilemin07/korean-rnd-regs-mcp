@@ -1,0 +1,35 @@
+# flyctl launch added from .gitignore
+# Python-generated files
+**/__pycache__
+**/*.py[oc]
+**/build
+**/dist
+**/wheels
+**/*.egg-info
+
+# Virtual environments
+**/.venv
+
+# Secrets — NEVER commit
+**/.env
+**/.env.*
+!**/.env.example
+!**/env.example
+**/*.pem
+**/*.key
+
+# OS
+**/.DS_Store
+
+# Editor
+**/.idea
+**/.vscode
+
+# Internal dev notes — not for public
+**/CLAUDE.md
+**/.claude
+
+# flyctl launch added from .pytest_cache/.gitignore
+# Created by pytest automatically.
+.pytest_cache/**/*
+fly.toml
