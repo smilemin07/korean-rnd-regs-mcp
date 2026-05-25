@@ -1,9 +1,9 @@
 # korean-rnd-regs-mcp — rule_sets manifest
 #
 # schema: src/korean_rnd_regs_mcp/manifest.py (Pydantic RuleSet model, 13 fields)
-# 단계: plan v3.2 Step 19(schema 정의) + Step 20(MVP 4개 항목 입력)
+# 단계: (schema 정의) + (MVP 4개 항목 입력)
 #
-# 본 4개 항목은 Step 16-17 LIVE 검증으로 MST/ID 확인 완료.
+# 본 4개 항목은 LIVE 검증으로 MST/ID 확인 완료.
 # 추가 항목 (기관별 운영규정, 매뉴얼 등)은 v0.3 이후 prebuilt_index로 확장 예정.
 
 rule_sets:
@@ -35,7 +35,7 @@ rule_sets:
     api_target: law
     api_id_type: MST
     api_doc_id: "285767"
-    unit_types: article  # Phase 3 MVP: 본문 조문만. law detail XML에서 별표 미파싱 (v0.3 보강 예정)
+    unit_types: article  # MVP: 본문 조문만. law detail XML에서 별표 미파싱 (v0.3 보강 예정)
     query:
       - 국가연구개발혁신법 시행령
       - 혁신법 시행령
@@ -54,7 +54,7 @@ rule_sets:
     api_target: law
     api_id_type: MST
     api_doc_id: "285043"
-    unit_types: article  # Phase 3 MVP: 본문 조문만 (시행규칙은 별표 적음)
+    unit_types: article  # MVP: 본문 조문만 (시행규칙은 별표 적음)
     query:
       - 국가연구개발혁신법 시행규칙
       - 혁신법 시행규칙

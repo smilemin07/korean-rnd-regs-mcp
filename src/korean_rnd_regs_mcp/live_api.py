@@ -18,7 +18,7 @@ from .provision_id import CONTRACT_VERSION
 
 # 평면 schema(root 직속 <조문내용>) 행정규칙 파싱용 정규식.
 # "제N조[의M](제목) 본문..." 패턴. LIVE 검증: 동시수행 과제 수 제한, 연구노트 지침, 연구개발비 사용 기준 등.
-# 9차 AI review ( P0): 제목 내부 괄호 대응 위해 `.+?` lazy match 사용 (단순 `[^)]*`는
+# 제목 내부 괄호 대응 위해 `.+?` lazy match 사용 (단순 `[^)]*`는
 # "(중소기업(A) 기준)" 같은 중첩 괄호에서 매칭 끊김). 괄호 자체는 필수 — 장/절/관 wrapper
 # ("제1장 총칙" 등) 자동 제외 효과 유지.
 _FLAT_ARTICLE_PATTERN = re.compile(r'제(\d+)조(?:의(\d+))?\s*\((.+?)\)\s*(.*)', re.DOTALL)
@@ -55,7 +55,7 @@ class DocumentRef:
 
 @dataclass(frozen=True)
 class ProvisionRef:
-    """조문 또는 별표 단위 reference (search_provision 응답 item, Step 21에서 사용)."""
+    """조문 또는 별표 단위 reference (search_provision 응답 item, 에서 사용)."""
     provision_id: str       # see provision_id.py
     unit_id: Optional[str]  # JO0003 (조문) or BP0001 (별표) or None (document-level)
     snippet: str            # <= 2000 chars (contract §5)
@@ -132,7 +132,7 @@ def _request_with_retry(
                 )
             return response
         except requests.exceptions.RequestException as e:
-            # 8차 AI review ( P0): Timeout/ConnectionError 외 SSLError·ChunkedEncodingError·
+            # Timeout/ConnectionError 외 SSLError·ChunkedEncodingError·
             # InvalidURL 등도 catch — 누수 시 호출 URL(OC=<key>)가 trace에 노출되는 것을 차단.
             # type 이름만 logger·재시도 message에 사용하여 e 본문 누출 방지.
             last_err = e
@@ -223,7 +223,7 @@ def _parse_flat_article(elem: ET.Element) -> Optional[dict]:
     일부 행정규칙(예: 동시수행 과제 수 제한, 연구노트 지침, 연구개발비 사용 기준)은 `<조문단위>`
     wrapper 없이 `<조문내용>` element가 root 직속으로 평면 배치됨. 이 schema를 fallback으로 지원.
 
-    9차 AI review 합의 P1 ( + ): 가지조문(제15조의2 등) silent skip.
+    가지조문(제15조의2 등) silent skip.
     - 현재 contract 0.1.0 provision_id는 JO + 숫자만 지원 — 가지번호 표현 불가
     - 정규식이 가지조문 매칭하면 본 조문(제15조)과 동일 조문번호=15로 collision 발생
     - 예: rnd_funding_standard에 제10조의2/제11조의2/제15조의2/제16조의2/제17조의2 등 8건 LIVE 발견
@@ -365,19 +365,19 @@ class LawApiClient:
             #   - 법령명_한글 (underscore!), 법종구분 (구분명 아님), 소관부처 (명 없음)
             #   - 조문 list는 .//조문 wrapper 아래 .//조문단위 49개 형태
             #   - 법령일련번호는 response에 없음 — 호출 param mst를 그대로 사용
-            # 8차 AI review LIVE 검증 P0: <조문여부>=전문 element는 장/절/관 wrapper(예: "제1장 총칙")로
+            # LIVE 검증: <조문여부>=전문 element는 장/절/관 wrapper(예: "제1장 총칙")로
             # 실제 조문이 아님. 동일 조문번호로 wrapper + 실제 조문이 함께 등장하여 (혁신법·시행령 7건 collision)
             # JO0001 검색·상세조회 시 wrapper만 반환되는 silent bug 발생. 조문여부="조문"만 articles에 포함.
-            # 9차 AI review 합의 P1: 가지조문(<조문가지번호> 채워진 element)도 skip — 현재 contract 0.1.0
+            # 가지조문(<조문가지번호> 채워진 element)도 skip — 현재 contract 0.1.0
             # provision_id가 JO + 숫자만 지원하므로 가지조문은 본 조문과 collision (예: 제15조 ↔ 제15조의2).
             articles = [
                 {
                     "조문번호": a.findtext("조문번호", ""),
                     "조문제목": a.findtext("조문제목", ""),
-                    # 6차 AI feedback P0: 다항조문은 본문이 <항>·<호>에 있음.
+                    # 다항조문은 본문이 <항>·<호>에 있음.
                     # _build_article_content가 조문내용 + 항(항내용 + 호) 모두 합침.
                     "조문내용": _build_article_content(a),
-                    # 7차 AI feedback P1: machine-readable nested hierarchy (LLM 재포맷 방어).
+                    # machine-readable nested hierarchy (LLM 재포맷 방어).
                     "structured": _build_article_structure(a),
                 }
                 for a in root.findall(".//조문단위")
@@ -407,7 +407,7 @@ class LawApiClient:
         """행정규칙 상세 (lawService.do?target=admrul&ID=...).
 
         조문 + 별표(`별표단위` 안의 별표번호·별표제목·별표내용·별표서식파일링크) 반환.
-        Step 17 LIVE 검증: 일부 행정규칙은 조문 0개 + 별표만 30개 구성.
+        LIVE 검증: 일부 행정규칙은 조문 0개 + 별표만 30개 구성.
         """
         self._require_key()
         cache_key = ("get_admin_rule_detail", admrul_id)
@@ -419,15 +419,15 @@ class LawApiClient:
         try:
             response = _request_with_retry(url, params)
             root = _parse_xml(response)
-            # 조문 (있을 수도 없을 수도). 8차/9차 AI review: wrapper element + 가지조문 동일 filter 적용.
+            # 조문 (있을 수도 없을 수도). 8차/wrapper element + 가지조문 동일 filter 적용.
             articles = [
                 {
                     "조문번호": a.findtext("조문번호", ""),
                     "조문제목": a.findtext("조문제목", ""),
-                    # 6차 AI feedback P0: 다항조문은 본문이 <항>·<호>에 있음.
+                    # 다항조문은 본문이 <항>·<호>에 있음.
                     # _build_article_content가 조문내용 + 항(항내용 + 호) 모두 합침.
                     "조문내용": _build_article_content(a),
-                    # 7차 AI feedback P1: machine-readable nested hierarchy (LLM 재포맷 방어).
+                    # machine-readable nested hierarchy (LLM 재포맷 방어).
                     "structured": _build_article_structure(a),
                 }
                 for a in root.findall(".//조문단위")
@@ -442,7 +442,7 @@ class LawApiClient:
                     for elem in root.findall("./조문내용")
                     if (parsed := _parse_flat_article(elem)) is not None
                 ]
-            # 별표 (Step 17 LIVE 검증: 별표내용 본문 직접 반환됨)
+            # 별표 (LIVE 검증: 별표내용 본문 직접 반환됨)
             annexes = [
                 {
                     "별표번호": ann.findtext("별표번호", ""),

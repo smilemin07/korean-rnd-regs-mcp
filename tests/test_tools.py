@@ -1,7 +1,7 @@
 """Unit tests for search_provision / get_provision_detail / suggest_review_sources.
 
 LawApiClient를 mock하여 네트워크 없이 도구 동작·키 누설 차단·응답 shape 검증.
-Step 38.5 GitHub Actions에서 별도 통합 테스트 (@pytest.mark.network) 도입 예정.
+GitHub Actions에서 별도 통합 테스트 (@pytest.mark.network) 도입 예정.
 """
 import asyncio
 import json
@@ -97,7 +97,7 @@ def test_strip_particle_keeps_short_words():
 
 
 def test_strip_particle_keeps_noun_ending_in_ga():
-    """6차 AI feedback 회귀: '특별평가'의 끝 '가'를 조사로 잘못 strip하지 않아야 함."""
+    """회귀: '특별평가'의 끝 '가'를 조사로 잘못 strip하지 않아야 함."""
     assert _strip_particle("특별평가") == "특별평가"
     assert _strip_particle("정의") == "정의"  # '의'도 stay
     assert _strip_particle("기준에") == "기준에"  # '에'도 stay
@@ -137,7 +137,7 @@ def test_make_snippet_no_match_returns_prefix():
 
 # === search_provision ===
 def test_search_provision_empty_query_returns_invalid(mock_client):
-    """6차 AI feedback 회귀: empty/공백/1글자 query는 invalid_query error 반환."""
+    """회귀: empty/공백/1글자 query는 invalid_query error 반환."""
     for q in ["", " ", "  ", "법"]:
         result = asyncio.run(search_provision(q))
         assert result["total"] == 0, f"{q!r}: should not match"
@@ -167,7 +167,7 @@ def test_search_provision_finds_article(mock_client):
 
 
 def test_search_provision_no_key_leak(mock_client):
-    """ P0 회귀: 도구 응답에 API key 원문·prefix·OC= 미포함."""
+    """회귀: 도구 응답에 API key 원문·prefix·OC= 미포함."""
     result = asyncio.run(search_provision("특별평가"))
     response_str = json.dumps(result, ensure_ascii=False)
     assert _FAKE_KEY not in response_str
@@ -239,9 +239,9 @@ def test_get_provision_detail_no_key_leak(mock_client):
     assert _FAKE_KEY[:6] not in response_str
 
 
-# === 7차 AI feedback: LLM 환각 방어 (article_structure + format_instructions) ===
+# === LLM 환각 방어 (article_structure + format_instructions) ===
 def test_get_provision_detail_article_includes_verbatim_metadata(mock_client):
-    """7차 AI feedback 회귀: content가 verbatim임을 명시하는 metadata 포함."""
+    """회귀: content가 verbatim임을 명시하는 metadata 포함."""
     result = asyncio.run(get_provision_detail("law:260807:JO0015"))
     assert result.get("content_format") == "plain_text_verbatim"
     assert "format_instructions" in result
@@ -253,7 +253,7 @@ def test_get_provision_detail_article_includes_verbatim_metadata(mock_client):
 
 
 def test_get_provision_detail_article_includes_article_structure(mock_client):
-    """7차 AI feedback 회귀: machine-readable nested hierarchy."""
+    """회귀: machine-readable nested hierarchy."""
     result = asyncio.run(get_provision_detail("law:260807:JO0015"))
     structure = result.get("article_structure")
     assert structure is not None
@@ -337,7 +337,7 @@ def test_suggest_review_sources_no_key_leak(mock_client):
 
 
 def test_suggest_review_sources_propagates_search_errors(mock_client):
-    """6차 AI feedback 회귀: 내부 search_provision 실패를 errors로 전파 (매칭 없음으로 위장 금지)."""
+    """회귀: 내부 search_provision 실패를 errors로 전파 (매칭 없음으로 위장 금지)."""
     mock_client.get_law_detail.side_effect = LawApiError("parse_failed", "synthetic error")
     mock_client.get_admin_rule_detail.side_effect = LawApiError("parse_failed", "synthetic error")
     result = asyncio.run(suggest_review_sources("특별평가"))
@@ -347,18 +347,18 @@ def test_suggest_review_sources_propagates_search_errors(mock_client):
     assert any("keyword" in e for e in result["errors"])
 
 
-# === list_rule_sets contract_version (Phase 3 보강) ===
+# === list_rule_sets contract_version (보강) ===
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
     assert result["contract_version"] == "0.1.0"
 
 
-# === _build_article_content (6차 AI P0 회귀) ===
+# === _build_article_content  ===
 def test_build_article_content_concatenates_hangs_and_hos():
     """다항조문 본문이 조문내용 + 항(항내용 + 호) 형태로 reconstruct되는지 검증.
 
-    6차 AI feedback P0: 직전 buggy 상태는 조문내용(title repeat)만 반환하여 본문 누락.
+    P0: 직전 buggy 상태는 조문내용(title repeat)만 반환하여 본문 누락.
     """
     import xml.etree.ElementTree as ET
 
@@ -445,7 +445,7 @@ def test_live_api_error_message_no_url_no_key(monkeypatch):
         pytest.fail("LawApiError가 발생해야 함")
 
 
-# === 8차 AI review 회귀 ( P0: requests 예외 포괄 catch) ===
+# === 회귀 (requests 예외 포괄 catch) ===
 def test_live_api_handles_sslerror_without_url_leak(monkeypatch):
     """RequestException subclass 전체(SSLError·ChunkedEncodingError·InvalidURL 등)도 catch + redact."""
     import requests as requests_mod
@@ -466,7 +466,7 @@ def test_live_api_handles_sslerror_without_url_leak(monkeypatch):
     assert "SSLError" in msg or "FakeSSLError" in msg
 
 
-# === 8차 AI review LIVE 검증 P0 회귀 (wrapper filter) ===
+# === LIVE 검증: 회귀 (wrapper filter) ===
 def test_get_law_detail_excludes_wrapper_elements(monkeypatch):
     """장/절 wrapper(조문여부='전문')는 articles에서 제외 — 동일 조문번호 collision 방어.
 

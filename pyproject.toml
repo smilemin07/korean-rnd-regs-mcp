@@ -68,7 +68,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/korean_rnd_regs_mcp"]
-# 8차 AI review ( P1): rule_sets.yaml이 wheel 빌드에서 누락되지 않도록 명시.
+# rule_sets.yaml이 wheel 빌드에서 누락되지 않도록 명시.
 # packages만 지정 시 hatchling 환경에 따라 yaml이 빠질 수 있어 force-include로 보장.
 [tool.hatch.build.targets.wheel.force-include]
 "src/korean_rnd_regs_mcp/rule_sets.yaml" = "korean_rnd_regs_mcp/rule_sets.yaml"

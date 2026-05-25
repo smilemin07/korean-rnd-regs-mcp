@@ -24,7 +24,7 @@ Tier 1 — 핵심 법률·시행령·시행규칙 (혁신법 family):
 - `innovation_decree` — 동 시행령 (대통령령, MST 285767, 2026-05-06 시행)
 - `innovation_rule` — 동 시행규칙 (과기정통부령, MST 285043, 2026-03-25 시행)
 
-Tier 2 — 핵심 행정규칙 (review-regulations 표준 Tier 2 전체):
+Tier 2 — 핵심 행정규칙 (핵심 행정규칙):
 - `rnd_funding_standard` — 국가연구개발사업 연구개발비 사용 기준 (admrul ID 2100000278740, 2024-06-13)
 - `simultaneous_research_limit` — 국가연구개발사업 동시수행 연구개발과제 수 제한 기준 (2100000196149, 2021-01-01)
 - `facility_equipment_standard` — 국가연구개발 시설·장비의 관리 등에 관한 표준지침 (2100000278230, 2026-04-23)
@@ -60,26 +60,9 @@ Supplementary — 신고·포상금·부패행위·청탁금지·공익신고자
 - 67 unit tests (mock 기반, 네트워크 미사용) — manifest 13건 검증, prompt template substitution, schema B fallback 등 포함
 - LIVE API 통합 테스트는 v0.2에서 @pytest.mark.network 마커로 분리 예정
 
-### 9차 AI review 추가 fix (publish 직전)
-
- +  합의 발견 사항 반영:
-
-- live_api.py `_FLAT_ARTICLE_PATTERN`: 제목 내부 괄호 대응을 위해 lazy match로 변경 (`r'제(\d+)조(?:의(\d+))?\s*\((.+?)\)\s*(.*)'`). 괄호 자체는 필수 유지 → 장/절/관 wrapper("제1장 총칙" 등) 자동 제외 효과 유지
-- live_api.py 가지조문 collision 방지: 표준 schema + 평면 schema 양쪽에서 가지조문(제15조의2 등) skip. contract 0.1.0의 provision_id가 JO + 숫자만 지원하므로 가지조문은 본 조문과 조문번호 충돌 (예: rnd_funding_standard에 제10조의2/제11조의2/제15조의2 등 8건 LIVE 발견). v0.2 prefix 확장 시 자동 활성화 예정
-- rule_sets.yaml unit_types 정정: rnd_funding_standard·facility_equipment_standard 둘 다 평면 schema fallback으로 조문 본문도 풍부함이 확인되어 annex → both 변경. 조문 117개/46개 본문이 search 대상에 포함됨
-- rule_sets.yaml + manifest.py HierarchyRank Enum 확장: Supplementary 법률 rank 1→5, Supplementary 시행령 rank 2→6. 직전엔 부패방지법(rank 1)이 혁신법 시행령(rank 2)보다 먼저 추천되던 정렬 오염을 해결 — 표준 위계 순서(혁신법 family → 행정규칙 → Supplementary) 보장
-- pyproject.toml sdist 정리: CLAUDE.md(Andy 내부 노트) + .claude/(redirect notice + project-local skill) public sdist에서 명시적 exclude. README/CHANGELOG/SECURITY/LICENSE만 노출
-- README.md 정리: 내부 절대 경로 제거 + 일반 설명으로 대체, "동일한 깊이" → "표준 워크플로 기반 1차 검토"로 표현 약화 (매뉴얼·운영규정·관리지침 미커버 명시), stale "4개 rule set"·"63 passed" 정정
-
-### Known Limitations (v0.2 / v0.3 deferred)
-- 가지조문(예: 제15조의2): 현재 provision_id 포맷이 `JO` + 숫자만 지원 — 검색·상세조회에서 누락. v0.2 prefix 확장 예정
-- 법령 시행령 별표(혁신법 시행령 별표 1~7 등): 현재 `unit_types: article`로 설정되어 별표 미검색. v0.3에서 `get_law_detail`에 annexes 파싱 추가 예정
-- PDF 색인·OCR·SQLite FTS5 (기관별 운영규정·매뉴얼): v0.3 이후
-
----
-
-### Pre-publish 내부 이력 (참고용)
-
-publish 전 개발 중 사용한 임시 contract_version 1.0.x 시리즈는 외부 사용자에게 노출된 적이 없습니다. 본 0.1.0 publish 시점에 0.x.x 대역으로 reset. 내부 변경 사항은 [docs/api_contract.md §6](docs/api_contract.md) "Pre-publish 내부 이력" 표에 보존되어 있습니다.
+### Known Limitations (현재 미지원)
+- 가지조문(예: 제15조의2): 현재 provision_id 포맷이 `JO` + 숫자만 지원 — 검색·상세조회에서 누락
+- 법령 시행령 별표(혁신법 시행령 별표 1~7 등): 현재 `unit_types: article`로 설정되어 별표 미검색
+- PDF 색인·OCR·SQLite FTS5 (기관별 운영규정·매뉴얼): 향후 확장 예정
 
 [0.1.0]: https://github.com/smilemin07/korean-rnd-regs-mcp/releases/tag/v0.1.0

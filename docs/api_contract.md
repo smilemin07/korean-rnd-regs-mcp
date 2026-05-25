@@ -1,13 +1,13 @@
 # korean-rnd-regs-mcp API Contract
 
 - contract_version: **0.1.0**
-- 작성일: 2026-05-24 (publish 시점 reset; pre-publish 내부 이력 1.0.0 → 1.0.1 BP → 1.0.2 본문 reconstruct → 1.0.3 article_structure additive → 1.0.3 revision wrapper filter는 §6 변경 이력 표에 보존)
+- 작성일: 2026-05-24
 - semver 정책: 0.x.x 대역은 unstable signal — minor bump(0.1.0 → 0.2.0)도 breaking change 허용. v0.2 가지조문 확장 시 0.2.0 minor bump로 자연스럽게 처리 (1.0.x 유지 시 2.0 major bump 필요했음)
 - 변경 정책: 본 문서 변경은 외부 사용자 코드·Claude Desktop 캐시·README 예시를 깰 수 있으므로 0.1.0 publish 이후 신중히 (§6 참조)
 
 ## 1. 목적
 
-본 문서는 korean-rnd-regs-mcp가 (a) MCP 클라이언트에게 노출하는 도구 인터페이스와 (b) 내부적으로 사용하는 국가법령정보 OpenAPI 호출 규약을 명세한다. 본 문서는 plan v3.1 Step 13.5의 산출물로, Step 14·21·22a·22b 구현 시 단일 참조 기준이다.
+본 문서는 korean-rnd-regs-mcp가 (a) MCP 클라이언트에게 노출하는 도구 인터페이스와 (b) 내부적으로 사용하는 국가법령정보 OpenAPI 호출 규약을 명세한다.
 
 ## 2. 국가법령정보 OpenAPI 매핑
 
@@ -43,7 +43,7 @@
 | 상세 | `GET https://www.law.go.kr/DRF/lawService.do?target=admrul&ID=<행정규칙일련번호>&OC=<api_key>&type=XML` | 조문, 부칙, `별표내용`(있을 경우 본문, 없으면 첨부파일 링크만) |
 
 - **상세조회 시 `행정규칙일련번호` 사용** (= `ID` 파라미터). `행정규칙ID(LID)`와 혼동 금지.
-- 별표(`별표내용`): 응답 필드에 본문이 있으면 그대로 반환, 비어있거나 첨부파일(HWP/PDF)만 있으면 `source_url`로 안내 (plan Step 22b).
+- 별표(`별표내용`): 응답 필드에 본문이 있으면 그대로 반환, 비어있거나 첨부파일(HWP/PDF)만 있으면 `source_url`로 안내 (plan b).
 - 행정규칙 XML schema는 법령과 다르므로 **파서 별도 유지** (단일 파서로 통합 시 크래시 위험).
 
 ### 2.3 시행령
@@ -70,7 +70,7 @@
 | `doc_id` | 숫자열 문자열 | doc_type=law → `법령일련번호`(MST); doc_type=admrul → `행정규칙일련번호`(ID) |
 | `unit_id` (선택) | `JO` + 4자리 이상 숫자(조문, 예: `JO0003`) **또는** `BP` + 4자리 이상 숫자(별표, 예: `BP0001`) | 생략 시 document-level reference |
 
-**JO vs BP**: Step 16-17 LIVE 검증에서 일부 행정규칙(예: "국가연구개발사업 연구개발비 사용 기준" ID=2100000278740)은 조문 0개 + 별표 30개로 구성됨을 발견. 따라서 별표 단위 reference가 필요. `unit_type(unit_id)` 헬퍼로 article/annex/document 판정.
+**JO vs BP**: LIVE 검증에서 일부 행정규칙(예: "국가연구개발사업 연구개발비 사용 기준" ID=2100000278740)은 조문 0개 + 별표 30개로 구성됨을 발견. 따라서 별표 단위 reference가 필요. `unit_type(unit_id)` 헬퍼로 article/annex/document 판정.
 
 ### 3.2 예시
 
@@ -85,7 +85,7 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 
 ### 3.3 doc_type 선행 강제 이유
 
-- Step 22a (법령 상세) vs Step 22b (행정규칙 상세) **dispatch 라우팅 키**로 사용.
+- a (법령 상세) vs b (행정규칙 상세) **dispatch 라우팅 키**로 사용.
 - doc_type 없이 ID만 받으면 어느 endpoint를 호출할지 결정 불가 → silent failure 또는 잘못된 endpoint 호출.
 
 ### 3.4 구현
@@ -126,7 +126,7 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 | `parse_failed` | 응답 파싱 실패 | Content-Type이 XML 아님 (예: HTML 에러 페이지), XML 파싱 예외, 또는 네트워크 오류 (재시도 모두 실패; message는 type name만 노출하여 URL/key 누설 차단) |
 | `not_found` | 검색 결과 0건 또는 상세조회 대상 없음 | API 응답에 항목 없음 |
 | `invalid_provision_id` | provision_id 포맷 위반 | `parse()` 호출 시 `InvalidProvisionId` 발생 |
-| `invalid_query` | search_provision의 query가 공백 제외 2자 미만 | 6차 AI feedback 반영 — 무차별 매칭 방어 |
+| `invalid_query` | search_provision의 query가 공백 제외 2자 미만 | 반영 — 무차별 매칭 방어 |
 
 ### 4.3 보안 정책
 
@@ -156,18 +156,6 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 
 | 버전 | 일자 | 변경 |
 |---|---|---|
-| 0.1.0 | 2026-05-24 | **첫 publish version**. live_api 트랙(국가법령정보 OpenAPI) 기반 **13 rule set 지원** (v0.2 plan 보강 1·3을 미리 포함): Tier 1 혁신법 family 3개(MST 260807/285767/285043), Tier 2 핵심 행정규칙 4개(admrul ID 2100000278740/2100000196149/2100000278230/2100000207982 — review-regulations 표준 Tier 2 전체), Supplementary 6개(부패방지법·청탁금지법·공익신고자보호법 + 시행령). 5 MCP tools + **1 MCP prompt(`review_regulation` — 다층적 검토 워크플로 자동 적용)**, JO(조문)/BP(별표) provision_id, 표준 오류 코드 6종(auth_failed/rate_limited/parse_failed/not_found/invalid_provision_id/invalid_query), 행정규칙 XML schema 2종 모두 지원(표준 `<조문단위>` + 평면 `<조문내용>` fallback) |
-
-### Pre-publish 내부 이력 (참고용, contract_version 적용 안 됨)
-
-publish 전 개발 중 사용한 임시 1.0.x 시리즈는 외부 사용자에게 노출된 적 없으며 본 publish 시점에 0.1.0 대역으로 reset. 내부 변경 사항 보존용 기록:
-
-| 내부 ver | 일자 | 변경 |
-|---|---|---|
-| 1.0.0 (internal) | 2026-05-24 | 초기 contract (JO 조문 prefix만) |
-| 1.0.1 (internal) | 2026-05-24 | BP(별표) prefix 추가 + `unit_type()` helper. Step 16-17 LIVE 검증으로 일부 행정규칙이 조문 없이 별표만 갖는 케이스 발견 |
-| 1.0.2 (internal) | 2026-05-24 | 조문 본문 reconstruct fix (P0). 직전 buggy 상태: `조문내용` field가 다항조문(예: 혁신법 제15조)에 대해 title repeat("제N조(...)")만 반환 — 실제 본문(항·호) 누락. fix: live_api.py의 `_build_article_content` helper가 `<조문내용>` + `<항>` (`<항내용>` + 중첩 `<호내용>`) 합쳐 단일 본문으로 반환. Step 30-31 Claude Desktop E2E에서 발견 |
-| 1.0.3 (internal) | 2026-05-24 | LLM 환각 방어 (additive). 7차 AI review: Claude Desktop이 raw content를 받아 임의 부제 발명 + 호 번호 stripping 관찰. get_provision_detail에 `content_format: "plain_text_verbatim"` marker, `format_instructions`, `article_structure`(nested hierarchy) 추가 |
-| 1.0.3 (revision, internal) | 2026-05-24 | 8차 AI review LIVE 검증 P0 fix. (1) `<조문여부>=전문` wrapper element collision — `live_api.LawApiClient.get_law_detail`·`get_admin_rule_detail`에서 `조문여부="조문"` filter 추가. LIVE 검증: 혁신법 49→41, 시행령 76→68. (2) `_request_with_retry`의 except 절을 `requests.exceptions.RequestException`으로 포괄 (SSLError 등 누수 시 URL 노출 차단). (3) docs §4.2에 `invalid_query` 코드 정식 등록 |
+| 0.1.0 | 2026-05-24 | **첫 publish version**. 국가법령정보 OpenAPI 기반 13 rule set 지원 (Tier 1 혁신법 family 3개, Tier 2 핵심 행정규칙 4개, Supplementary 6개). 5 MCP tools + 1 MCP prompt(`review_regulation`), JO(조문)/BP(별표) provision_id, 표준 오류 코드 6종, 행정규칙 XML schema 2종 지원(표준 + 평면 fallback) |
 
 - 도구 응답에 `contract_version` 필드 포함 권장 (search_provision·get_provision_detail·suggest_review_sources). 클라이언트가 호환 여부 확인 가능.

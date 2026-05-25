@@ -61,14 +61,14 @@ _KEYWORD_STOPWORDS = frozenset({
     "어떻게", "무엇", "어떤", "어디서", "언제", "왜", "얼마", "몇",
     "받으려면", "받을", "받으면", "이라면", "인지", "인가요",
     "대한", "이번", "이전", "이후", "그러나", "그리고", "그래서",
-    # 6차 AI feedback: 흔한 동사형 어미·서술어 추가
+    # 흔한 동사형 어미·서술어 추가
     "필요한가요", "변경되었나요", "되었나요", "되었습니까", "있었나요",
     "있을까요", "없을까요", "되나요", "되었던가요",
     "있습니다", "없습니다", "됩니다",
     "주의사항은", "주의사항",
 })
 # 흔한 한국어 조사 (긴 것부터 정렬 — endswith 매칭 우선순위)
-# 6차 AI feedback: 1글자 조사 중 "이/가/의/에/도/만/로"는 명사 끝 음절에 자주 등장(false positive risk)
+# 1글자 조사 중 "이/가/의/에/도/만/로"는 명사 끝 음절에 자주 등장(false positive risk)
 # → "을/를/은/는/과/와"만 strip. 예: "특별평가" + "가" 조사 strip로 "특별평" 되는 버그 방지.
 _PARTICLES = (
     "에서는", "에서도", "으로는", "에게는",
@@ -183,7 +183,7 @@ async def search_provision(query: str) -> dict:
     응답 최상위에 짧은 `disclaimer` 1개만 두고, 각 결과에는 manifest 특유의 `warnings`만 첨부.
     snippet은 _SNIPPET_MAX (2000자)로 제한 — MCP output size limit 회피.
     """
-    # 6차 AI feedback: empty/공백/1글자 query 무차별 매칭 방어
+    # empty/공백/1글자 query 무차별 매칭 방어
     query = (query or "").strip()
     if len(query) < 2:
         return {
@@ -216,7 +216,7 @@ async def search_provision(query: str) -> dict:
                 articles = detail.get("articles", [])
                 annexes = detail.get("annexes", [])
         except LawApiError as e:
-            # 6차 AI feedback: log에 e 원본을 출력하지 않음 (sanitize 적용된 응답과 달리 log에 우연히 키 누설 risk).
+            # log에 e 원본을 출력하지 않음 (sanitize 적용된 응답과 달리 log에 우연히 키 누설 risk).
             # code와 rule_set_id만 log — message는 sanitize 거친 후 응답에만.
             logger.warning("search_provision: rule_set=%s detail 실패, code=%s", rs.id, e.code)
             errors.append({"rule_set_id": rs.id, "code": e.code, "message": _sanitize_error_message(e.message)})
@@ -273,7 +273,7 @@ async def suggest_review_sources(question: str) -> dict:
 
     # 각 keyword로 search_provision 호출 후 통합 (provision_id로 dedupe)
     all_matches: dict[str, dict] = {}
-    all_errors: list[dict] = []  # 6차 AI feedback: search 실패를 "후보 없음"으로 위장하지 말 것
+    all_errors: list[dict] = []  # search 실패를 "후보 없음"으로 위장하지 말 것
     for kw in keywords:
         res = await search_provision(kw)
         for err in res.get("errors", []):

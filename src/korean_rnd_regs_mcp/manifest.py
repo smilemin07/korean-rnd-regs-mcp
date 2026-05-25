@@ -1,7 +1,7 @@
 """rule_sets manifest schema + loader.
 
 본 모듈은 `rule_sets.yaml`을 읽어 검증된 RuleSet 객체 list로 반환한다.
-schema는 plan v3.2 Step 19에 정의된 13개 필드 + `api_doc_id`(실제 ID 값) 1개 = 총 14개.
+schema는 에 정의된 13개 필드 + `api_doc_id`(실제 ID 값) 1개 = 총 14개.
 
 (`api_doc_id`는 plan에 명시되지 않았지만 LawApiClient 호출에 필수 — 누락 시 API call 불가.
 plan은 type만 정의했고 value는 implicit으로 가정한 듯하여 본 schema에서 명시 추가.)
@@ -26,7 +26,7 @@ class HierarchyRank(int, Enum):
     RULE = 3           # 시행규칙 (혁신법 family — Tier 1)
     ADMIN_RULE = 4     # 행정규칙 (Tier 2)
     # Supplementary (부패방지법·청탁금지법·공익신고자보호법 등) — Tier 1 검토 후순위로 추천
-    # 9차 AI review ( +  합의 P1): rank=1로 두면 혁신법(rank 1)과 동순위가 되어
+    # rank=1로 두면 혁신법(rank 1)과 동순위가 되어
     # suggest_review_sources의 recommended_review_order에서 Supplementary 법률이 혁신법 시행령(rank 2)보다
     # 먼저 추천되는 정렬 오염 발생 → Supplementary는 rank 5/6으로 명확히 후순위.
     SUPP_LAW = 5       # Supplementary 법률
@@ -58,7 +58,7 @@ class UnitTypes(str, Enum):
 class RuleSet(BaseModel):
     """rule_sets.yaml 한 항목의 schema (총 14 fields).
 
-    docs/api_contract.md §2와 plan v3.2 Step 19·20 참조.
+    docs/api_contract.md §2와 참조.
     """
 
     model_config = ConfigDict(extra="forbid")  # 정의되지 않은 field 사용 시 validation 실패 (오타 방어)
@@ -104,7 +104,7 @@ class RuleSet(BaseModel):
     )
     query: List[str] = Field(
         ...,
-        description="검색 후보 query string list. 띄어쓰기·약칭 변형으로 2-3개 권장 (Step 17 함정 회피)",
+        description="검색 후보 query string list. 띄어쓰기·약칭 변형으로 2-3개 권장 (함정 회피)",
         min_length=1,
     )
     license_status: str = Field(

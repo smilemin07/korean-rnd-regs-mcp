@@ -41,7 +41,7 @@ Tier 1 — 핵심 법률·시행령·시행규칙 (혁신법 family):
 | `innovation_decree` | 국가연구개발혁신법 시행령 | 대통령령 (2026-05-06) | MST 285767 |
 | `innovation_rule` | 국가연구개발혁신법 시행규칙 | 과기정통부령 (2026-03-25) | MST 285043 |
 
-Tier 2 — 핵심 행정규칙 (4개 — review-regulations 표준 Tier 2 전체):
+Tier 2 — 핵심 행정규칙 (4개):
 
 | ID | 명칭 | 시행일 | admrul ID |
 |---|---|---|---|

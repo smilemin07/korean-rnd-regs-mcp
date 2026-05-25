@@ -10,7 +10,7 @@ Examples:
 - "law:189938:JO0003"             -> 법령 제3조
 - "admrul:2100000278740"          -> 행정규칙 document-level
 - "admrul:2100000278740:JO0007"   -> 행정규칙 제7조
-- "admrul:2100000278740:BP0001"   -> 행정규칙 별표 1 (Step 16-17 LIVE 검증으로 추가)
+- "admrul:2100000278740:BP0001"   -> 행정규칙 별표 1 (LIVE 검증으로 추가)
 """
 import re
 from dataclasses import dataclass
