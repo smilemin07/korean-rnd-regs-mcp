@@ -107,13 +107,16 @@ def _sanitize_error_message(msg: str) -> str:
     """Defense-in-depth: 도구 응답으로 error message 출력 전 LAW_API_KEY 값이 우연히 포함됐는지 확인 + redact.
 
     Source(_request_with_retry)는 이미 type name만 사용하여 안전하나, 향후 코드 변경·외부 라이브러리 변경으로
-    키가 섞일 가능성에 대비한 second layer.
+    키가 섞일 가능성에 대비한 second layer. HTTP 모드의 per-user key도 검사.
     """
     if not msg:
         return msg
     key = os.environ.get("LAW_API_KEY", "")
     if key and key in msg:
         msg = msg.replace(key, "<KEY-REDACTED>")
+    req_key = _request_api_key.get("")
+    if req_key and req_key in msg:
+        msg = msg.replace(req_key, "<KEY-REDACTED>")
     return msg
 
 
@@ -141,12 +144,16 @@ _request_api_key: contextvars.ContextVar[str] = contextvars.ContextVar("_request
 
 _client_instance: LawApiClient | None = None
 _client_by_key: dict[str, LawApiClient] = {}
+_CLIENT_BY_KEY_MAX = 100
 
 
 def _get_client() -> LawApiClient:
     key = _request_api_key.get("")
     if key:
         if key not in _client_by_key:
+            if len(_client_by_key) >= _CLIENT_BY_KEY_MAX:
+                oldest = next(iter(_client_by_key))
+                del _client_by_key[oldest]
             _client_by_key[key] = LawApiClient(env_override={"LAW_API_KEY": key})
         return _client_by_key[key]
     global _client_instance

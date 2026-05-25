@@ -199,6 +199,22 @@ def test_search_provision_no_key_leak_on_error(mock_client, monkeypatch):
     assert "REDACTED" in response_str or "errors" in result, "sanitize 마커 또는 errors 키 부재"
 
 
+def test_sanitize_error_message_redacts_per_user_key(mock_client, monkeypatch):
+    """HTTP 모드: per-user OC key가 에러 메시지에 포함되어도 redact."""
+    per_user_key = "USER_SECRET_OC_KEY_99"
+    from korean_rnd_regs_mcp.main import _request_api_key
+    token = _request_api_key.set(per_user_key)
+    try:
+        mock_client.get_law_detail.side_effect = LawApiError(
+            "parse_failed", f"오류 {per_user_key}"
+        )
+        result = asyncio.run(search_provision("test"))
+        response_str = json.dumps(result, ensure_ascii=False)
+        assert per_user_key not in response_str
+    finally:
+        _request_api_key.reset(token)
+
+
 # === get_provision_detail ===
 def test_get_provision_detail_invalid_format_returns_errors_list(mock_client):
     result = asyncio.run(get_provision_detail("bad:format:too:many"))
