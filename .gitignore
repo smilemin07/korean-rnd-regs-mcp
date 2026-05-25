@@ -23,3 +23,7 @@ wheels/
 # Editor
 .idea/
 .vscode/
+
+# Internal dev notes — not for public
+CLAUDE.md
+.claude/
