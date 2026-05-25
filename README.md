@@ -4,16 +4,12 @@
 [![Python](https://img.shields.io/pypi/pyversions/korean-rnd-regs-mcp.svg)](https://pypi.org/project/korean-rnd-regs-mcp/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-국가연구개발 규정 검토용 Python MCP server. Claude Desktop·Claude Code 등 MCP 클라이언트에서 자연어 질의로 **국가연구개발혁신법**·동 시행령·시행규칙·핵심 행정규칙을 검색·검토하는 도구입니다.
+국가연구개발 규정 검토용 MCP server. Claude Desktop·Claude Code에서 자연어 질의로 아래와 같은 정보를 얻을 수 있습니다.
+- 특정 사례에 대한 다층적[법률 > 시행령 > 시행규칙 > 행정규칙(고시/훈령)] 규정 검토 결과
 
-**대상 사용자**:
-- 연구자 — 연구개발비 사용·증빙 기준 사전 확인
-- 대학·기관 행정직원 — 협약 체결·실적 보고 시 규정 인용
-- R&D 전문기관 직원 — 사업 운영·평가 시 규정 근거 확인
+**대상 사용자**: 연구자, R&D사업담당자(공무원, R&D전문기관 직원)
 
-비프로그래머도 Claude Desktop에 한 번 등록하면 자연어 질문으로 즉시 사용 가능합니다.
-
-> 본 도구는 **법률 판단을 하지 않습니다**. 검토 후보 제시만 수행하며, 최종 판단은 사용자 책임입니다. [Disclaimer](#disclaimer) 참조.
+본 도구는 규정 검토 업무를 지원하기 위해 개발됐습니다. 최종 판단의 결과는 사용자의 책임입니다.
 
 ---
 
