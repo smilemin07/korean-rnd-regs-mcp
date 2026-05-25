@@ -201,7 +201,7 @@ async def health() -> dict:
         "status": "ok",
         "service": "korean-rnd-regs-mcp",
         "version": __version__,
-        "api_key_configured": bool(os.environ.get("LAW_API_KEY")),
+        "api_key_configured": bool(os.environ.get("LAW_API_KEY") or _request_api_key.get("")),
     }
 
 
@@ -239,22 +239,33 @@ async def search_provision(query: str) -> dict:
     matches: list[dict] = []
     errors: list[dict] = []
 
-    for rs in live_items:
-        try:
-            resolved = await _resolve_doc_id(rs, client)
-            doc_id = resolved.doc_id
-            if rs.api_target == ApiTarget.LAW:
-                detail = await asyncio.to_thread(client.get_law_detail, doc_id)
-                articles = detail.get("articles", [])
-                annexes: list = []
-            else:  # admrul
-                detail = await asyncio.to_thread(client.get_admin_rule_detail, doc_id)
-                articles = detail.get("articles", [])
-                annexes = detail.get("annexes", [])
-        except LawApiError as e:
-            logger.warning("search_provision: rule_set=%s detail 실패, code=%s", rs.id, e.code)
-            errors.append({"rule_set_id": rs.id, "code": e.code, "message": _sanitize_error_message(e.message)})
+    async def _fetch_rule_set(rs):
+        resolved = await _resolve_doc_id(rs, client)
+        doc_id = resolved.doc_id
+        if rs.api_target == ApiTarget.LAW:
+            detail = await asyncio.to_thread(client.get_law_detail, doc_id)
+            return rs, resolved, detail.get("articles", []), []
+        else:
+            detail = await asyncio.to_thread(client.get_admin_rule_detail, doc_id)
+            return rs, resolved, detail.get("articles", []), detail.get("annexes", [])
+
+    fetch_results = await asyncio.gather(
+        *[_fetch_rule_set(rs) for rs in live_items],
+        return_exceptions=True,
+    )
+
+    for i, result in enumerate(fetch_results):
+        if isinstance(result, LawApiError):
+            rs = live_items[i]
+            logger.warning("search_provision: rule_set=%s detail 실패, code=%s", rs.id, result.code)
+            errors.append({"rule_set_id": rs.id, "code": result.code, "message": _sanitize_error_message(result.message)})
             continue
+        if isinstance(result, Exception):
+            rs = live_items[i]
+            logger.warning("search_provision: rule_set=%s unexpected error: %s", rs.id, type(result).__name__)
+            errors.append({"rule_set_id": rs.id, "code": "parse_failed", "message": type(result).__name__})
+            continue
+        rs, resolved, articles, annexes = result
 
         # article 검색
         if rs.unit_types in (UnitTypes.ARTICLE, UnitTypes.BOTH):
