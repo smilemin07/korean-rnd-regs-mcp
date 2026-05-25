@@ -696,7 +696,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.http or os.environ.get("PORT"):
+    if args.http:
         port = int(os.environ.get("PORT", "8080"))
         asyncio.run(_run_http("0.0.0.0", port))
     else:
