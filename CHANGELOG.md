@@ -69,7 +69,7 @@ Supplementary — 신고·포상금·부패행위·청탁금지·공익신고자
 - rule_sets.yaml unit_types 정정: rnd_funding_standard·facility_equipment_standard 둘 다 평면 schema fallback으로 조문 본문도 풍부함이 확인되어 annex → both 변경. 조문 117개/46개 본문이 search 대상에 포함됨
 - rule_sets.yaml + manifest.py HierarchyRank Enum 확장: Supplementary 법률 rank 1→5, Supplementary 시행령 rank 2→6. 직전엔 부패방지법(rank 1)이 혁신법 시행령(rank 2)보다 먼저 추천되던 정렬 오염을 해결 — 표준 위계 순서(혁신법 family → 행정규칙 → Supplementary) 보장
 - pyproject.toml sdist 정리: CLAUDE.md(Andy 내부 노트) + .claude/(redirect notice + project-local skill) public sdist에서 명시적 exclude. README/CHANGELOG/SECURITY/LICENSE만 노출
-- README.md 정리: vault 절대 경로(`REDACTED_PATH/Library/...`) 제거 + 일반 설명으로 대체, "동일한 깊이" → "표준 워크플로 기반 1차 검토"로 표현 약화 (매뉴얼·운영규정·관리지침 미커버 명시), stale "4개 rule set"·"63 passed" 정정
+- README.md 정리: 내부 절대 경로 제거 + 일반 설명으로 대체, "동일한 깊이" → "표준 워크플로 기반 1차 검토"로 표현 약화 (매뉴얼·운영규정·관리지침 미커버 명시), stale "4개 rule set"·"63 passed" 정정
 
 ### Known Limitations (v0.2 / v0.3 deferred)
 - 가지조문(예: 제15조의2): 현재 provision_id 포맷이 `JO` + 숫자만 지원 — 검색·상세조회에서 누락. v0.2 prefix 확장 예정
