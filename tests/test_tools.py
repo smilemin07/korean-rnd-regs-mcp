@@ -158,10 +158,13 @@ def test_search_provision_response_shape(mock_client):
     result = asyncio.run(search_provision("특별평가"))
     assert "query" in result
     assert "total" in result
+    assert "returned" in result
+    assert "truncated" in result
     assert "contract_version" in result
     assert "disclaimer" in result
     assert "results" in result
     assert isinstance(result["results"], list)
+    assert result["returned"] <= result["total"]
 
 
 def test_search_provision_finds_article(mock_client):
@@ -728,6 +731,23 @@ def test_search_provision_revision_notice_absent_when_same(mock_client):
     result = asyncio.run(search_provision("특별평가"))
     for m in result["results"]:
         assert "revision_notice" not in m
+
+
+def test_search_provision_truncates_large_results(mock_client, monkeypatch):
+    """_RESULTS_MAX 초과 시 truncated=True, returned < total."""
+    monkeypatch.setattr(main_module, "_RESULTS_MAX", 2)
+    result = asyncio.run(search_provision("특별평가"))
+    assert result["total"] > 2
+    assert result["returned"] == 2
+    assert result["truncated"] is True
+    assert len(result["results"]) == 2
+
+
+def test_search_provision_no_truncation_when_under_limit(mock_client):
+    """결과가 _RESULTS_MAX 이하면 truncated=False."""
+    result = asyncio.run(search_provision("특별평가"))
+    assert result["truncated"] is False
+    assert result["returned"] == result["total"]
 
 
 def test_get_provision_detail_uses_resolved_id(mock_client):

@@ -37,6 +37,7 @@ mcp = FastMCP("korean-rnd-regs-mcp", version=__version__)
 
 _DISCLAIMER = "본 결과는 검토 후보일 뿐 법률 판단이 아닙니다. 출처를 직접 확인하세요."
 _SNIPPET_MAX = 2000
+_RESULTS_MAX = 30
 _LAW_GO_KR_BASE = "https://www.law.go.kr"
 _VERBATIM_INSTRUCTIONS = (
     "본 응답의 content / article_structure는 국가법령정보 OpenAPI에서 직접 받은 법령 원문을 "
@@ -289,12 +290,16 @@ async def search_provision(query: str) -> dict:
                         snippet = _make_snippet(content, query)
                         matches.append(_build_match(rs, f"BP{int(ann_no):04d}", "annex", title, snippet, resolved))
 
+    truncated = len(matches) > _RESULTS_MAX
+    limited = matches[:_RESULTS_MAX]
     response = {
         "query": query,
         "total": len(matches),
+        "returned": len(limited),
+        "truncated": truncated,
         "contract_version": CONTRACT_VERSION,
         "disclaimer": _DISCLAIMER,
-        "results": matches,
+        "results": limited,
     }
     if errors:
         response["errors"] = errors
