@@ -1,0 +1,39 @@
+{
+  "name": "korean-rnd-regs",
+  "version": "0.1.1",
+  "description": "국가연구개발혁신법·시행령·핵심 행정규칙 검색·검토용 MCP 서버. 13개 규정 조문·별표 자연어 검색 + 상세 조회 + 다층적 규정 검토.",
+  "author": {
+    "name": "Andy Kim",
+    "url": "https://github.com/smilemin07/korean-rnd-regs-mcp"
+  },
+  "homepage": "https://github.com/smilemin07/korean-rnd-regs-mcp",
+  "repository": "https://github.com/smilemin07/korean-rnd-regs-mcp",
+  "license": "Apache-2.0",
+  "keywords": [
+    "korean-rnd",
+    "국가연구개발",
+    "혁신법",
+    "연구개발비",
+    "R&D",
+    "규정검토",
+    "mcp"
+  ],
+  "mcpServers": {
+    "korean-rnd-regs": {
+      "command": "uvx",
+      "args": ["korean-rnd-regs-mcp"],
+      "env": {
+        "LAW_API_KEY": "${user_config.api_key}"
+      }
+    }
+  },
+  "userConfig": {
+    "api_key": {
+      "type": "string",
+      "title": "국가법령정보 API 키 (OC 인증값)",
+      "description": "국가법령정보 OpenAPI 인증키. https://open.law.go.kr 에서 무료 발급",
+      "sensitive": true,
+      "required": true
+    }
+  }
+}

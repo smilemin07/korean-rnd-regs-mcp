@@ -1,0 +1,25 @@
+{
+  "name": "korean-rnd-regs-marketplace",
+  "description": "국가연구개발 규정 검토용 MCP 도구 모음",
+  "owner": {
+    "name": "Andy Kim",
+    "url": "https://github.com/smilemin07"
+  },
+  "plugins": [
+    {
+      "name": "korean-rnd-regs",
+      "source": {
+        "source": "github",
+        "repo": "smilemin07/korean-rnd-regs-mcp"
+      },
+      "description": "국가연구개발혁신법·시행령·핵심 행정규칙 검색·검토용 MCP 서버. 13개 규정 조문·별표 자연어 검색 + 상세 조회.",
+      "version": "0.1.1",
+      "author": {
+        "name": "Andy Kim"
+      },
+      "homepage": "https://github.com/smilemin07/korean-rnd-regs-mcp",
+      "license": "Apache-2.0",
+      "keywords": ["korean-rnd", "국가연구개발", "혁신법", "R&D", "규정검토"]
+    }
+  ]
+}
