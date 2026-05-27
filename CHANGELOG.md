@@ -3,6 +3,30 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.1.2] - 2026-05-27
+
+### Changed — HTTP 모드 + review prompt 개선
+
+- `search_provision` 13개 rule set 상세조회를 `asyncio.gather`로 병렬 실행 (순차 → 병렬)
+- `search_provision` 결과 수 제한 (`_RESULTS_MAX = 30`, `returned`/`truncated` 필드 추가)
+- `health` 도구가 per-user OC key (contextvar) 설정 여부도 반영
+- `review_regulation` prompt 전면 개선:
+  - `search_provision` 추가 검색 단계 도입
+  - 참조 조항 추적·법적 판단 기준(재량/의무·상위법 우선) 명시
+  - 출력 형식 7섹션 구조화 + 표현 판단 태그
+  - MCP 적용 범위·미커버 영역 명시 + verbatim 인용 보호
+
+### Added
+
+- Claude Code 플러그인 마켓플레이스 지원 (`.claude-plugin/plugin.json`, `marketplace.json`)
+  - `uvx` 기반 실행으로 사전 `pip install` 불필요
+  - 설치: `/plugin marketplace add smilemin07/korean-rnd-regs-mcp`
+
+### Tests
+- 3개 신규 테스트 추가 (81 → 84개): truncation 동작, response shape 보강
+
+[0.1.2]: https://github.com/smilemin07/korean-rnd-regs-mcp/releases/tag/v0.1.2
+
 ## [0.1.1] - 2026-05-25
 
 ### Fixed — search-first 패턴 (규정 개정 자동 반영)

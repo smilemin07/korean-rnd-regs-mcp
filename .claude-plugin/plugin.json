@@ -1,6 +1,6 @@
 {
   "name": "korean-rnd-regs",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "국가연구개발혁신법·시행령·핵심 행정규칙 검색·검토용 MCP 서버. 13개 규정 조문·별표 자연어 검색 + 상세 조회 + 다층적 규정 검토.",
   "author": {
     "name": "Andy Kim",
