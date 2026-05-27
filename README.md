@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/korean-rnd-regs-mcp.svg)](https://pypi.org/project/korean-rnd-regs-mcp/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-국가연구개발 규정 검토용 MCP server. AI를 활용하여 아래와 같은 정보를 얻을 수 있습니다.
+연구행정 관련 규정 검토용 MCP server. AI를 활용하여 아래와 같은 정보를 얻을 수 있습니다.
 - 관련 규정 확인: 특정 사례의 규정 검토를 위해 확인이 필요한 규정의 조문 인출 
 - 규정 검토: 특정 사례에 대한 다층적[법률 > 시행령 > 시행규칙 > 행정규칙(고시/훈령)] 규정 검토 결과
   - 동일한 프롬프트에 대해서도 사용하는 AI 모델에 따라 결과가 달라질 수 있습니다.
@@ -17,7 +17,7 @@
 
 ### 예시1: 관련 규정 확인
 
-규정 검토가 필요한 사례를 입력하면, 검토가 필요한 세부 규정들을 반환해줍니다.
+규정 검토가 필요한 사례를 입력하면, 검토가 필요한 세부 규정들을 출력해줍니다.
 
 예시 prompt:
 
