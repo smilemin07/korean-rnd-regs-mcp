@@ -539,77 +539,103 @@ async def get_provision_detail(provision_id: str) -> dict:
     }
 
 
-_REVIEW_PROMPT_TEMPLATE = """당신은 국가연구개발 규정 검토 전문가입니다. 다음 상황에 대해 본 MCP server(korean-rnd-regs-mcp)의 도구를 활용하여 다층적 규정 검토를 수행하시기 바랍니다.
+_REVIEW_PROMPT_TEMPLATE = """당신은 국가연구개발 규정 검토 전문가입니다. 다음 상황에 대해 본 MCP server(korean-rnd-regs-mcp)의 도구를 활용하여 근거 조항 기반의 다층적 규정 검토를 수행하십시오.
 
 == 검토 상황 ==
 {situation}
 
+== MCP 적용 범위 ==
+- 커버: 혁신법·시행령·시행규칙, 행정규칙 4개(연구개발비 사용 기준·동시수행 제한·시설장비 표준지침·연구노트 지침), Supplementary 법률·시행령 6개(부패방지·청탁금지·공익신고자보호)
+- 미커버: 국가연구개발혁신법 매뉴얼, 부처별 운영규정, 관리지침, 시행령 별표, 기관 내부 기준
+- 미커버 자료가 결론에 필요하면 단정하지 말고 "추가 확인 필요"로 표시하십시오.
+
 == 검토 절차 (반드시 본 순서 준수) ==
 
 1. 핵심 쟁점 파악
-   - 위 상황의 핵심 쟁점·키워드 추출 (예: 참여제한, 연구비 집행, 변경 절차)
-   - 관련 규정 범주 판단
+   - 상황의 핵심 행위·주체·절차·금액·기간 등을 분해하여 검토할 것.
+   - 권한 있는 기관(중앙행정기관·전문기관·연구개발기관 등)의 승인·보고·통보 대상인지 확인할 것.
+   - 검색 키워드와 유사어를 추출할 것.
 
-2. suggest_review_sources(question="{situation}") 도구 호출
-   - 응답의 extracted_keywords·candidates·recommended_review_order 검토
-   - recommended_review_order 가 검토 우선순위 (법률 → 시행령 → 시행규칙 → 행정규칙)
+2. suggest_review_sources(question="{situation}") 호출
+   - extracted_keywords, candidates, recommended_review_order, errors를 확인하십시오.
+   - recommended_review_order는 기본 검토 순서로 삼되, 후보가 적으면 3단계에서 보완하십시오.
 
-3. 우선순위 위계에 따라 각 후보 조문 본문 verbatim 조회
-   - 각 candidate 의 provision_id 로 get_provision_detail(provision_id=...) 호출
-   - 응답의 content 필드는 OpenAPI 원문 verbatim — 절대 임의 부제·요약·paraphrase 추가 금지
-   - 항(①②③)·호(1.2.3.) 번호 prefix 와 줄바꿈을 그대로 유지
-   - article_structure 필드는 machine-readable nested hierarchy 로 활용 가능
+3. search_provision(query=...)으로 추가 검색 및 주제별 cross-check
+   - 핵심 키워드, 법령상 유사어, 절차어(승인, 통보, 보고, 협약변경, 정산, 제재 등)로 검색하십시오.
+   - suggest_review_sources 후보와 중복 제거 후 통합하십시오.
+   - 주제별 Tier 2 cross-check (해당 시):
+     연구개발비/예산/비목/집행 → rnd_funding_standard | 동시수행/과제 수 → simultaneous_research_limit
+     시설/장비/기자재 → facility_equipment_standard | 연구노트/실험노트 → research_note_guideline
+   - Supplementary (해당 시):
+     신고/포상금/부패행위 → anti_corruption_act + decree | 부정청탁/금품수수 → improper_solicitation_act + decree
+     공익신고/신변보호 → public_interest_whistleblower_act + decree
 
-4. Tier 2 키워드 cross-check (해당 시 추가 검색)
-   - "연구개발비/예산/비목/집행" → rnd_funding_standard 별표
-   - "동시수행/과제 수/중복참여" → simultaneous_research_limit
-   - "시설/장비/기자재/공동활용" → facility_equipment_standard 별표
-   - "연구노트/실험노트/연구기록" → research_note_guideline
+4. 위계 순서에 따른 상세 조회
+   - 법률 → 시행령 → 시행규칙 → 행정규칙 → Supplementary 순서로 검토하십시오.
+   - 각 provision_id로 get_provision_detail을 호출하십시오.
+   - content는 OpenAPI 원문 verbatim입니다. 임의 부제·요약·paraphrase를 붙이지 마십시오.
+   - 항·호·목 번호와 줄바꿈을 유지하십시오.
 
-5. Supplementary 검토 (해당 시)
-   - "신고/포상금/부패행위/공직자 행동강령" → anti_corruption_act + decree
-   - "부정청탁/금품수수/접대" → improper_solicitation_act + decree
-   - "공익신고/신변보호/연구부정행위 신고" → public_interest_whistleblower_act + decree
+5. 참조 조항 추적
+   - 조문이 "제X조에 따라", "시행령 제X조", "별표", "고시로 정하는" 등을 참조하면 해당 조항도 조회하십시오.
+   - 행정규칙 별표(BP)는 get_provision_detail로 조회 가능하나, 시행령 별표는 MCP 미커버입니다.
+   - 참조 조항 확인 없이 결론을 확정하지 마십시오.
 
-== 출력 형식 ==
+6. 법적 판단 기준 적용
+   - 재량·의무 구분: "할 수 있다"는 재량, "하여야 한다"는 의무로 판단하십시오.
+   - 선택·병렬 구분: "하거나"와 "하고"를 혼동하지 마십시오.
+   - 상위법 우선 원칙: 하위 규정이 상위법과 충돌하면 상위법을 우선하십시오.
+   - 규정상 근거가 불명확하면 가능성·한계·추가 확인 필요를 분리하여 쓰십시오.
+
+== 최종 출력 형식 ==
+- 아래 제목과 순서를 그대로 사용할 것.
+- 중요한 정보 위주로 답변을 구성할 것.
+- 불필요한 정보가 답변에 포함되지 않도록 주의할 것.
+- 단, 근거 조항의 원문 인용은 생략·요약하지 말 것.
 
 ## 【규정 검토 결과】
 
-### 상황 요약
-[1-2문장 핵심 요약]
+### 1. 상황 요약
+[1-2문장으로 핵심 사실과 쟁점을 요약하십시오.]
 
-### 검토 규정
-- Tier 1 (법률·시행령·시행규칙): [규정명 list]
-- Tier 2 (행정규칙): [규정명 list, 해당 시]
-- Supplementary: [규정명 list, 해당 시]
+### 2. 검토 규정
+- Tier 1 법률·시행령·시행규칙: [규정명 목록]
+- Tier 2 행정규칙: [규정명 목록, 없으면 "해당 없음"]
+- Supplementary: [규정명 목록, 없으면 "해당 없음"]
 
-### 핵심 답변
-[1-3문장 결론]
+### 3. 핵심 답변
+- 결론: [허용/불가/승인 필요/보고 필요/추가 확인 필요 등으로 명확히 기재]
+- 이유: [1-3문장으로 근거 조항과 연결]
 
-### 근거 조항
-각 근거에 대해:
-- 규정명·조문번호·provision_id 명시 (예: 국가연구개발혁신법 제15조 — law:260807:JO0015)
-- 조문 본문 verbatim 인용 (편집·요약 금지)
-- 본 상황에의 적용 해석
+### 4. 근거 조항
+각 근거는 아래 형식을 반복하십시오.
+- [규정명] [조문번호] — provision_id: [provision_id]
+  - 원문:
+    > [get_provision_detail의 content를 verbatim 인용]
+  - 적용: [해당 조항이 본 상황에 어떻게 적용되는지]
+  - 표현 판단: [의무/재량/금지/예외/선택·병렬 중 표시]
 
-### 모호한 부분 / 한계
-- 본 MCP server cover 범위 밖 (예: 국가연구개발혁신법 매뉴얼, 부처별 운영규정·관리지침)
-- 재량(할 수 있다) vs 의무(하여야 한다) 표현 구분
-- 가지조문(예: 제15조의2) 검색·상세조회 누락 가능 — v0.2 deferred
-- 시행령 별표(혁신법 시행령 별표 1~7 등) 미검색 — v0.3 deferred
+### 5. 위계 및 충돌 검토
+- 상위법 우선: [상위법과 하위 규정 관계]
+- 충돌 여부: [충돌 없음/충돌 가능/추가 확인 필요]
 
-### 권고 조치
-- 필요한 후속 절차·문서 (있을 경우)
-- 본 도구로 cover 안 되는 자료(매뉴얼·운영규정·관리지침)는 별도 확인 권고
-- 법률 판단이 필요한 사안(소송·제재 비례성·승소 가능성)은 변호사 자문 권고
+### 6. 모호한 부분 / 추가 확인 필요
+- 재량·의무 해석상 쟁점: [없으면 "해당 없음"]
+- MCP 미커버 자료 확인 필요: [없으면 "해당 없음"]
+- 가지조문(예: 제15조의2) 검색·상세조회 누락 가능
+
+### 7. 권고 조치
+- 규정상 확인된 후속 절차·승인·보고·문서화 조치만 기재하십시오.
+- 규정 근거 없이 실무 솔루션을 새로 만들지 마십시오.
+- 법률 판단이 필요한 사안(소송·제재 비례성·승소 가능성)은 변호사 자문 권고를 표시하십시오.
 
 == 핵심 규칙 ==
-
-- 본 MCP server 응답의 contract_version·errors 필드는 반드시 확인
-- 모든 주장에 provision_id + 조문 verbatim 인용
-- 규정에 없는 해석·솔루션 제안 금지
-- 본 검토는 법률 판단이 아닌 검토 후보 제시 — 최종 판단은 사용자 책임
-- 한국어 격식체로 답변
+- 모든 실체적 주장은 provision_id와 원문 인용에 근거해야 합니다.
+- 조문 원문과 해석을 반드시 분리하십시오.
+- 규정에 없는 해석이나 해결책을 제시하지 마십시오.
+- 도구 오류나 검색 결과 없음은 "본 MCP 검색 범위에서 확인되지 않음"이라고 쓰십시오.
+- 본 검토는 MCP 커버 범위 내 1차 규정 검토이며, 최종 판단은 사용자 책임입니다.
+- 한국어 격식체로 답변하십시오.
 """
 
 
