@@ -258,3 +258,84 @@ rule_sets:
     source_url: https://www.law.go.kr/법령/공익신고자보호법시행령
     known_limitations:
       - "별표·서식 검색은 v0.2 deferred"
+
+  # === Sector: 국토교통 R&D family (혁신법과 함께 적용) ===
+  # 혁신법(일반법)이 모든 국가 R&D에 일괄 적용되는 반면, 본 family는 국토교통 분야 R&D 운영의 특화 근거.
+  # 사안에 따라 일반법(혁신법) vs 특별법(육성법) 적용 우선순위 검토 필요.
+
+  - id: sector_kt_act
+    title: 국토교통과학기술 육성법
+    tier: "Tier 1"
+    hierarchy_rank: 1
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "268733"
+    unit_types: article
+    query:
+      - 국토교통과학기술 육성법
+      - 국토교통과학기술육성법
+    license_status: public_data
+    effective_date: "2026-02-01"
+    source_url: https://www.law.go.kr/법령/국토교통과학기술육성법
+    known_limitations:
+      - "혁신법(일반법)과 함께 적용 — 국토교통 R&D 분야 특화. 사안에 따라 적용 우선순위 확인 필요"
+      - "가지조문(예: 제5조의2) 검색·상세조회 누락 가능 — v0.3 prefix 확장 예정"
+
+  - id: sector_kt_decree
+    title: 국토교통과학기술 육성법 시행령
+    tier: "Tier 1"
+    hierarchy_rank: 2
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "264735"
+    unit_types: article
+    query:
+      - 국토교통과학기술 육성법 시행령
+      - 국토교통과학기술육성법 시행령
+    license_status: public_data
+    effective_date: "2024-08-07"
+    source_url: https://www.law.go.kr/법령/국토교통과학기술육성법시행령
+    known_limitations:
+      - "MVP: 본문 조문만. 시행령 별표 검색은 v0.3 예정"
+      - "가지조문 검색·상세조회 누락 가능"
+
+  - id: sector_kt_rule
+    title: 국토교통과학기술 육성법 시행규칙
+    tier: "Tier 1"
+    hierarchy_rank: 3
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "203848"
+    unit_types: article
+    query:
+      - 국토교통과학기술 육성법 시행규칙
+      - 국토교통과학기술육성법 시행규칙
+    license_status: public_data
+    effective_date: "2018-06-08"
+    source_url: https://www.law.go.kr/법령/국토교통과학기술육성법시행규칙
+    known_limitations:
+      - "가지조문 검색·상세조회 누락 가능"
+
+  - id: kt_rnd_operations
+    title: 국토교통부소관 연구개발사업 운영규정
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000235502"
+    unit_types: both
+    query:
+      - 국토교통부소관 연구개발사업 운영규정
+      - 국토교통부 연구개발사업 운영규정
+      - 국토부 연구개발사업 운영규정
+    license_status: public_data
+    effective_date: "2024-01-22"
+    source_url: https://www.law.go.kr/행정규칙/국토교통부소관연구개발사업운영규정
+    known_limitations:
+      - "LIVE 검증: 조문 44개 + 별표 5개 (별표 1은 삭제 상태)"
+      - "혁신법·시행령·연구개발비 사용기준 등 상위 규정을 우선 적용 — 본 운영규정은 국토교통부 특화"
+      - "가지조문(예: 제29조의2 인건비 현금 계상기준 관련) 검색·상세조회 누락 가능"

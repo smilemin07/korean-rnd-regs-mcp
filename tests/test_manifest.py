@@ -9,9 +9,12 @@ from korean_rnd_regs_mcp.manifest import (
 
 
 def test_load_manifest_returns_at_least_mvp_items():
-    """v0.1.0 publish 범위: 최소 13건 (혁신법 family 4 + Tier 2 신규 3 + Supplementary 6)."""
+    """v0.1.0 publish 범위: 최소 13건 (혁신법 family 4 + Tier 2 신규 3 + Supplementary 6).
+
+    v0.1.3에서 국토교통 R&D family 4건 추가 (sector_kt_act/decree/rule + kt_rnd_operations) → 17건.
+    """
     items = load_manifest()
-    assert len(items) >= 13
+    assert len(items) >= 17
 
 
 def test_all_required_fields_populated():
@@ -76,3 +79,21 @@ def test_mvp_entries_present():
         "public_interest_whistleblower_act", "public_interest_whistleblower_decree",
     }
     assert expected.issubset(ids), f"누락 entries: {expected - ids}"
+
+
+def test_v013_sector_kt_entries_present():
+    """v0.1.3 추가: 국토교통 R&D family 4건 (법률·시행령·시행규칙 + 부처 운영규정)."""
+    ids = {rs.id for rs in load_manifest()}
+    expected = {
+        "sector_kt_act", "sector_kt_decree", "sector_kt_rule", "kt_rnd_operations",
+    }
+    assert expected.issubset(ids), f"v0.1.3 누락 entries: {expected - ids}"
+
+
+def test_v013_sector_kt_entries_rank_alignment():
+    """v0.1.3 sector KT family의 hierarchy_rank가 법률·시행령·시행규칙·행정규칙(1·2·3·4)에 정렬."""
+    by_id = {rs.id: rs for rs in load_manifest()}
+    assert by_id["sector_kt_act"].hierarchy_rank == HierarchyRank.LAW
+    assert by_id["sector_kt_decree"].hierarchy_rank == HierarchyRank.DECREE
+    assert by_id["sector_kt_rule"].hierarchy_rank == HierarchyRank.RULE
+    assert by_id["kt_rnd_operations"].hierarchy_rank == HierarchyRank.ADMIN_RULE

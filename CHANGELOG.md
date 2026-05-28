@@ -3,6 +3,23 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.1.3] - 2026-05-28
+
+### Added — 국토교통 R&D family 4건 manifest 추가 (additive only)
+
+기존 13개 rule set은 그대로 유지하고, 국토교통 R&D 분야 특화 규정 4건을 추가하여 17개로 확장. `contract_version` 0.1.0 유지, 응답 schema·기존 검색 결과 불변.
+
+- `sector_kt_act` — 국토교통과학기술 육성법 (법률, MST 268733, 2026-02-01 시행, 조문 19)
+- `sector_kt_decree` — 동 시행령 (대통령령, MST 264735, 2024-08-07 시행, 조문 13)
+- `sector_kt_rule` — 동 시행규칙 (국토교통부령, MST 203848, 2018-06-08 시행, 조문 7)
+- `kt_rnd_operations` — 국토교통부소관 연구개발사업 운영규정 (admrul ID 2100000235502, 2024-01-22 시행, 조문 44 + 별표 5)
+
+### Tests
+- 2개 신규 테스트 추가 (84 → 86개): sector family entries 존재 검증·hierarchy_rank 정렬 검증
+- `test_list_rule_sets_returns_live_api_items`: total 13 → 17 갱신
+
+[0.1.3]: https://github.com/smilemin07/korean-rnd-regs-mcp/releases/tag/v0.1.3
+
 ## [0.1.2] - 2026-05-27
 
 ### Changed — HTTP 모드 + review prompt 개선

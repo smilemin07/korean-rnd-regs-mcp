@@ -71,12 +71,12 @@ def test_review_regulation_prompt_includes_limitation_notice():
 
 
 def test_list_rule_sets_returns_live_api_items():
-    """v0.1.0 publish 범위: 혁신법 family 4건 + Tier 2 행정규칙 3건 + Supplementary 6건 = 13건."""
+    """v0.1.3 범위: 13건(혁신법 family 4 + Tier 2 행정규칙 3 + Supplementary 6) + 국토교통 family 4 = 17건."""
     result = asyncio.run(list_rule_sets())
     assert "rule_sets" in result
     assert isinstance(result["rule_sets"], list)
-    assert result["total"] == 13
-    assert len(result["rule_sets"]) == 13
+    assert result["total"] == 17
+    assert len(result["rule_sets"]) == 17
     ids = {rs["id"] for rs in result["rule_sets"]}
     expected = {
         # Tier 1 + 기존 Tier 2 (혁신법 family + 연구개발비 사용 기준)
@@ -87,6 +87,8 @@ def test_list_rule_sets_returns_live_api_items():
         "anti_corruption_act", "anti_corruption_decree",
         "improper_solicitation_act", "improper_solicitation_decree",
         "public_interest_whistleblower_act", "public_interest_whistleblower_decree",
+        # v0.1.3 — 국토교통 R&D family (혁신법과 함께 적용)
+        "sector_kt_act", "sector_kt_decree", "sector_kt_rule", "kt_rnd_operations",
     }
     assert ids == expected, f"id 불일치: 누락={expected - ids}, 추가={ids - expected}"
     # 모든 항목이 필수 field. rank 5/6 = Supplementary 법률/시행령 (추가)
