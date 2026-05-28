@@ -4,12 +4,13 @@
 [![Python](https://img.shields.io/pypi/pyversions/korean-rnd-regs-mcp.svg)](https://pypi.org/project/korean-rnd-regs-mcp/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-연구행정 관련 규정 검토용 MCP server. AI를 활용하여 아래와 같은 정보를 얻을 수 있습니다.
-- 관련 규정 확인: 특정 사례의 규정 검토를 위해 확인이 필요한 규정의 조문 인출 
+연구행정 규정 검토용 MCP server. AI를 활용하여 아래와 같은 정보를 얻을 수 있습니다.
+
+- 관련 규정 확인: 특정 사례의 규정 검토를 위해 확인이 필요한 규정의 조문 출력
 - 규정 검토: 특정 사례에 대한 다층적[법률 > 시행령 > 시행규칙 > 행정규칙(고시/훈령)] 규정 검토 결과
   - 동일한 프롬프트에 대해서도 사용하는 AI 모델에 따라 결과가 달라질 수 있습니다.
 
-**대상 사용자**: 연구자, R&D전문기관 직원, 정부부처 R&D 담당 공무원
+**대상 사용자**: 연구자, R&D전문기관 직원, 정부부처 R&D사업 담당 공무원
 
 ---
 
@@ -68,9 +69,10 @@
 ### 예시2: 규정 검토
 
 규정 검토가 필요한 상황을 입력하면 다층적 규정 검토 결과가 출력됩니다.
+
 - **'korean-rnd-regs-mcp'**, **'규정 검토'** 라는 문구가 prompt에 포함돼야 다층적 규정 검토가 진행됩니다.
 
-예시 prompt:
+예시 prompt1:
 
 ```
 나는 R&D전문기관에서 연구개발사업을 담당하는 직원이야. korean-rnd-regs-mcp를 활용해서 아래 사례에 대한 규정 검토를 진행해줘.
@@ -178,6 +180,7 @@
 
 </details>
 
+
 ---
 
 ## 설치 방법
@@ -207,16 +210,20 @@
 5. 'Add custom connector' 클릭
 6. Name: korean-rnd-regs-mcp
 7. url: 아래 주소를 붙여넣기(mcp?oc=XX → XX 대신 법령정보센터에서 받은 API key 입력)
+
 ```
 https://mcp.rndmanagers.org/mcp?oc=이_부분을_본인_법령정보센터_API키로_교체
 ```
+
 8. 'Add' 클릭
 9. 생성된 'korean-rnd-regs-mcp' 클릭
 10. 우측에 'tool permissions'의 값을 'Needs approval'에서 'Always allow'로 수정
 11. 완료
 
 ##### 설치 확인
+
 새 채팅에서 아래 프롬프트를 입력했을 때, 'status=ok'가 출력되면 정상 설치
+
 ```
 korean-rnd-regs-mcp 서버의 health 테스트를 진행해줘.
 ```
@@ -224,38 +231,56 @@ korean-rnd-regs-mcp 서버의 health 테스트를 진행해줘.
 #### Option 2: Claude Code(터미널에서 Claude 사용)
 
 1. uv가 설치돼 있어야 합니다.
-  - uv 설치 여부를 터미널에서 확인 → 아래 명령어를 입력했을 때, uv의 버전이 출력돼야 함.
-  ```
+
+- uv 설치 여부를 터미널에서 확인 → 아래 명령어를 입력했을 때, uv의 버전이 출력돼야 함.
+
+```
   uv --version
+```
+
+- uv가 설치되지 않은 경우 → 아래 명령어를 입력해서 uv 설치를 진행
+
+  - Windows
+
   ```
-  - uv가 설치되지 않은 경우 → 아래 명령어를 입력해서 uv 설치를 진행
-    - Windows
-    ```
-    powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-    ```
-    - Mac
-    ```
-    brew install uv
-    ```
+  powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+  ```
+
+  - Mac
+
+  ```
+  brew install uv
+  ```
+
 2. Claude Code 시작 → 아래 명령어 입력
+
 ```
 /plugin marketplace add smilemin07/korean-rnd-regs-mcp
 ```
+
 3. 아래 명령어 입력
+
 ```
 /plugin install korean-rnd-regs@korean-rnd-regs-marketplace
 ```
+
 4. 추가 선택 화면에서 mcp 활용 목적에 맞게 선택
-  - 현재의 working directory에서만 사용하고 싶은 경우 → Local
-  - 시스템 전체에서 사용하고 싶은 경우 → Global
+
+- 현재의 working directory에서만 사용하고 싶은 경우 → Local
+- 시스템 전체에서 사용하고 싶은 경우 → Global
+
 5. 아래 명령어 입력
+
 ```
 /reload-plugins
 ```
+
 6. 완료
 
 ##### 설치 확인
+
 Claude Code에서 아래 프롬프트를 입력했을 때, 'status=ok'가 출력되면 정상 설치
+
 ```
 korean-rnd-regs-mcp 서버의 health 테스트를 진행해줘.
 ```
@@ -263,13 +288,17 @@ korean-rnd-regs-mcp 서버의 health 테스트를 진행해줘.
 #### Option 3: Codex(터미널에서 ChatGPT 사용)
 
 1. Terminal에서(Codex 사용 전) 아래 명령어 입력
+
 ```
 codex mcp add korean-rnd-regs --url "https://mcp.rndmanagers.org/mcp?oc=이_부분을_본인_법령정보센터_API키로_교체"
 ```
+
 2. Codex 시작
 
 ##### 설치 확인
+
 Codex에서 아래 프롬프트를 입력했을 때, 'status=ok'가 출력되면 정상 설치
+
 ```
 korean-rnd-regs-mcp 서버의 health 테스트를 진행해줘.
 ```
@@ -280,48 +309,48 @@ korean-rnd-regs-mcp 서버의 health 테스트를 진행해줘.
 
 Tier 1 — 핵심 법률·시행령·시행규칙 (3개):
 
-| ID | 명칭 | 종류 | MST/ID |
-|---|---|---|---|
-| `innovation_act` | 국가연구개발혁신법 | 법률 (2025-02-28) | MST 260807 |
-| `innovation_decree` | 국가연구개발혁신법 시행령 | 대통령령 (2026-05-06) | MST 285767 |
-| `innovation_rule` | 국가연구개발혁신법 시행규칙 | 과기정통부령 (2026-03-25) | MST 285043 |
+| ID                    | 명칭                        | 종류                      | MST/ID     |
+| --------------------- | --------------------------- | ------------------------- | ---------- |
+| `innovation_act`    | 국가연구개발혁신법          | 법률 (2025-02-28)         | MST 260807 |
+| `innovation_decree` | 국가연구개발혁신법 시행령   | 대통령령 (2026-05-06)     | MST 285767 |
+| `innovation_rule`   | 국가연구개발혁신법 시행규칙 | 과기정통부령 (2026-03-25) | MST 285043 |
 
 Tier 2 — 핵심 행정규칙 (4개):
 
-| ID | 명칭 | 시행일 | admrul ID |
-|---|---|---|---|
-| `rnd_funding_standard` | 국가연구개발사업 연구개발비 사용 기준 | 2024-06-13 | 2100000278740 |
+| ID                              | 명칭                                                | 시행일     | admrul ID     |
+| ------------------------------- | --------------------------------------------------- | ---------- | ------------- |
+| `rnd_funding_standard`        | 국가연구개발사업 연구개발비 사용 기준               | 2024-06-13 | 2100000278740 |
 | `simultaneous_research_limit` | 국가연구개발사업 동시수행 연구개발과제 수 제한 기준 | 2021-01-01 | 2100000196149 |
-| `facility_equipment_standard` | 국가연구개발 시설·장비의 관리 등에 관한 표준지침 | 2026-04-23 | 2100000278230 |
-| `research_note_guideline` | 국가연구개발사업 연구노트 지침 | 2022-01-01 | 2100000207982 |
+| `facility_equipment_standard` | 국가연구개발 시설·장비의 관리 등에 관한 표준지침   | 2026-04-23 | 2100000278230 |
+| `research_note_guideline`     | 국가연구개발사업 연구노트 지침                      | 2022-01-01 | 2100000207982 |
 
 Supplementary — 신고·포상금·부패행위·청탁금지·공익신고자보호 관련 (6개):
 
-| ID | 명칭 | 종류 | MST |
-|---|---|---|---|
-| `anti_corruption_act` | 부패방지 및 국민권익위원회의 설치와 운영에 관한 법률 | 법률 (2025-01-21) | 268657 |
-| `anti_corruption_decree` | 동 시행령 | 대통령령 (2026-03-03) | 283781 |
-| `improper_solicitation_act` | 부정청탁 및 금품등 수수의 금지에 관한 법률 (청탁금지법/김영란법) | 법률 (2025-01-21) | 268655 |
-| `improper_solicitation_decree` | 동 시행령 | 대통령령 (2025-12-30) | 281817 |
-| `public_interest_whistleblower_act` | 공익신고자 보호법 | 법률 (2026-02-01) | 268861 |
-| `public_interest_whistleblower_decree` | 동 시행령 | 대통령령 (2024-08-07) | 264451 |
+| ID                                       | 명칭                                                             | 종류                  | MST    |
+| ---------------------------------------- | ---------------------------------------------------------------- | --------------------- | ------ |
+| `anti_corruption_act`                  | 부패방지 및 국민권익위원회의 설치와 운영에 관한 법률             | 법률 (2025-01-21)     | 268657 |
+| `anti_corruption_decree`               | 동 시행령                                                        | 대통령령 (2026-03-03) | 283781 |
+| `improper_solicitation_act`            | 부정청탁 및 금품등 수수의 금지에 관한 법률 (청탁금지법/김영란법) | 법률 (2025-01-21)     | 268655 |
+| `improper_solicitation_decree`         | 동 시행령                                                        | 대통령령 (2025-12-30) | 281817 |
+| `public_interest_whistleblower_act`    | 공익신고자 보호법                                                | 법률 (2026-02-01)     | 268861 |
+| `public_interest_whistleblower_decree` | 동 시행령                                                        | 대통령령 (2024-08-07) | 264451 |
 
 ## 기능
 
 **5개 MCP tool**:
 
-| Tool | 용도 |
-|---|---|
-| `health` | 서비스 상태·API 키 설정 여부 확인 |
-| `list_rule_sets` | 등록된 13개 규정 목록·hierarchy rank·문서 ID 조회 |
-| `search_provision` | 조문·별표 본문에서 키워드 검색 → snippet + provision_id 후보 list |
-| `get_provision_detail` | provision_id로 단일 조문/별표 본문 verbatim 조회 (LLM 임의 부제 발명 방어 metadata 포함) |
+| Tool                       | 용도                                                                                                           |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `health`                 | 서비스 상태·API 키 설정 여부 확인                                                                             |
+| `list_rule_sets`         | 등록된 13개 규정 목록·hierarchy rank·문서 ID 조회                                                            |
+| `search_provision`       | 조문·별표 본문에서 키워드 검색 → snippet + provision_id 후보 list                                            |
+| `get_provision_detail`   | provision_id로 단일 조문/별표 본문 verbatim 조회 (LLM 임의 부제 발명 방어 metadata 포함)                       |
 | `suggest_review_sources` | 자연어 질문 → 키워드 추출 → 검토할 규정·조문 후보 + 추천 검토 순서 (법률 → 시행령 → 시행규칙 → 행정규칙) |
 
 **1개 MCP prompt**:
 
-| Prompt | 용도 |
-|---|---|
+| Prompt                | 용도                                                                                                                                                                                          |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `review_regulation` | **다층적 규정 검토** — 특정 사례에 대해 13개 규정을 위계 순서로 적용하여, 규정 검토 결과를 근거 조항 인용과 함께 답변. 'korean-rnd-regs-mcp', '규정 검토' keyword를 prompt에 포함 필요 |
 
 ---
@@ -385,6 +414,7 @@ twine check dist/*
 ## 보안
 
 LAW_API_KEY는 국가법령정보 OpenAPI에서 무료로 발급받는 공개 법령 데이터 조회용 인증값입니다. 금융 API 키 등과는 성격이 다르지만, 다른 사람이 무단으로 사용할 수 없도록 관리하시기 바랍니다.
+
 - 노출 시, 타인이 동일 키로 요청을 반복하여 사용에 영향을 줄 수 있습니다
 
 ### 서버의 보호 범위
