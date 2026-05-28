@@ -42,9 +42,10 @@ def test_review_regulation_prompt_substitutes_situation():
     assert "get_provision_detail" in body
     # 위계 순서 안내
     assert "법률 → 시행령 → 시행규칙" in body
-    # verbatim 정책 명시
+    # verbatim 정책 명시 — 의도: 원문 인용 충실성 보장. 표현은 시간에 따라 변할 수 있음
     assert "verbatim" in body
-    assert "임의 부제" in body or "paraphrase 추가 금지" in body
+    assert "paraphrase" in body  # 핵심 키워드 (요약/paraphrase 금지)
+    assert "원문" in body and ("그대로 사용" in body or "verbatim 인용" in body)
 
 
 def test_review_regulation_prompt_includes_tier2_and_supplementary_routing():
