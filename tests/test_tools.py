@@ -14,6 +14,8 @@ from korean_rnd_regs_mcp.live_api import LawApiClient, LawApiError, ResolvedDocI
 from korean_rnd_regs_mcp.main import (
     _extract_keywords,
     _make_snippet,
+    _resolve_effective_date,
+    _revision_notice,
     _strip_particle,
     get_provision_detail,
     list_rule_sets,
@@ -266,6 +268,22 @@ def test_get_provision_detail_no_key_leak(mock_client):
     assert _FAKE_KEY[:6] not in response_str
 
 
+def test_get_provision_detail_no_per_user_oc_key_leak(mock_client, monkeypatch):
+    """회귀(작업1 gap c): per-user OC key(contextvar 경로)가 정상 응답에 미포함."""
+    from korean_rnd_regs_mcp.main import _request_api_key
+    per_user_oc = "PER_USER_OC_FAKE_7788"
+    # contextvar 설정 시 _get_client가 per-user 클라이언트를 찾으므로 mock을 주입(네트워크 없음)
+    monkeypatch.setitem(main_module._client_by_key, per_user_oc, mock_client)
+    token = _request_api_key.set(per_user_oc)
+    try:
+        result = asyncio.run(get_provision_detail("law:260807:JO0015"))
+        response_str = json.dumps(result, ensure_ascii=False)
+        assert per_user_oc not in response_str
+        assert per_user_oc[:6] not in response_str
+    finally:
+        _request_api_key.reset(token)
+
+
 # === LLM 환각 방어 (article_structure + format_instructions) ===
 def test_get_provision_detail_article_includes_verbatim_metadata(mock_client):
     """회귀: content가 verbatim임을 명시하는 metadata 포함."""
@@ -361,6 +379,21 @@ def test_suggest_review_sources_no_key_leak(mock_client):
     result = asyncio.run(suggest_review_sources("특별평가"))
     response_str = json.dumps(result, ensure_ascii=False)
     assert _FAKE_KEY not in response_str
+
+
+def test_suggest_review_sources_no_per_user_oc_key_leak(mock_client, monkeypatch):
+    """회귀(작업1 gap c): per-user OC key(contextvar 경로)가 suggest 응답에 미포함."""
+    from korean_rnd_regs_mcp.main import _request_api_key
+    per_user_oc = "PER_USER_OC_FAKE_7788"
+    monkeypatch.setitem(main_module._client_by_key, per_user_oc, mock_client)
+    token = _request_api_key.set(per_user_oc)
+    try:
+        result = asyncio.run(suggest_review_sources("특별평가"))
+        response_str = json.dumps(result, ensure_ascii=False)
+        assert per_user_oc not in response_str
+        assert per_user_oc[:6] not in response_str
+    finally:
+        _request_api_key.reset(token)
 
 
 def test_suggest_review_sources_propagates_search_errors(mock_client):
@@ -491,6 +524,30 @@ def test_live_api_handles_sslerror_without_url_leak(monkeypatch):
     assert "OC=" not in msg
     # type 정보(SSLError)는 trace에 유지
     assert "SSLError" in msg or "FakeSSLError" in msg
+
+
+def test_request_with_retry_log_no_key_prefix(monkeypatch, caplog):
+    """회귀(작업1 gap d): _request_with_retry 로그에 키 값·앞자리·OC= 미포함, type 이름만 기록."""
+    import logging
+    import requests as requests_mod
+    from korean_rnd_regs_mcp.live_api import LawApiError, _request_with_retry
+
+    class FakeConnError(requests_mod.exceptions.ConnectionError):
+        def __str__(self):
+            return f"Connection failed: /lawSearch.do?OC={_FAKE_KEY}"
+
+    monkeypatch.setattr(
+        requests_mod, "get",
+        lambda *a, **kw: (_ for _ in ()).throw(FakeConnError()),
+    )
+    with caplog.at_level(logging.DEBUG, logger="rnd-regs-mcp.live_api"):
+        with pytest.raises(LawApiError):
+            _request_with_retry("https://test.invalid", {"OC": _FAKE_KEY}, max_retries=1)
+    assert _FAKE_KEY not in caplog.text, f"로그 키 누설: {caplog.text[:200]}"
+    assert _FAKE_KEY[:6] not in caplog.text
+    assert "OC=" not in caplog.text
+    # type 이름은 로그에 유지됨 (진단 가능성)
+    assert "ConnectionError" in caplog.text or "FakeConnError" in caplog.text
 
 
 # === LIVE 검증: 회귀 (wrapper filter) ===
@@ -880,3 +937,60 @@ def test_suggest_review_sources_works_with_resolved_ids(mock_client):
     result = asyncio.run(suggest_review_sources("특별평가 절차는 어떻게 되나요?"))
     assert result["total"] >= 1
     assert len(result["recommended_review_order"]) >= 1
+
+
+# === 현행 시행일 정합성 (안정적 일련번호 행정규칙 개정 감지) 회귀 테스트 ===
+
+def test_effective_date_and_revision_notice_helpers():
+    """helper 4분기 lock: LIVE 우선 표시 + 날짜 차이 기반 개정 감지 + 오탐 방지."""
+    from types import SimpleNamespace
+    rs = SimpleNamespace(effective_date="2024-06-13", api_doc_id="X")
+
+    # (1) LIVE 비어있음(resolve 실패) → manifest 표시, 개정 안내 없음
+    r = ResolvedDocId(doc_id="X", effective_date="", is_updated=False, manifest_doc_id="X")
+    assert _resolve_effective_date(rs, r) == "2024-06-13"
+    assert _revision_notice(rs, r) is None
+
+    # (2) LIVE == manifest → manifest 표시, 개정 안내 없음 (오탐 방지)
+    r = ResolvedDocId(doc_id="X", effective_date="2024-06-13", is_updated=False, manifest_doc_id="X")
+    assert _resolve_effective_date(rs, r) == "2024-06-13"
+    assert _revision_notice(rs, r) is None
+
+    # (3) 일련번호 불변 + LIVE 시행일 다름 → 연구개발비 사용 기준 버그 시나리오: 개정 감지
+    r = ResolvedDocId(doc_id="X", effective_date="2026-05-06", is_updated=False, manifest_doc_id="X")
+    assert _resolve_effective_date(rs, r) == "2026-05-06"
+    notice = _revision_notice(rs, r)
+    assert notice and "개정 반영" in notice
+
+    # (4) doc_id 변경 → 개정 감지 (신규 ID 포함)
+    r = ResolvedDocId(doc_id="Y", effective_date="2026-05-06", is_updated=True, manifest_doc_id="X")
+    notice = _revision_notice(rs, r)
+    assert notice and "개정 반영" in notice and "Y" in notice
+
+
+def test_search_provision_detects_amendment_on_stable_serial(mock_client):
+    """회귀: 일련번호 불변(is_updated=False)이라도 LIVE 시행일이 manifest와 다르면
+    개정 감지 → revision_notice + LIVE effective_date 노출 (연구개발비 사용 기준 버그)."""
+    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
+        doc_id=mid,                   # 일련번호 불변
+        effective_date="2099-12-31",  # 어떤 manifest 시행일과도 다른 LIVE 값
+        is_updated=False,             # doc_id 안 바뀜 → 기존 신호로는 개정 미감지
+        manifest_doc_id=mid,
+    )
+    result = asyncio.run(search_provision("특별평가"))
+    assert result["total"] >= 1
+    for m in result["results"]:
+        assert m["effective_date"] == "2099-12-31"
+        assert "revision_notice" in m
+        assert "개정 반영" in m["revision_notice"]
+
+
+def test_get_provision_detail_detects_amendment_on_stable_serial(mock_client):
+    """회귀: get_provision_detail도 일련번호 불변 + LIVE 시행일 차이를 개정으로 감지."""
+    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
+        doc_id=mid, effective_date="2099-12-31", is_updated=False, manifest_doc_id=mid,
+    )
+    result = asyncio.run(get_provision_detail("law:260807:JO0015"))
+    assert result["effective_date"] == "2099-12-31"
+    assert result.get("revision_notice")
+    assert "개정 반영" in result["revision_notice"]

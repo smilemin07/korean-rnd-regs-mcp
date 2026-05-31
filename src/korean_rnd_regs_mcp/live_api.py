@@ -32,7 +32,6 @@ ERROR_AUTH_FAILED = "auth_failed"
 ERROR_RATE_LIMITED = "rate_limited"
 ERROR_PARSE_FAILED = "parse_failed"
 ERROR_NOT_FOUND = "not_found"
-ERROR_INVALID_PROVISION_ID = "invalid_provision_id"
 
 
 class LawApiError(Exception):
@@ -50,16 +49,6 @@ class DocumentRef:
     doc_type: str           # "law" | "admrul"
     doc_id: str             # MST for law, 행정규칙일련번호 for admrul
     title: str
-    extra: dict = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class ProvisionRef:
-    """조문 또는 별표 단위 reference (search_provision 응답 item, 에서 사용)."""
-    provision_id: str       # see provision_id.py
-    unit_id: Optional[str]  # JO0003 (조문) or BP0001 (별표) or None (document-level)
-    snippet: str            # <= 2000 chars (contract §5)
-    document_title: str
     extra: dict = field(default_factory=dict)
 
 

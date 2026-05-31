@@ -80,7 +80,7 @@ rule_sets:
       - 연구개발비 사용 기준
       - 연구개발비 사용기준
     license_status: public_data
-    effective_date: "2024-06-13"
+    effective_date: "2026-05-06"  # LIVE 검증(2026-05-30): 일련번호 2100000278740 불변, 현행 시행일 갱신
     source_url: https://www.law.go.kr/행정규칙/국가연구개발사업연구개발비사용기준
     known_limitations:
       - "본 행정규칙은 평면 schema(<조문내용> root 직속) — get_admin_rule_detail의 fallback으로 조문 117개 + 별표 30개 모두 검색"

@@ -3,6 +3,40 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.1.4] - 2026-05-31
+
+### Fixed — 현행 시행일 정합성 (안정적 일련번호 행정규칙 개정 감지)
+
+표시되는 시행일자가 옛 manifest 값에 박제되어, 본문은 현행을 가져오면서도 사용자에게 "오래된 문서를 참조 중"으로 보이던 결함 수정. `contract_version` 0.1.0 유지 (기존 응답 필드 제거·이름 변경 없음 — `effective_date` 등 additive 필드만 추가하고 값 출처·표시 조건 보정. 하위 호환).
+
+- 표시 `effective_date`를 LIVE resolve 값 우선으로 변경 (`get_provision_detail`, `search_provision` 결과). resolve 실패 시에만 manifest 값 폴백.
+- 개정 감지 신호를 `doc_id 변경` 외에 `LIVE 시행일 ≠ manifest 시행일`로 확장. law.go.kr 행정규칙은 개정돼도 일련번호가 유지되는 경우가 있어 기존 `doc_id` 비교만으로는 개정을 놓침 (연구개발비 사용 기준 사례). LIVE 값이 비어있으면 개정 판단 보류 (오탐 방지).
+- `search_provision` 각 결과에 `effective_date` 상시 첨부 (additive). `revision_notice`는 개정 감지 시에만.
+- `rule_sets.yaml` `rnd_funding_standard` 시행일자 `2024-06-13` → `2026-05-06` 데이터 수정 (LIVE 검증, 일련번호 2100000278740 불변). 전수 감사 결과 stale 항목은 이 1건뿐.
+
+### Changed — review_regulation 프롬프트 강화
+
+프롬프트 텍스트만 수정 (도구 로직·`contract_version` 0.1.0 불변). PyPI·플러그인이 NAS보다 뒤처져 있던 프롬프트를 본 release로 동기화.
+
+- 검토 절차 6번을 "조문 요건 해석 + 사실관계 1:1 대조(충족/불충족/사실부족/규정미확인/MCP범위밖) + 상위 규정 우선"으로 강화. 출력에 "6. 쟁점·결손 분석" 도입, 근거 조항 "적용" 줄에 판단단위·충족 여부 구체화.
+- `suggest_review_sources` 호출 안내의 따옴표 충돌 정리: `situation`에 큰따옴표 포함 시 `question="..."` 중첩으로 안내가 모호해지던 것을 지시문 형태로 변경.
+
+### Security — 키/OC 누설 회귀가드 보강 (테스트 전용)
+
+- per-user OC key(HTTP `?oc=` contextvar 경로) 누설 부재를 `health`·`get_provision_detail`·`suggest_review_sources` 응답에 대해 회귀테스트로 고정.
+- `_request_with_retry` 로그에 키 값·앞자리·`OC=` 미포함(type 이름만 로깅) 회귀테스트 추가.
+
+### Removed — 미사용 코드 제거
+
+- `live_api.py`의 미사용 `ProvisionRef` dataclass·`ERROR_INVALID_PROVISION_ID` 상수 제거 (동작·contract 불변; `invalid_provision_id` 오류코드는 그대로 유지).
+
+### Docs
+
+- README 동기화: 지원 규정 헤더 `v0.1.3` → `v0.1.4`, `rnd_funding_standard` 시행일 `2024-06-13` → `2026-05-06`, 테스트 수 `86` → `95`.
+
+### Tests
+- 10개 신규 테스트 추가 (86 → 96개): 시행일 정합성 4건(helper 4분기 lock·안정적 일련번호 개정 감지 2건·manifest 데이터 lock) + 보안 회귀가드 4건(per-user OC ×3·로그 누설) + 프롬프트 따옴표 회귀 1건 + README↔프롬프트 동기화 가드 1건.
+
 ## [0.1.3] - 2026-05-28
 
 ### Added — 국토교통 R&D family 4건 manifest 추가 (additive only)
@@ -18,6 +52,7 @@
 - 2개 신규 테스트 추가 (84 → 86개): sector family entries 존재 검증·hierarchy_rank 정렬 검증
 - `test_list_rule_sets_returns_live_api_items`: total 13 → 17 갱신
 
+[0.1.4]: https://github.com/smilemin07/korean-rnd-regs-mcp/releases/tag/v0.1.4
 [0.1.3]: https://github.com/smilemin07/korean-rnd-regs-mcp/releases/tag/v0.1.3
 
 ## [0.1.2] - 2026-05-27

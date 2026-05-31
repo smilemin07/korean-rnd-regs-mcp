@@ -35,6 +35,16 @@ def test_all_required_fields_populated():
         assert rs.source_url, f"source_url missing: {rs.id}"
 
 
+def test_rnd_funding_standard_effective_date_is_current():
+    """회귀: 연구개발비 사용 기준 manifest 시행일이 현행(2026-05-06)으로 갱신됨.
+
+    LIVE 검증(2026-05-30): 일련번호 2100000278740 불변이나 현행 시행일은 2026-05-06.
+    이 단언이 2024-06-13으로의 회귀(stale 표시 버그 재발)를 차단한다.
+    """
+    rs = next(r for r in load_manifest() if r.id == "rnd_funding_standard")
+    assert rs.effective_date == "2026-05-06"
+
+
 def test_all_ids_are_unique():
     items = load_manifest()
     ids = [rs.id for rs in items]

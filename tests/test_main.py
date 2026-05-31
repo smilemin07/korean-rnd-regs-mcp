@@ -30,6 +30,21 @@ def test_health_reports_unset_key(monkeypatch):
     assert result["api_key_configured"] is False
 
 
+def test_health_no_per_user_oc_key_leak():
+    """회귀(작업1 gap a·b): per-user OC key(contextvar)가 health 응답에 미포함."""
+    from korean_rnd_regs_mcp.main import _request_api_key
+    per_user_oc = "PER_USER_OC_FAKE_7788"
+    token = _request_api_key.set(per_user_oc)
+    try:
+        result = asyncio.run(health())
+        response_str = json.dumps(result, ensure_ascii=False)
+        assert per_user_oc not in response_str
+        assert per_user_oc[:6] not in response_str
+        assert result["api_key_configured"] is True
+    finally:
+        _request_api_key.reset(token)
+
+
 # === MCP prompt: review_regulation (v0.1.0 보강 — 다층적 검토 워크플로 자동 적용) ===
 def test_review_regulation_prompt_substitutes_situation():
     """prompt template이 situation argument를 정확히 substitute."""
@@ -46,6 +61,16 @@ def test_review_regulation_prompt_substitutes_situation():
     assert "verbatim" in body
     assert "paraphrase" in body  # 핵심 키워드 (요약/paraphrase 금지)
     assert "원문" in body and ("그대로 사용" in body or "verbatim 인용" in body)
+
+
+def test_review_regulation_prompt_handles_quotes_in_situation():
+    """회귀(작업2): situation에 큰따옴표가 있어도 도구 호출 안내가 깨지지 않음."""
+    situation = '연구자가 "특별평가" 대상인지 문의'
+    body = review_regulation_prompt(situation)
+    assert isinstance(body, str)
+    assert situation in body  # 큰따옴표 포함 situation이 검토 상황 블록에 그대로 포함
+    # question="{situation}" 리터럴 삽입 제거 → 중첩 따옴표로 깨지는 패턴 부재
+    assert 'suggest_review_sources(question="' not in body
 
 
 def test_review_regulation_prompt_includes_tier2_and_supplementary_routing():
@@ -69,6 +94,20 @@ def test_review_regulation_prompt_includes_limitation_notice():
     assert "가지조문" in body  # v0.2 deferred
     assert "별표" in body  # v0.3 deferred
     assert "변호사 자문" in body  # 법률 판단 disclaimer
+
+
+def test_readme_embedded_prompt_matches_template():
+    """회귀: README에 임베드된 review_regulation 프롬프트가 main.py _REVIEW_PROMPT_TEMPLATE와
+    정확히 일치하는지 검증 (문서-코드 drift 방지 — 단일 출처 가드)."""
+    import re
+    from pathlib import Path
+    from korean_rnd_regs_mcp.main import _REVIEW_PROMPT_TEMPLATE
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
+    m = re.search(r"규정 검토용 프롬프트</summary>\s*\n+```\n(.*?)\n```", readme, re.DOTALL)
+    assert m, "README에서 '규정 검토용 프롬프트' 코드블록을 찾지 못함"
+    assert m.group(1).strip() == _REVIEW_PROMPT_TEMPLATE.strip(), (
+        "README 임베드 프롬프트가 main.py _REVIEW_PROMPT_TEMPLATE와 불일치 — 동기화 필요"
+    )
 
 
 def test_list_rule_sets_returns_live_api_items():
