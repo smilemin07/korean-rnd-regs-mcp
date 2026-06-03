@@ -110,6 +110,23 @@ def test_readme_embedded_prompt_matches_template():
     )
 
 
+def test_suggest_review_sources_keywords_param_is_optional():
+    """회귀(additive): suggest_review_sources에 keywords 선택 파라미터가 default None으로 존재 — 기존 question-only 호출 무영향."""
+    import inspect
+    from korean_rnd_regs_mcp.main import suggest_review_sources
+    sig = inspect.signature(suggest_review_sources)
+    assert "question" in sig.parameters
+    assert "keywords" in sig.parameters
+    assert sig.parameters["keywords"].default is None
+
+
+def test_review_prompt_instructs_keyword_array_to_suggest():
+    """프롬프트가 LLM에게 검색 키워드 배열을 suggest_review_sources의 keywords로 전달하도록 지시."""
+    prompt = review_regulation_prompt("테스트 상황")
+    assert "keywords" in prompt
+    assert "검색 키워드 배열" in prompt
+
+
 def test_list_rule_sets_returns_live_api_items():
     """v0.1.3 범위: 13건(혁신법 family 4 + Tier 2 행정규칙 3 + Supplementary 6) + 국토교통 family 4 = 17건."""
     result = asyncio.run(list_rule_sets())

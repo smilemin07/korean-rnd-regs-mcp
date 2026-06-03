@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-CONTRACT_VERSION = "0.1.0"
+CONTRACT_VERSION = "0.2.0"
 VALID_DOC_TYPES = frozenset({"law", "admrul"})
 # JO = 조문(article), BP = 별표(annex). 둘 다 4자리 이상 숫자.
 _UNIT_PATTERN = re.compile(r"^(JO|BP)\d{4,}$")

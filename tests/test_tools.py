@@ -16,6 +16,9 @@ from korean_rnd_regs_mcp.main import (
     _make_snippet,
     _resolve_effective_date,
     _revision_notice,
+    _sanitize_keywords,
+    _select_capped_candidates,
+    _shorten_snippet,
     _strip_particle,
     get_provision_detail,
     list_rule_sets,
@@ -407,11 +410,223 @@ def test_suggest_review_sources_propagates_search_errors(mock_client):
     assert any("keyword" in e for e in result["errors"])
 
 
+# === A축: LLM 키워드 위임 (v0.1.5) ===
+def test_sanitize_keywords_normalizes():
+    """문자열만·strip·2자 이상·순서 보존 dedupe."""
+    out = _sanitize_keywords(["  특별평가  ", "특별평가", "동시수행", "x", "  ", 1, None, "연구개발비"])
+    assert out == ["특별평가", "동시수행", "연구개발비"]
+
+
+def test_sanitize_keywords_truncates_to_10():
+    out = _sanitize_keywords([f"키워드{i}" for i in range(15)])
+    assert len(out) == 10
+    assert out == [f"키워드{i}" for i in range(10)]
+
+
+def test_sanitize_keywords_none_and_all_invalid():
+    assert _sanitize_keywords(None) == []
+    assert _sanitize_keywords([]) == []
+    assert _sanitize_keywords(["x", " ", 1]) == []
+
+
+def test_suggest_review_sources_uses_client_keywords(mock_client):
+    """keywords 제공 시 그대로 우선 사용 + keyword_source=client."""
+    result = asyncio.run(suggest_review_sources("아무 상황 설명", keywords=["특별평가"]))
+    assert result["keyword_source"] == "client"
+    assert result["extracted_keywords"] == ["특별평가"]
+    assert len(result["candidates"]) >= 1
+
+
+def test_suggest_review_sources_fallback_when_no_keywords(mock_client):
+    """keywords 미제공 → 규칙 추출 fallback (기존 동작 유지)."""
+    result = asyncio.run(suggest_review_sources("특별평가"))
+    assert result["keyword_source"] == "fallback"
+    assert "특별평가" in result["extracted_keywords"]
+
+
+def test_suggest_review_sources_empty_or_invalid_keywords_fall_back(mock_client):
+    """빈 배열·전부 무효 → fallback (silent 0건 방지)."""
+    r1 = asyncio.run(suggest_review_sources("특별평가", keywords=[]))
+    r2 = asyncio.run(suggest_review_sources("특별평가", keywords=["x", " "]))
+    assert r1["keyword_source"] == "fallback"
+    assert r2["keyword_source"] == "fallback"
+    assert "특별평가" in r1["extracted_keywords"]
+
+
+def test_suggest_review_sources_client_zero_hit_post_fallback(mock_client):
+    """client 키워드가 0건 + 오류 없음 → 규칙 추출로 보강(client+fallback)."""
+    result = asyncio.run(
+        suggest_review_sources("특별평가 절차", keywords=["절대로없는키워드zzz"])
+    )
+    assert result["keyword_source"] == "client+fallback"
+    assert "특별평가" in result["extracted_keywords"]
+    assert len(result["candidates"]) >= 1
+
+
+def test_suggest_review_sources_keyword_source_on_empty(mock_client):
+    """추출 결과 전무(한글 없음)면 빈 응답에도 keyword_source 포함."""
+    result = asyncio.run(suggest_review_sources("abc 123 ???"))
+    assert result["keyword_source"] == "fallback"
+    assert result["extracted_keywords"] == []
+    assert result["candidates"] == []
+
+
+# === B축: 출력 크기 상한 (v0.1.5) ===
+def test_select_capped_candidates_under_max_returns_input():
+    cands = [{"provision_id": f"p{i}", "rule_set_id": "rs", "matched_keywords": ["k"]} for i in range(5)]
+    out = _select_capped_candidates(cands, ["k"], lambda c: 1)
+    assert out == cands  # max_n 이하 — 그대로 반환
+
+
+def test_select_capped_candidates_guarantees_each_document():
+    """문서별 최소 1건 보장: 법률이 후보를 다수 차지해도 하위 문서(rsC·rsD) 누락 안 됨."""
+    used = ["k0", "k1"]
+    cands = []
+    for i in range(10):
+        cands.append({"provision_id": f"a{i:02d}", "rule_set_id": "rsA", "matched_keywords": ["k0"]})
+    for i in range(5):
+        cands.append({"provision_id": f"b{i:02d}", "rule_set_id": "rsB", "matched_keywords": ["k1"]})
+    cands.append({"provision_id": "c00", "rule_set_id": "rsC", "matched_keywords": ["k1"]})
+    cands.append({"provision_id": "d00", "rule_set_id": "rsD", "matched_keywords": []})  # priority 999
+    rank_map = {"rsA": 1, "rsB": 2, "rsC": 3, "rsD": 4}
+    rank_of = lambda c: rank_map[c["rule_set_id"]]
+    capped = _select_capped_candidates(cands, used, rank_of)  # 17건 > 15
+    assert len(capped) == 15
+    pids = {c["provision_id"] for c in capped}
+    assert "c00" in pids and "d00" in pids  # 단일 후보 하위 문서 보존
+    ranks = [rank_of(c) for c in capped]
+    assert ranks == sorted(ranks)  # 출력은 (rank, provision_id) 정렬
+
+
+def test_select_capped_candidates_document_overflow():
+    """매칭 문서가 max_n 초과면 위계 상위 문서만 남고 하위 문서는 탈락(전부 보장 불가)."""
+    used = ["k"]
+    cands = [{"provision_id": f"p{i:02d}", "rule_set_id": f"rs{i:02d}", "matched_keywords": ["k"]}
+             for i in range(20)]
+    rank_of = lambda c: int(c["rule_set_id"][2:]) + 1  # rs00->1 ... rs19->20
+    capped = _select_capped_candidates(cands, used, rank_of)  # 문서 20개 > 15
+    assert len(capped) == 15
+    docs = {c["rule_set_id"] for c in capped}
+    assert docs == {f"rs{i:02d}" for i in range(15)}  # 위계 상위 15개(rs00~rs14) 정확히, rs15~rs19 탈락
+
+
+def test_shorten_snippet_boundary():
+    """경계: ≤300 그대로, >300이면 말줄임표 포함 최종 300자."""
+    assert _shorten_snippet("가" * 299) == "가" * 299
+    assert _shorten_snippet("가" * 300) == "가" * 300       # 300 정확히는 미단축
+    out = _shorten_snippet("가" * 301)
+    assert len(out) == 300 and out.endswith("...")          # 301 → 297자 + "..."
+
+
+def test_select_capped_candidates_prefers_important_keyword():
+    """중요(앞쪽) 키워드 매칭 후보가 cap에서 우선 보존."""
+    used = ["important", "minor"]
+    cands = [
+        {"provision_id": f"p{i:02d}", "rule_set_id": "rsA",
+         "matched_keywords": ["important" if i < 3 else "minor"]}
+        for i in range(20)
+    ]
+    capped = _select_capped_candidates(cands, used, lambda c: 1)
+    assert len(capped) == 15
+    pids = {c["provision_id"] for c in capped}
+    for i in range(3):
+        assert f"p{i:02d}" in pids  # important 매칭 3건 모두 보존
+
+
+def test_suggest_review_sources_caps_candidates(mock_client):
+    """전체 후보가 상한 초과 시 returned=15·truncated=True·note 추가 (2키워드로 27후보 유도)."""
+    result = asyncio.run(suggest_review_sources("간접비 특별평가", keywords=["간접비", "특별평가"]))
+    assert result["total"] > 15
+    assert result["returned"] == 15
+    assert len(result["candidates"]) == 15
+    assert result["truncated"] is True
+    assert "note" in result
+    assert len(result["recommended_review_order"]) >= 1  # review_order는 전체 기준 유지
+
+
+def test_suggest_review_sources_snippet_truncated(mock_client):
+    """반환 후보 snippet은 _SUGGEST_SNIPPET_MAX(최종 길이) 이하로 단축."""
+    mock_client.get_law_detail.return_value["articles"][0]["조문내용"] = (
+        "제15조(특별평가) " + ("특별평가 관련 본문 내용 " * 60)
+    )
+    result = asyncio.run(suggest_review_sources("특별평가", keywords=["특별평가"]))
+    snippets = [c["snippet"] for c in result["candidates"]]
+    assert snippets
+    assert all(len(s) <= 300 for s in snippets)
+    assert any(s.endswith("...") for s in snippets)
+
+
+def test_suggest_review_sources_cap_fields_no_key_leak(mock_client):
+    """cap/truncated/note 추가 후에도 키 누설 없음."""
+    result = asyncio.run(suggest_review_sources("간접비", keywords=["간접비"]))
+    assert _FAKE_KEY not in json.dumps(result, ensure_ascii=False)
+
+
+# === B축 사후 리뷰 보강 (경계·결정성·방어·결합 경로) ===
+def test_select_capped_candidates_exact_max_returns_input():
+    """경계: 후보가 정확히 max_n(15)이면 그대로 반환(len <= max_n, cap 미발동)."""
+    cands = [{"provision_id": f"p{i:02d}", "rule_set_id": "rs", "matched_keywords": ["k"]} for i in range(15)]
+    out = _select_capped_candidates(cands, ["k"], lambda c: 1)
+    assert out == cands
+    assert len(out) == 15
+
+
+def test_select_capped_candidates_just_over_max_drops_one():
+    """경계: max_n+1(16)이면 위계 하위 1건만 탈락하여 15건."""
+    cands = [{"provision_id": f"p{i:02d}", "rule_set_id": f"rs{i:02d}", "matched_keywords": ["k"]}
+             for i in range(16)]
+    out = _select_capped_candidates(cands, ["k"], lambda c: int(c["rule_set_id"][2:]))
+    assert len(out) == 15
+    docs = {c["rule_set_id"] for c in out}
+    assert "rs15" not in docs  # rank 최하위(15) 탈락
+
+
+def test_select_capped_candidates_rank_tie_overflow_deterministic():
+    """rank 전부 동률 + 문서 초과여도 (rank, _priority, provision_id)로 완전 결정적 — 입력 순서 무관."""
+    used = ["k"]
+    cands = [{"provision_id": f"p{i:02d}", "rule_set_id": f"rs{i:02d}", "matched_keywords": ["k"]}
+             for i in range(20)]
+    rank_of = lambda c: 5  # 전부 동률
+    out1 = _select_capped_candidates([dict(c) for c in cands], used, rank_of)
+    out2 = _select_capped_candidates(list(reversed([dict(c) for c in cands])), used, rank_of)
+    ids1 = [c["provision_id"] for c in out1]
+    ids2 = [c["provision_id"] for c in out2]
+    assert len(out1) == 15
+    assert ids1 == ids2  # 입력 순서 뒤집어도 동일 = 결정적
+    assert ids1 == [f"p{i:02d}" for i in range(15)]  # 최저 provision_id 15개 생존
+
+
+def test_shorten_snippet_none_and_empty_safe():
+    """방어(F3): snippet 값이 None·빈 문자열이어도 크래시 없이 ''."""
+    assert _shorten_snippet(None) == ""
+    assert _shorten_snippet("") == ""
+
+
+def test_suggest_review_sources_truncated_fields_consistent(mock_client):
+    """불변식: returned == min(total, 15), truncated == (total > 15), note 존재 == truncated."""
+    result = asyncio.run(suggest_review_sources("간접비 특별평가", keywords=["간접비", "특별평가"]))
+    assert result["returned"] == min(result["total"], 15)
+    assert result["truncated"] is (result["total"] > 15)
+    assert ("note" in result) is result["truncated"]
+
+
+def test_suggest_review_sources_client_fallback_then_cap(mock_client):
+    """결합 경로: client 키워드 0건 → 규칙추출 보강(client+fallback) → 보강 후보가 상한 초과 시 cap 동시 적용."""
+    result = asyncio.run(
+        suggest_review_sources("간접비 특별평가", keywords=["절대로없는키워드zzz"])
+    )
+    assert result["keyword_source"] == "client+fallback"
+    assert result["total"] > 15
+    assert result["returned"] == 15
+    assert result["truncated"] is True
+    assert "note" in result
+
+
 # === list_rule_sets contract_version (보강) ===
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.1.0"
+    assert result["contract_version"] == "0.2.0"
 
 
 # === _build_article_content  ===

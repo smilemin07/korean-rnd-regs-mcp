@@ -3,6 +3,29 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.1.5] - 2026-06-04
+
+`suggest_review_sources` 도구의 입력·출력 개선. `contract_version` 0.1.0 → **0.2.0** (minor bump — 응답 additive 필드 추가 + `candidates` 거동 변경. 0.x 대역이라 minor도 breaking 허용. `docs/api_contract.md` §5.1·5.2·6 참조).
+
+### Added — 검색 키워드 위임 (A축)
+
+- `suggest_review_sources`에 선택적 `keywords: list[str] | None` 입력 추가. 호스트 LLM이 question에서 직접 추출한 검색어 배열을 우선 사용하고, 생략·무효 시 서버 규칙 추출(`_extract_keywords`)로 fallback. 정규화: 문자열만·공백 제외 2자 이상·순서 보존 dedupe·최대 10개.
+- 클라이언트 키워드가 0건 + 오류 없음이면 규칙 추출로 보강(`client+fallback`) — recall 저하 방지. 클라이언트 검색에 오류가 있으면 보강 생략(원인 은폐 방지).
+- 응답 additive 필드 `keyword_source`(`client`|`fallback`|`client+fallback`). `extracted_keywords`는 실제 검색에 사용된 키워드 반환.
+- `review_regulation` 프롬프트·README: 1단계에서 검색 키워드 배열을 작성해 `keywords`로 전달하도록 안내.
+
+### Changed — 응답 크기 상한 (B축)
+
+- `suggest_review_sources` 반환 `candidates`를 위계·중요도 상위 최대 **15건**으로 cap. 매칭 문서 수가 15 이하면 각 문서 최소 1건 보장, 초과 시 위계 상위 문서 우선(탈락 문서는 `recommended_review_order`로 안내). 반환 후보 `snippet`은 ≤300자로 단축. MCP 단일 응답 토큰 한도(25,000) 회피.
+- 응답 additive 필드 `returned`·`truncated`·`note`. `total`·`recommended_review_order`는 cap 이전 전체(suggest 내부 후보 풀) 기준 — truncation 복구 경로.
+- 프롬프트·README 2단계: `truncated`가 true이면 `recommended_review_order`·`search_provision`으로 누락 후보를 보완하도록 안내.
+
+### Fixed
+
+- `_shorten_snippet`에 None·빈 값 가드 추가(잠복 TypeError 방어).
+- `docs/api_contract.md` §5.2 문구 정정: 완결성 범위를 suggest 내부 후보 풀 기준으로 한정(개별 `search_provision`은 `_RESULTS_MAX`로 별도 제한), 토큰 경고 임계 문구 완화.
+- 회귀 테스트 보강(경계·rank 동률 결정성·snippet 방어·client+fallback→cap 결합 등). 전체 120 passed.
+
 ## [0.1.4] - 2026-05-31
 
 ### Fixed — 현행 시행일 정합성 (안정적 일련번호 행정규칙 개정 감지)

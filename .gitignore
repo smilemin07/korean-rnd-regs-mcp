@@ -27,3 +27,6 @@ wheels/
 # Internal dev notes — not for public
 CLAUDE.md
 .claude/
+
+# Working materials unrelated to the package (공모전 응모서·부처 보고서 초안 등) — never publish
+competition/
