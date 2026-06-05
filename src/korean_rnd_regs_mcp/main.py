@@ -73,16 +73,24 @@ _KEYWORD_STOPWORDS = frozenset({
     "있을까요", "없을까요", "되나요", "되었던가요",
     "있습니다", "없습니다", "됩니다",
     "주의사항은", "주의사항",
+    # v0.1.6: 노이즈 토큰 추가 (검토 대상 식별에 무의미한 일반어)
+    "일부", "다른", "해당", "여부", "위해", "통해",
 })
 # 흔한 한국어 조사 (긴 것부터 정렬 — endswith 매칭 우선순위)
-# 1글자 조사 중 "이/가/의/에/도/만/로"는 명사 끝 음절에 자주 등장(false positive risk)
-# → "을/를/은/는/과/와"만 strip. 예: "특별평가" + "가" 조사 strip로 "특별평" 되는 버그 방지.
+# 1글자 조사 중 "이/가/에/도/만/로"는 명사 끝 음절에 자주 등장(false positive risk) → strip 안 함.
+# "을/를/은/는/과/와"는 strip. 예: "특별평가" + "가" 조사 strip로 "특별평" 되는 버그 방지.
+# v0.1.6: 속격 "의"를 추가 — 단, _strip_particle의 len-guard(잔여 ≥2자)로 짧은 명사는 보호.
+#   "정의"(2자) → 2-1=1 < 2 이므로 strip 안 함(보존). "주관연구개발기관의"(9자) → "주관연구개발기관".
 _PARTICLES = (
     "에서는", "에서도", "으로는", "에게는",
     "에서", "으로", "에게", "한테", "까지", "부터", "조차", "마저",
     "와의", "과의",
-    "을", "를", "은", "는", "과", "와",
+    "을", "를", "은", "는", "과", "와", "의",
 )
+# 주의: 끝 "의" strip은 속격(규정의→규정·개발의→개발) 정리에 net-positive지만, "사전심의"(심의)·
+#   "본회의"(회의)처럼 명사 일부 "의"인 복합어는 prefix로 잘린다("사전심"). 2자 "X의" 예외목록 방식은
+#   "규정의/개발의/조문의" 같은 핵심 속격을 오보존해 net-negative라 채택 안 함(검증 완료). 형태소
+#   분석 없이는 양립 불가 — 명사-의 복합어 보존은 v0.2 과제. 현재는 속격 정리 이득을 우선해 전부 strip.
 
 
 def _strip_particle(word: str) -> str:
@@ -107,6 +115,50 @@ def _extract_keywords(question: str, max_count: int = 5) -> list[str]:
     deduped = list(dict.fromkeys(valid))
     filtered = [w for w in deduped if w not in _KEYWORD_STOPWORDS]
     return filtered[:max_count]
+
+
+# v0.1.6 (Pillar B): R&D 도메인 동의어/표기변형 — 작고 큐레이션된 1-hop 사전.
+# 같은 개념을 부처·법령마다 다른 용어로 쓰는 경우(예: 현장용어 "정출금" vs 혁신법 "정부지원연구개발비"
+# vs 육성법·운영규정 "출연금")를 사용자 키워드 1개로 union 검색하기 위함.
+# 설계 원칙(과설계·노이즈 방지): 재귀 확장 금지(1-hop), 광범위 절차어(승인/보고/변경/신청 등)는
+# 동의어로 만들지 않고 토큰 AND 매칭(search_provision)으로 처리하여 precision을 보호한다.
+_SYNONYM_GROUPS: tuple[frozenset[str], ...] = (
+    frozenset({"정출금", "정부지원연구개발비", "출연금", "정부출연금"}),
+    frozenset({"기관부담연구개발비", "기관부담금"}),
+    # 원문은 "협약의 변경/협약을 변경" — 붙임/띄움 표기차 흡수(토큰 AND와 병행)
+    frozenset({"협약변경", "협약 변경"}),
+    frozenset({"사전승인", "사전 승인"}),
+)
+
+# term -> 같은 그룹의 나머지 term들 (1-hop)
+_SYNONYM_LOOKUP: dict[str, tuple[str, ...]] = {}
+for _grp in _SYNONYM_GROUPS:
+    for _t in _grp:
+        _SYNONYM_LOOKUP[_t] = tuple(x for x in _grp if x != _t)
+
+# 동의어 확장 후 실제 검색할 term 총 상한 (호출·latency 폭증 방지).
+# search_provision의 17 rule set 상세조회는 doc 단위 24h 캐시라 동일 요청 내 추가 term은
+# 네트워크 호출 없이 in-memory 재스캔이지만, term 폭증 자체를 보수적으로 cap.
+_SUGGEST_SEARCH_TERMS_MAX = 16
+
+
+def _build_search_terms(keywords: list[str]) -> list[tuple[str, str]]:
+    """suggest 검색용 (search_term, origin_keyword) 쌍 목록 — 1-hop 동의어 확장.
+
+    origin은 matched_keywords 집계 단위가 되어 distinct 매칭 수(관련도)가 변형 개수가 아니라
+    사용자 의도 기준으로 계산되게 한다. 전체 term 수는 _SUGGEST_SEARCH_TERMS_MAX로 cap.
+    """
+    pairs: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for kw in keywords:
+        for term in (kw, *_SYNONYM_LOOKUP.get(kw, ())):
+            if term in seen:
+                continue
+            seen.add(term)
+            pairs.append((term, kw))
+            if len(pairs) >= _SUGGEST_SEARCH_TERMS_MAX:
+                return pairs
+    return pairs
 
 
 def _sanitize_keywords(keywords: list[str] | None) -> list[str]:
@@ -135,14 +187,17 @@ def _sanitize_keywords(keywords: list[str] | None) -> list[str]:
 
 
 def _select_capped_candidates(candidates, used, rank_of, max_n=_SUGGEST_CANDIDATES_MAX):
-    """후보가 max_n 초과 시 선별: 매칭된 각 문서(rule_set_id) 최소 1건 보장 + 중요 키워드 우선.
+    """후보가 max_n 초과 시 선별: 관련도(매칭 키워드 수) 우선 + 각 문서 최소 1건 보장.
 
     - used: 검색에 사용된 키워드(앞쪽일수록 중요). rank_of(candidate)->int(낮을수록 상위 위계).
+    - v0.1.6 (Pillar A): 선별 1차 기준을 관련도 = 매칭된 distinct 키워드 수(많을수록 상위)로 변경.
+      질문의 여러 쟁점을 동시에 맞힌 조문이 위계만 앞선 총칙 조문에 밀려 cap 밖으로 탈락하던 문제 해소.
+      관련도 동률이면 종전대로 (중요 키워드 우선, 위계, provision_id) tie-break.
     - phase1: 매칭된 문서마다 최우선 후보 1건씩 → 법률이 상한을 독식해 행정규칙 등 하위 문서가
-      통째로 누락되는 것 방지(행정규칙은 같은 rank에 문서가 여럿이라 위계 단위로는 부족).
-      매칭 문서 수가 max_n 초과면 (rank, priority) 상위 문서만.
-    - phase2: 남은 슬롯을 가장 관련 높은(중요 키워드 매칭) 후보로 채움.
-    - 출력은 (rank, provision_id) 순. max_n 이하면 입력을 그대로 반환(단축은 호출부 담당).
+      통째로 누락되는 것 방지. 문서 수가 max_n 초과면 (관련도, 중요 키워드, 위계) 상위 문서만.
+    - phase2: 남은 슬롯을 가장 관련 높은(매칭 수·중요 키워드) 후보로 채움.
+    - 출력 순서는 (rank, provision_id) 위계순 유지 — recommended_review_order와 정합(검토는 상위법부터).
+      max_n 이하면 입력을 그대로 반환(단축은 호출부 담당).
     """
     if len(candidates) <= max_n:
         return candidates
@@ -153,19 +208,24 @@ def _select_capped_candidates(candidates, used, rank_of, max_n=_SUGGEST_CANDIDAT
         idxs = [used_index[kw] for kw in c.get("matched_keywords", []) if kw in used_index]
         return min(idxs) if idxs else 999
 
-    # phase1: 문서별 최우선 후보 1건 (문서 수가 max_n 초과면 위계·관련도 상위 문서만)
+    def _match_count(c):
+        # distinct 매칭 키워드 수 (관련도). 음수로 두어 sort에서 많을수록 앞.
+        return -len(set(c.get("matched_keywords", [])))
+
+    # phase1: 문서별 최우선 후보 1건 (문서 수가 max_n 초과면 관련도·중요 키워드·위계 상위 문서만)
     by_doc: dict[str, list] = {}
     for c in candidates:
         by_doc.setdefault(c.get("rule_set_id", ""), []).append(c)
-    reps = [min(group, key=lambda c: (_priority(c), c["provision_id"])) for group in by_doc.values()]
-    reps.sort(key=lambda c: (rank_of(c), _priority(c), c["provision_id"]))
+    reps = [min(group, key=lambda c: (_match_count(c), _priority(c), c["provision_id"]))
+            for group in by_doc.values()]
+    reps.sort(key=lambda c: (_match_count(c), _priority(c), rank_of(c), c["provision_id"]))
     selected: list = reps[:max_n]
     selected_ids: set = {c["provision_id"] for c in selected}
 
-    # phase2: 남은 슬롯을 (priority, rank, provision_id)로 채움 (phase1 선택분 제외)
+    # phase2: 남은 슬롯을 (관련도, priority, rank, provision_id)로 채움 (phase1 선택분 제외)
     if len(selected) < max_n:
         rest = [c for c in candidates if c["provision_id"] not in selected_ids]
-        rest.sort(key=lambda c: (_priority(c), rank_of(c), c["provision_id"]))
+        rest.sort(key=lambda c: (_match_count(c), _priority(c), rank_of(c), c["provision_id"]))
         selected += rest[: max_n - len(selected)]
 
     selected.sort(key=lambda c: (rank_of(c), c["provision_id"]))
@@ -327,6 +387,10 @@ async def search_provision(query: str) -> dict:
 
     응답 최상위에 짧은 `disclaimer` 1개만 두고, 각 결과에는 manifest 특유의 `warnings`만 첨부.
     snippet은 _SNIPPET_MAX (2000자)로 제한 — MCP output size limit 회피.
+
+    매칭 (v0.1.6): query를 공백으로 토큰 분해하여 모든 토큰(2자 이상)이 한 조문/별표의
+    제목 또는 본문에 존재하면 매칭(토큰 AND). 단일 토큰 query는 종전과 동일한 부분문자열 매칭.
+    원문이 "협약의 변경/협약을 변경"으로 써서 "협약 변경"이 안 잡히던 띄어쓰기 불일치를 해소.
     """
     # empty/공백/1글자 query 무차별 매칭 방어
     query = (query or "").strip()
@@ -342,6 +406,21 @@ async def search_provision(query: str) -> dict:
             "contract_version": CONTRACT_VERSION,
             "disclaimer": _DISCLAIMER,
         }
+
+    # 토큰 AND 매칭 준비: 의미 토큰(2자 이상)이 2개 이상일 때만 토큰 AND.
+    # 1개 이하면(단일 개념어, 또는 "별표 1"처럼 짧은 식별 토큰이 탈락한 경우) 리터럴 query로 검색.
+    # → "별표 1"이 "별표" 1토큰으로 과확장돼 59건 superset이 _RESULTS_MAX(30) truncation에
+    #   정밀 매칭(18건 중 12건)을 잃던 회귀 방지. "협약 변경"(의미토큰 2개)은 토큰 AND 유지.
+    _meaningful = [t for t in query.split() if len(t) >= 2]
+    tokens = _meaningful if len(_meaningful) >= 2 else [query]
+
+    def _content_matches(title: str, content: str) -> bool:
+        return all((t in title) or (t in content) for t in tokens)
+
+    def _snippet_for(content: str) -> str:
+        # 본문에 존재하는 첫 토큰을 anchor로 snippet 생성(다중 토큰이면 query 전체는 안 잡힘)
+        anchor = next((t for t in tokens if t in content), query)
+        return _make_snippet(content, anchor)
 
     items = load_manifest()
     live_items = [rs for rs in items if rs.retrieval == Retrieval.LIVE_API]
@@ -383,10 +462,10 @@ async def search_provision(query: str) -> dict:
             for art in articles:
                 title = (art.get("조문제목") or "").strip()
                 content = (art.get("조문내용") or "").strip()
-                if query in title or query in content:
+                if _content_matches(title, content):
                     art_no = (art.get("조문번호") or "").strip()
                     if art_no.isdigit():
-                        snippet = _make_snippet(content, query)
+                        snippet = _snippet_for(content)
                         matches.append(_build_match(rs, f"JO{int(art_no):04d}", "article", title, snippet, resolved))
 
         # annex 검색
@@ -394,10 +473,10 @@ async def search_provision(query: str) -> dict:
             for ann in annexes:
                 title = (ann.get("별표제목") or "").strip()
                 content = (ann.get("별표내용") or "").strip()
-                if query in title or query in content:
+                if _content_matches(title, content):
                     ann_no = (ann.get("별표번호") or "").strip()
                     if ann_no.isdigit():
-                        snippet = _make_snippet(content, query)
+                        snippet = _snippet_for(content)
                         matches.append(_build_match(rs, f"BP{int(ann_no):04d}", "annex", title, snippet, resolved))
 
     truncated = len(matches) > _RESULTS_MAX
@@ -426,9 +505,11 @@ async def suggest_review_sources(
                 "선택. 호스트 LLM이 question에서 직접 추출한 검색 키워드 배열(1~10개, 권장 3~8). "
                 "질문에 담긴 서로 다른 쟁점·절차·대상을 모두 포괄하고 중요한 키워드를 앞쪽에 둘 것. "
                 "국가·사업·연구개발 같은 지나치게 광범위한 단어는 제외하되 승인·통보·보고 같은 절차어(2자 이상)는 포함 가능. "
-                "검색은 부분문자열 정확 매칭이므로 법령 본문 표기(주로 공백 없는 복합어, 예: 협약변경)를 우선하되, "
-                "검색 실패에 대비해 분리된 핵심 단어도 함께 넣을 것(예: 협약변경, 협약, 변경). "
-                "공백이 포함된 한 덩어리(예: 협약 변경)는 매칭되지 않으니 피할 것. "
+                "매칭은 토큰 AND(공백으로 나뉜 모든 단어가 한 조문/별표에 있으면 매칭)이므로 "
+                "'협약 변경'처럼 띄어쓴 구도 사용 가능(원문 '협약의 변경'을 포착). "
+                "단, 핵심 명사를 각각 별도 항목으로도 넣는 편이 recall에 유리(예: 협약변경, 협약, 변경). "
+                "법령 정식 용어를 우선할 것 — 현장 약어보다 정식명이 잘 잡힘(예: 정출금→정부지원연구개발비). "
+                "서버가 정출금↔정부지원연구개발비↔출연금 등 일부 동의어는 자동 확장하나, 가능하면 정식 용어로 제공. "
                 "생략하면 서버가 질문에서 단순 규칙으로 추출(품질 낮음)하여 대체함."
             )
         ),
@@ -463,20 +544,30 @@ async def suggest_review_sources(
         }
 
     async def _search_union(kw_list: list[str]) -> tuple[dict[str, dict], list[dict]]:
-        """주어진 키워드들로 search_provision을 순차 호출해 provision_id로 union (dedupe)."""
+        """키워드들을 1-hop 동의어로 확장해 search_provision union (dedupe).
+
+        - v0.1.6 (Pillar B): 각 origin 키워드를 _build_search_terms로 동의어 변형까지 확장.
+          동일 search_term은 1회만 호출(memoize)하고, matched_keywords에는 origin 키워드만
+          기록 → 관련도(distinct 매칭 수)가 변형 개수가 아니라 사용자 의도 단위로 계산됨.
+        - search 실패는 "후보 없음"으로 위장하지 말 것: errors에 origin 키워드를 달아 전파.
+        """
         matches: dict[str, dict] = {}
-        errors: list[dict] = []  # search 실패를 "후보 없음"으로 위장하지 말 것
-        for kw in kw_list:
-            res = await search_provision(kw)
+        errors: list[dict] = []
+        term_cache: dict[str, dict] = {}
+        for term, origin in _build_search_terms(kw_list):
+            if term not in term_cache:
+                term_cache[term] = await search_provision(term)
+            res = term_cache[term]
             for err in res.get("errors", []):
-                errors.append({**err, "keyword": kw})
+                errors.append({**err, "keyword": origin})
             for m in res.get("results", []):
                 pid = m["provision_id"]
                 if pid in matches:
-                    matches[pid]["matched_keywords"].append(kw)
+                    if origin not in matches[pid]["matched_keywords"]:
+                        matches[pid]["matched_keywords"].append(origin)
                 else:
                     m_copy = dict(m)
-                    m_copy["matched_keywords"] = [kw]
+                    m_copy["matched_keywords"] = [origin]
                     matches[pid] = m_copy
         return matches, errors
 

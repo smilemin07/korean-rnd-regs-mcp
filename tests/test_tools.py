@@ -1209,3 +1209,148 @@ def test_get_provision_detail_detects_amendment_on_stable_serial(mock_client):
     assert result["effective_date"] == "2099-12-31"
     assert result.get("revision_notice")
     assert "개정 반영" in result["revision_notice"]
+
+
+# === v0.1.6: 검색 recall·관련도 개선 ===
+
+# --- Pillar D: 조사 strip(의)·불용어 보강 ---
+def test_strip_particle_strips_genitive_eui_on_long_compound():
+    """v0.1.6: 긴 복합어 끝 속격 '의'는 strip하되, 짧은 명사(정의/협의)는 len-guard로 보존."""
+    assert _strip_particle("주관연구개발기관의") == "주관연구개발기관"
+    assert _strip_particle("기관의") == "기관"
+    assert _strip_particle("정의") == "정의"   # 2자 — 잔여 1자 < 2 → 보존
+    assert _strip_particle("협의") == "협의"   # 2자 — 보존
+    assert _strip_particle("특별평가") == "특별평가"  # 회귀: '가' 미strip 유지
+
+
+def test_extract_keywords_filters_new_stopwords():
+    """v0.1.6: '일부/다른/해당' 등 노이즈 토큰 제외."""
+    result = _extract_keywords("연구개발비 일부를 다른 기관으로 이관하는 해당 절차")
+    assert "일부" not in result
+    assert "다른" not in result
+    assert "해당" not in result
+    assert "연구개발비" in result
+
+
+# --- Pillar B: 동의어 확장 (_build_search_terms) ---
+def test_build_search_terms_expands_synonyms():
+    from korean_rnd_regs_mcp.main import _build_search_terms
+
+    pairs = _build_search_terms(["정출금"])
+    terms = [t for t, _ in pairs]
+    origins = {o for _, o in pairs}
+    assert "정출금" in terms
+    assert "정부지원연구개발비" in terms
+    assert "출연금" in terms
+    assert origins == {"정출금"}  # origin은 항상 사용자 키워드 (변형 N개로 부풀지 않음)
+
+
+def test_build_search_terms_no_synonym_passthrough():
+    from korean_rnd_regs_mcp.main import _build_search_terms
+
+    assert _build_search_terms(["특별평가"]) == [("특별평가", "특별평가")]
+
+
+def test_build_search_terms_caps_total():
+    from korean_rnd_regs_mcp.main import _SUGGEST_SEARCH_TERMS_MAX, _build_search_terms
+
+    pairs = _build_search_terms([f"키워드{i}" for i in range(30)])
+    assert len(pairs) <= _SUGGEST_SEARCH_TERMS_MAX
+
+
+def test_suggest_synonym_origin_not_leaked(mock_client):
+    """동의어 변형이 응답 extracted_keywords에 누설되지 않고 origin만 표시."""
+    result = asyncio.run(suggest_review_sources("정출금 이관", keywords=["정출금"]))
+    assert result["extracted_keywords"] == ["정출금"]
+
+
+def test_suggest_synonym_variant_match_records_origin(mock_client):
+    """동의어 변형(정부지원연구개발비)으로 매칭돼도 matched_keywords는 origin(정출금)만 기록."""
+    art = mock_client.get_law_detail.return_value["articles"][0]
+    art["조문제목"] = "비목"
+    art["조문내용"] = "제12조(비목) 정부지원연구개발비의 사용 용도 ..."
+    result = asyncio.run(suggest_review_sources("정출금", keywords=["정출금"]))
+    assert result["candidates"], "동의어 변형으로 매칭되어야 함"
+    for c in result["candidates"]:
+        assert c["matched_keywords"] == ["정출금"]
+
+
+# --- Pillar C: 토큰 AND 매칭 ---
+def test_search_provision_token_and_matches_split_phrase(mock_client):
+    """'협약 변경'(띄어쓰기)이 원문 '협약의 변경'을 토큰 AND로 포착."""
+    art = mock_client.get_law_detail.return_value["articles"][0]
+    art["조문제목"] = "협약"
+    art["조문내용"] = "제11조(협약 등) 협약의 변경이 필요한 경우 협의하여야 한다 ..."
+    result = asyncio.run(search_provision("협약 변경"))
+    assert result["total"] >= 1
+    assert all(r["unit_type"] in ("article", "annex") for r in result["results"])
+
+
+def test_search_provision_token_and_requires_all_tokens(mock_client):
+    """AND 의미: '협약'만 있고 '변경'이 없으면 매칭 안 됨 (OR 아님)."""
+    arts = mock_client.get_law_detail.return_value["articles"]
+    arts[0]["조문제목"] = "협약"
+    arts[0]["조문내용"] = "제11조(협약) 협약을 체결한다 ..."   # '변경' 없음
+    arts[1]["조문제목"] = "기타"
+    arts[1]["조문내용"] = "제21조(기타) 기타 사항 ..."
+    # 별표(annex)에도 두 토큰 동시 등장 없게
+    mock_client.get_admin_rule_detail.return_value["annexes"][0]["별표내용"] = "별표 본문"
+    result = asyncio.run(search_provision("협약 변경"))
+    assert result["total"] == 0
+
+
+def test_search_provision_single_token_unchanged(mock_client):
+    """단일 토큰 query는 종전 부분문자열 매칭과 동일 (회귀)."""
+    result = asyncio.run(search_provision("특별평가"))
+    jo0015 = [r for r in result["results"] if r["unit_id"] == "JO0015"]
+    assert len(jo0015) >= 1
+
+
+# --- Pillar A: 관련도(매칭 키워드 수) 우선 cap 선별 ---
+def test_select_capped_candidates_relevance_beats_position():
+    """v0.1.6: 매칭 키워드 수가 많은 후보가 위계·pid가 불리해도 cap에서 생존."""
+    used = ["k0", "k1", "k2"]
+    # 단일 문서(rsA, rank1): 다중매칭 1건(pid 최댓값) + 단일매칭 15건
+    cands = [{"provision_id": "zzz_high", "rule_set_id": "rsA",
+              "matched_keywords": ["k0", "k1", "k2"]}]
+    for i in range(15):
+        cands.append({"provision_id": f"a{i:02d}", "rule_set_id": "rsA",
+                      "matched_keywords": ["k0"]})
+    out = _select_capped_candidates(cands, used, lambda c: 1)  # 16 > 15
+    pids = {c["provision_id"] for c in out}
+    assert len(out) == 15
+    assert "zzz_high" in pids        # 3개 매칭 → 관련도 우선 생존
+    assert "a14" not in pids         # 단일매칭 중 pid 최댓값 1건이 대신 탈락
+
+
+def test_select_capped_candidates_relevance_tie_preserves_existing_order():
+    """관련도 동률(모두 1매칭)이면 종전 (위계, pid) 선별과 동일 — 회귀."""
+    cands = [{"provision_id": f"p{i:02d}", "rule_set_id": f"rs{i:02d}",
+              "matched_keywords": ["k"]} for i in range(20)]
+    out = _select_capped_candidates(cands, ["k"], lambda c: int(c["rule_set_id"][2:]) + 1)
+    docs = {c["rule_set_id"] for c in out}
+    assert docs == {f"rs{i:02d}" for i in range(15)}
+
+
+# --- S1 회귀수정: '단어+한자리숫자' query는 리터럴 (토큰 과확장+truncation 유실 방지) ---
+def test_search_provision_word_plus_digit_uses_literal(mock_client):
+    """'별표 1'은 '별표' 1토큰으로 과확장하지 않고 리터럴 매칭 — '별표 5'만 있는 조문은 제외."""
+    arts = mock_client.get_law_detail.return_value["articles"]
+    arts[0]["조문제목"] = "별표 인용"
+    arts[0]["조문내용"] = "제15조 별표 1에 따른 기준을 적용한다"   # '별표 1' 리터럴 포함
+    arts[1]["조문제목"] = "다른 별표"
+    arts[1]["조문내용"] = "제21조 별표 5에 따른다"                # '별표' 있으나 '별표 1' 아님
+    mock_client.get_admin_rule_detail.return_value["annexes"][0]["별표내용"] = "별표 3 양식"
+    result = asyncio.run(search_provision("별표 1"))
+    ids = {r["unit_id"] for r in result["results"]}
+    assert "JO0015" in ids, "리터럴 '별표 1' 포함 조문은 매칭돼야"
+    assert "JO0021" not in ids, "'별표 5'만 있는 조문은 매칭 안 돼야 (과확장 방지)"
+
+
+def test_search_provision_multitoken_still_and(mock_client):
+    """'단어+단어'(둘 다 2자 이상)는 여전히 토큰 AND — S1 수정이 다중토큰을 안 깸."""
+    arts = mock_client.get_law_detail.return_value["articles"]
+    arts[0]["조문제목"] = "협약"
+    arts[0]["조문내용"] = "제15조 협약의 변경 절차"
+    result = asyncio.run(search_provision("협약 변경"))
+    assert any(r["unit_id"] == "JO0015" for r in result["results"])

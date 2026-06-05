@@ -148,7 +148,7 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 
 ### 5.2 suggest_review_sources 출력 크기 상한 (0.2.0 minor — 기존 필드 거동 변경)
 
-- 반환 `candidates`: 최대 **15건**(`_SUGGEST_CANDIDATES_MAX`). 선별 = 문서(rule_set) 단위 대표 후보 우선 확보(**매칭 문서 수가 15 이하면 각 문서 최소 1건 보장**; 초과 시 위계 상위 문서 우선, 탈락 문서는 `recommended_review_order`로 안내) + 중요(앞쪽) 키워드 매칭 우선. `recommended_review_order`·`total`은 **suggest 내부 candidate pool(cap 이전 전체) 기준** — 단 개별 `search_provision`은 키워드당 `_RESULTS_MAX`(30건)로 별도 truncate되므로, 그 상한을 넘는 매칭은 pool 진입 전 누락될 수 있음(즉 law.go.kr 전체 매칭의 완결성까지 보장하지는 않음).
+- 반환 `candidates`: 최대 **15건**(`_SUGGEST_CANDIDATES_MAX`). 선별 = 문서(rule_set) 단위 대표 후보 우선 확보(**매칭 문서 수가 15 이하면 각 문서 최소 1건 보장**; 초과 시 **관련도(매칭 키워드 수) 상위 문서 우선, 동률이면 위계 상위**, 탈락 문서는 `recommended_review_order`로 안내) + **관련도(매칭된 distinct 키워드 수) 우선** (v0.1.6; 동률이면 중요(앞쪽) 키워드·위계·provision_id tie-break). `recommended_review_order`·`total`은 **suggest 내부 candidate pool(cap 이전 전체) 기준** — 단 개별 `search_provision`은 키워드당 `_RESULTS_MAX`(30건)로 별도 truncate되므로, 그 상한을 넘는 매칭은 pool 진입 전 누락될 수 있음(즉 law.go.kr 전체 매칭의 완결성까지 보장하지는 않음). 반환 후보 **표시 순서**는 위계(hierarchy)·provision_id순 유지(`recommended_review_order`와 정합).
 - 반환 후보 `snippet`: 최종 길이 **≤ 300자**(`_SUGGEST_SNIPPET_MAX`, 초과 시 말줄임표). 전체 본문은 `get_provision_detail`로 유도.
 - 응답 additive 필드: `returned`(반환 후보 수), `truncated`(전체 > 반환 여부), `note`(truncated 시 추가 검색 안내). `total`은 cap 이전 전체 후보 수.
 - 동기: MCP 단일 도구 응답 토큰 hard limit(25,000) 회피 및 경고 임계(10,000) 초과 가능성 완화(최악 응답 실측 ~12.7k chars로 hard limit은 하회하나 경고 임계는 입력에 따라 근접 가능). 기존 필드 삭제·이름변경은 없으나 `candidates`가 전체→상위 ≤15건으로 **거동이 변경**되어(§6 표 "응답 schema … 변경" = minor) 순수 additive로 보지 않음 → contract_version **0.2.0**(0.1.0 → 0.2.0). 0.x 대역이라 minor도 breaking 허용.
@@ -171,5 +171,6 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 |---|---|---|
 | 0.1.0 | 2026-05-24 | **첫 publish version**. 국가법령정보 OpenAPI 기반 13 rule set 지원 (Tier 1 혁신법 family 3개, Tier 2 핵심 행정규칙 4개, Supplementary 6개). 5 MCP tools + 1 MCP prompt(`review_regulation`), JO(조문)/BP(별표) provision_id, 표준 오류 코드 6종, 행정규칙 XML schema 2종 지원(표준 + 평면 fallback) |
 | 0.2.0 | 2026-06-04 | **minor bump** (패키지 0.1.5와 함께). `suggest_review_sources` 개선 — (입력) 선택 `keywords` 배열 위임(생략 시 규칙추출 fallback), (응답 additive) `keyword_source`·`returned`·`truncated`·`note`, (거동 변경) `candidates`를 전체→위계·중요도 상위 ≤15건 cap + snippet ≤300자(§5.1·5.2). 기존 필드 삭제·이름변경 없음. `total`·`recommended_review_order`로 truncation 복구 안내 |
+| 0.2.0 (유지) | 2026-06-05 | 패키지 **0.1.6** 검색 recall·관련도 개선. **contract_version bump 없음** — 응답 schema(필드·shape) 불변, `candidates` 표시 순서(위계순) 불변. 거동: `search_provision` 토큰 AND 매칭(다중 토큰 query 결과가 늘어나는 strict superset; 단일 토큰 불변), `candidates` cap 선별 기준을 관련도(매칭 키워드 수) 우선으로 변경(§5.2), suggest 내부 1-hop 동의어 union. 기존 필드·shape·표시 순서가 그대로라 호환 깨짐 없음 → 0.2.0 유지 |
 
 - 도구 응답에 `contract_version` 필드 포함 권장 (search_provision·get_provision_detail·suggest_review_sources). 클라이언트가 호환 여부 확인 가능.

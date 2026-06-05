@@ -3,6 +3,27 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.1.6] - 2026-06-05
+
+검색 recall·관련도 개선. `contract_version`은 **0.2.0 유지** — 응답 필드 추가·삭제·이름변경 없음. `candidates` 표시 순서(위계순)도 불변이며, 매칭 거동은 결과가 늘어나는 방향(strict superset)이라 클라이언트 호환 깨짐 없음. 변경은 도구 로직(요청별 격리)에 한정 — 부팅·transport·health·캐시 비의존. 참고 자산 `chrisryugj/korean-law-mcp` v4.x(search-normalizer·law-search)의 기법을 본 서버(조문/별표 본문 로컬 검색) 아키텍처에 맞게 적응. 설계는 `/disc`(Claude+Codex+Gemini) 적대적 교차검증으로 수렴.
+
+### Changed — 검색 매칭·관련도 (4 pillar)
+
+- (Pillar C) `search_provision` 매칭을 **토큰 AND**로 확장: query를 공백으로 분해해 2자 이상 모든 토큰이 한 조문/별표의 제목 또는 본문에 있으면 매칭. 단일 토큰 query는 종전 부분문자열 매칭과 동일(동작 불변). 원문이 "협약의 변경/협약을 변경"이라 "협약 변경"이 안 잡히던 띄어쓰기 불일치 해소. snippet anchor는 본문에 존재하는 첫 토큰 기준.
+- (Pillar A) `suggest_review_sources` 후보 cap(≤15) **선별 기준을 관련도 우선**으로 변경: 매칭된 distinct 키워드 수가 많은 후보가 위계·조문번호만 앞선 총칙 조문에 밀려 cap 밖으로 탈락하던 문제 해소. 관련도 동률이면 종전 (중요 키워드, 위계, provision_id) tie-break. 표시 순서·`recommended_review_order`는 위계순 유지(검토는 상위법부터).
+- (Pillar B) **R&D 도메인 동의어 1-hop 확장**: 현장용어·법령별 표기차(정출금↔정부지원연구개발비↔출연금↔정부출연금, 협약변경↔협약 변경 등)를 `suggest_review_sources` 내부에서만 변형으로 확장해 union 검색. `matched_keywords`는 origin 키워드만 기록(관련도 부풀림 방지), 동일 term 1회만 호출(memoize), 총 검색 term ≤16 cap. `search_provision` 직접 호출에는 미적용.
+- (Pillar D) fallback 키워드 추출 보수적 개선: 속격 조사 "의" strip 추가(len-guard로 "정의"·"협의" 등 짧은 명사 보존), 노이즈 불용어(일부/다른/해당/여부/위해/통해) 추가. `keywords` 입력 description을 토큰 AND·정식 용어 우선·동의어 자동확장 안내로 갱신.
+
+### Fixed — 배포 전 적대 검증(/goal-disc-out 2라운드)에서 발견한 recall 회귀
+
+- (S1) `search_provision`의 토큰 분해를 **의미 토큰(2자 이상) 2개 이상일 때만 토큰 AND**, 그 외에는 리터럴 query로 검색하도록 수정. 기존 `[t for t in query.split() if len(t)>=2] or [query]`는 "별표 1"(단어+한 자리 숫자)에서 "1"이 탈락해 "별표" 1토큰으로 과확장 → 59건 superset이 `_RESULTS_MAX`(30) truncation에 걸려 **리터럴 "별표 1" 18건 중 12건(실제 별표 1 포함) 유실**되던 회귀. 수정 후 "별표 1"은 리터럴 매칭(v0.1.5 동작)으로 복귀하고 "협약 변경"(의미토큰 2개)은 토큰 AND 유지.
+
+### 검증
+
+- 단위 테스트 120 → **134** (Pillar별 회귀·false-positive + S1 "별표 1" 리터럴·다중토큰 AND 보존). `_select_capped_candidates` 기존 4 테스트는 관련도 동률 조건에서 종전 동작과 동일하게 유지.
+- 로컬 서버 부팅 스모크(도구 등록·`--http` 기동) 배포 전 수행.
+- **알려진 한계(v0.2 과제)**: fallback `_strip_particle`이 속격 "의"를 strip하면서 "사전심의→사전심"처럼 명사 일부 "의"인 복합어를 prefix로 자름(recall은 prefix로 보존, fallback 전용). 2자 "X의" 예외목록 방식은 "규정의/개발의/조문의" 같은 핵심 속격을 오보존해 net-negative라 미채택 — 형태소 분석이 필요해 v0.2로 이월.
+
 ## [0.1.5] - 2026-06-04
 
 `suggest_review_sources` 도구의 입력·출력 개선. `contract_version` 0.1.0 → **0.2.0** (minor bump — 응답 additive 필드 추가 + `candidates` 거동 변경. 0.x 대역이라 minor도 breaking 허용. `docs/api_contract.md` §5.1·5.2·6 참조).
