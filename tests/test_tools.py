@@ -20,6 +20,8 @@ from korean_rnd_regs_mcp.main import (
     _select_capped_candidates,
     _shorten_snippet,
     _strip_particle,
+    _title_hits,
+    _title_token_match,
     get_provision_detail,
     list_rule_sets,
     search_provision,
@@ -518,19 +520,72 @@ def test_shorten_snippet_boundary():
     assert len(out) == 300 and out.endswith("...")          # 301 → 297자 + "..."
 
 
-def test_select_capped_candidates_prefers_important_keyword():
-    """중요(앞쪽) 키워드 매칭 후보가 cap에서 우선 보존."""
-    used = ["important", "minor"]
+def test_select_capped_candidates_prefers_title_match():
+    """v0.1.7: 제목 매칭 후보가 match_count만 높은 무관 후보를 제치고 보존(같은 문서·낮은 pid여도)."""
+    used = ["협약", "변경", "승인"]
     cands = [
-        {"provision_id": f"p{i:02d}", "rule_set_id": "rsA",
-         "matched_keywords": ["important" if i < 3 else "minor"]}
-        for i in range(20)
+        {"provision_id": f"law:1:JO{i:04d}", "rule_set_id": "rsA",
+         "matched_keywords": ["협약", "변경", "승인"], "title": "무관 제목"}  # match_count 3, title_hits 0
+        for i in range(18)
     ]
+    cands.append({"provision_id": "law:1:JO9999", "rule_set_id": "rsA",
+                  "matched_keywords": ["변경"], "title": "협약의 변경"})  # match_count 1, title_hits 1
     capped = _select_capped_candidates(cands, used, lambda c: 1)
     assert len(capped) == 15
     pids = {c["provision_id"] for c in capped}
-    for i in range(3):
-        assert f"p{i:02d}" in pids  # important 매칭 3건 모두 보존
+    assert "law:1:JO9999" in pids  # title_hits 우선 → match_count·pid 불리해도 보존
+
+
+def test_title_token_match_token_and_and_literal():
+    """v0.1.7: 제목 매칭은 search_provision 의미 재사용 — 다중토큰 AND / 단일 리터럴."""
+    assert _title_token_match("협약 변경", "연구개발과제협약의 변경 등") is True
+    assert _title_token_match("협약 변경", "연구개발과제 협약 등") is False   # '변경' 없음
+    assert _title_token_match("연구개발과제협약", "연구개발과제협약의 변경 등") is True
+    assert _title_token_match("사전승인", "사전 승인 대상") is False           # 리터럴, 공백 불일치
+    assert _title_token_match("사전 승인", "사전 승인 대상") is True            # 2토큰 AND
+    assert _title_token_match("협약", "수익의 납부") is False
+    assert _title_token_match("", "제목") is False
+
+
+def test_title_hits_counts_distinct_origin():
+    """v0.1.7: title_hits = 제목 매칭 origin 키워드 distinct 수(동의어 변형 미포함)."""
+    c = {"title": "연구개발과제협약의 변경 등",
+         "matched_keywords": ["협약 변경", "연구개발과제협약", "정부지원연구개발비"]}
+    assert _title_hits(c) == 2
+    c2 = {"title": "수익의 납부", "matched_keywords": ["협약 변경", "연구개발과제협약"]}
+    assert _title_hits(c2) == 0
+    assert _title_hits({"matched_keywords": ["협약"]}) == 0  # title 없음 방어
+    assert _title_hits({"title": "협약의 변경", "matched_keywords": None}) == 0  # None 방어(내부 불변식 위반 입력)
+
+
+def test_select_capped_tie_breaks_by_provision_id_not_priority():
+    """v0.1.7: title_hits·match_count 동률이면 priority(키워드 순서)가 아니라 provision_id로 결정.
+
+    제11조(협약, 뒤 키워드 매칭) vs 제33조(제재, 앞 키워드 매칭) — priority 제거로 낮은 번호(제11조)가 보존.
+    """
+    used = ["정부지원연구개발비", "협약 변경"]  # 정부지원연구개발비가 앞(idx0)
+    cands = [
+        {"provision_id": "law:260807:JO0033", "rule_set_id": "act",
+         "matched_keywords": ["정부지원연구개발비"], "title": "제재처분의 절차"},
+        {"provision_id": "law:260807:JO0011", "rule_set_id": "act",
+         "matched_keywords": ["협약 변경"], "title": "연구개발과제 협약 등"},
+    ]
+    for i in range(20):
+        cands.append({"provision_id": f"x:1:JO{i:04d}", "rule_set_id": "other",
+                      "matched_keywords": ["정부지원연구개발비"], "title": "무관"})
+    rank_of = lambda c: 1 if c["rule_set_id"] == "act" else 2
+    capped = _select_capped_candidates(cands, used, rank_of)
+    pids = {c["provision_id"] for c in capped}
+    assert "law:260807:JO0011" in pids  # priority 제거 → pid tie-break(0011<0033)로 보존
+
+
+def test_select_capped_no_score_field_leak():
+    """v0.1.7: 내부 점수(title_hits 등)가 후보 dict에 누설되지 않음."""
+    cands = [{"provision_id": f"p{i:02d}", "rule_set_id": "rs",
+              "matched_keywords": ["k"], "title": "협약의 변경"} for i in range(20)]
+    out = _select_capped_candidates(cands, ["k"], lambda c: 1)
+    for c in out:
+        assert set(c.keys()) <= {"provision_id", "rule_set_id", "matched_keywords", "title"}
 
 
 def test_suggest_review_sources_caps_candidates(mock_client):

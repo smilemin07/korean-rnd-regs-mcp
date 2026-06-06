@@ -3,6 +3,30 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.1.7] - 2026-06-06
+
+`suggest_review_sources` 검색 랭킹 정상화 + 호스트 키워드 위임 강화. `contract_version`은 **0.2.0 유지** — 응답 필드 추가·삭제·이름변경 없음(`note` 필드 재사용). 변경은 도구 로직(요청별 격리)·프롬프트 텍스트에 한정 — 부팅·transport·health·캐시 비의존. 무게중심을 "fallback 정교화"가 아니라 "호스트가 좋은 키워드를 안정적으로 넘기게 만드는 설계 + 랭킹"으로 이동(설계는 `/disc` 3-AI 적대검증 수렴 + 라이브 재측정으로 효과 확인).
+
+### Changed — 검색 랭킹 (핵심)
+
+- `_select_capped_candidates` 후보 선별 1차 기준을 **제목 매칭 수(title_hits) 우선**으로 변경(정렬키 `(-title_hits, -match_count, rank, provision_id)`). v0.1.6의 match_count-우선은 일반어(정부지원연구개발비/협약/변경)를 우연히 많이 포함한 무관 조문을 정답 위로 올려, 제목이 키워드와 직매칭되는 핵심 조문(시행령 제14조 "협약의 변경"·사용기준 제73조 "사전 승인 대상")을 cap 밖으로 매몰시켰다. title_hits 우선으로 해소.
+- v0.1.6의 `_priority`(키워드 배열 앞 index 우선) **제거**: 사용자가 맨 앞에 둔 흔한 키워드를 맞힌 무관 조문이 동률 tie를 싹쓸이(제33조 제재 > 제11조 협약)하던 편향 제거. 동률은 provision_id로 결정(결정성 유지).
+- title_hits는 `search_provision`의 토큰 AND/리터럴 의미를 재사용(헬퍼 `_title_token_match`/`_title_hits`). 내부 점수는 후보 응답에 미누설.
+
+### Changed — 호스트 키워드 위임 강화
+
+- `keywords` 입력 description·`review_regulation` 프롬프트 1단계: "사실상 항상 제공" + **질문 원문에 없는 법령 절차어도 추론해 포함**(예: 이관·변경 상황 → 협약변경·사전승인·연구개발과제협약) + 정식 용어 우선 강화. 프롬프트 매칭 설명을 "부분문자열"→"토큰 AND"로 정정(README 임베드 프롬프트 동기화).
+- `keyword_source=="fallback"`일 때 응답 `note`에 **품질 저하 경고** 추가(additive — 호스트에 keywords 제공 유도). truncation note와 병기.
+
+### Changed — fallback 안전망(최소)
+
+- 규칙추출 키워드 cap 5 → 10(`_FALLBACK_KEYWORDS_MAX`) + 질문 필러 불용어 확장(참여/중인/올해/구성/싶다 등). 등장순 앞을 점유하던 노이즈를 줄여 핵심어(정출금·연구과업·이관·변경) 추출률 개선. 제목 우선 랭킹이 잔여 노이즈 키워드를 중화하므로 cap 상향이 안전. `_strip_particle`은 불변("기준에→기준에" 등 회귀가드 보존).
+
+### 검증
+
+- 단위 테스트 134 → **138**(title_hits 헬퍼·제목 우선 선별·priority 제거 tie-break·점수 미누설 회귀). 기존 cap 테스트는 title 키 없는 후보에서 title_hits 0 균일 → 비파괴.
+- 라이브 재측정(동일 7키워드 client): v0.1.6에서 전부 누락되던 혁신법 제11조·시행령 제14조·사용기준 제73조가 top15 진입, 추가로 제36·62·95·108조(연구개발비 이관 조문)가 부상. 사용기준 제74조(제73조의 절차 조항)는 더 관련 높은 이관 조문에 밀려 1슬롯 차로 미진입 — 제73조 인접 후속조회로 도달 가능, 문서별 phase2 라운드로빈은 v0.1.8 후보.
+
 ## [0.1.6] - 2026-06-05
 
 검색 recall·관련도 개선. `contract_version`은 **0.2.0 유지** — 응답 필드 추가·삭제·이름변경 없음. `candidates` 표시 순서(위계순)도 불변이며, 매칭 거동은 결과가 늘어나는 방향(strict superset)이라 클라이언트 호환 깨짐 없음. 변경은 도구 로직(요청별 격리)에 한정 — 부팅·transport·health·캐시 비의존. 참고 자산 `chrisryugj/korean-law-mcp` v4.x(search-normalizer·law-search)의 기법을 본 서버(조문/별표 본문 로컬 검색) 아키텍처에 맞게 적응. 설계는 `/disc`(Claude+Codex+Gemini) 적대적 교차검증으로 수렴.
