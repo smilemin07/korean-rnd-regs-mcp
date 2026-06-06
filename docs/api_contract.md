@@ -1,7 +1,7 @@
 # korean-rnd-regs-mcp API Contract
 
-- contract_version: **0.2.0** (0.1.0 첫 publish → 0.2.0 minor bump, §6 변경 이력 참조)
-- 작성일: 2026-05-24 (0.2.0 개정: 2026-06-04)
+- contract_version: **0.3.0** (0.1.0 첫 publish → 0.2.0 → 0.3.0 minor bump, §6 변경 이력 참조)
+- 작성일: 2026-05-24 (0.2.0 개정: 2026-06-04, 0.3.0 개정: 2026-06-07)
 - semver 정책: 0.x.x 대역은 unstable signal — minor bump(0.1.0 → 0.2.0)도 breaking change 허용. v0.2 가지조문 확장 시 0.2.0 minor bump로 자연스럽게 처리 (1.0.x 유지 시 2.0 major bump 필요했음)
 - 변경 정책: 본 문서 변경은 외부 사용자 코드·Claude Desktop 캐시·README 예시를 깰 수 있으므로 0.1.0 publish 이후 신중히 (§6 참조)
 
@@ -110,7 +110,7 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
     },
     ...
   ],
-  "contract_version": "0.2.0",
+  "contract_version": "0.3.0",
   "disclaimer": "본 결과는 검토 후보일 뿐 법률 판단이 아닙니다. 출처를 직접 확인하세요."
 }
 ```
@@ -153,9 +153,18 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 - 응답 additive 필드: `returned`(반환 후보 수), `truncated`(전체 > 반환 여부), `note`(선택적 안내문 — truncation 추가검색 안내 및/또는 `keyword_source=="fallback"` 시 품질 저하 경고. v0.1.7부터 두 사유가 함께 표시될 수 있음). `total`은 cap 이전 전체 후보 수.
 - 동기: MCP 단일 도구 응답 토큰 hard limit(25,000) 회피 및 경고 임계(10,000) 초과 가능성 완화(최악 응답 실측 ~12.7k chars로 hard limit은 하회하나 경고 임계는 입력에 따라 근접 가능). 기존 필드 삭제·이름변경은 없으나 `candidates`가 전체→상위 ≤15건으로 **거동이 변경**되어(§6 표 "응답 schema … 변경" = minor) 순수 additive로 보지 않음 → contract_version **0.2.0**(0.1.0 → 0.2.0). 0.x 대역이라 minor도 breaking 허용.
 
+### 5.3 suggest_review_sources overflow_candidates (0.3.0 minor — 응답 additive 필드)
+
+- 신규 최상위 필드 **`overflow_candidates`**: cap(`_SUGGEST_CANDIDATES_MAX`=15)에 들지 못한 후보 조문을 노출(호스트의 drill-down 용). 각 항목은 `{ "provision_id": str, "label": str }`만 포함(snippet 없음). `label` 형식 예: `"국가연구개발사업 연구개발비 사용 기준 제74조(사전 승인 절차)"`(문서명 + `provision_id.unit_label` + 조문제목). 호스트는 그 `provision_id`로 `get_provision_detail`을 호출해 본문 확인.
+- 정렬: `candidates` cap 선별과 **동일 relevance 기준**(`_relevance_key`: 제목매칭 수 → 매칭 distinct 키워드 수 → 위계 → provision_id). `candidates`와 항상 disjoint.
+- 상한: 최대 **`_OVERFLOW_CANDIDATES_MAX`=30건**, 그리고 overflow 추가는 **전체 응답 직렬화가 `_SUGGEST_RESPONSE_CHAR_BUDGET`=16,000 chars를 넘지 않는 선에서만**(base 응답을 먼저 확정한 뒤 잔여 예산으로 채우며, base 자체가 16k를 초과하면 overflow는 비움). 두 상한 중 먼저 걸리는 쪽에서 중단. 즉 16k는 **overflow 추가분에 대한 상한**이며, 비정상적으로 큰 `question` 입력 등으로 base가 단독으로 큰 경우의 전체 응답 크기까지 16k로 보장하지는 않음(이 경우 v0.1.7과 동일하게 base만 반환 — v0.1.8이 신규 outage 위험을 더하지 않음).
+- 신규 최상위 필드 **`overflow_truncated`**(bool): cap/예산으로 overflow 일부라도 누락 시 `true`. overflow가 없으면 `overflow_candidates`는 `[]`·`overflow_truncated`는 `false`(두 필드는 항상 포함).
+- 기존 필드(`candidates`·`total`·`returned`·`truncated`·`recommended_review_order`·`note`) 삭제·이름변경·shape 변경 없음(순수 additive). `truncated`(candidates cap 여부)와 `overflow_truncated`(overflow index 추가 누락 여부)는 서로 다른 의미.
+- 동기: Andy 명시 가치("cap에 가려진 조항까지 보고 drill-down")를 직접 충족하되, 응답 크기 증가로 인한 클라이언트 truncation을 16k char 보수 예산 + 라이브 4경로 스모크로 차단. 응답 schema에 필드 추가 → contract_version **0.3.0**(0.2.0 → 0.3.0).
+
 ## 6. contract_version 관리
 
-- 본 문서 contract_version: **0.2.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 minor)
+- 본 문서 contract_version: **0.3.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 minor)
 - 코드 상수: `korean_rnd_regs_mcp.provision_id.CONTRACT_VERSION`
 - 변경 정책 (0.x.x — unstable signal):
 
@@ -173,5 +182,6 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 | 0.2.0 | 2026-06-04 | **minor bump** (패키지 0.1.5와 함께). `suggest_review_sources` 개선 — (입력) 선택 `keywords` 배열 위임(생략 시 규칙추출 fallback), (응답 additive) `keyword_source`·`returned`·`truncated`·`note`, (거동 변경) `candidates`를 전체→위계·중요도 상위 ≤15건 cap + snippet ≤300자(§5.1·5.2). 기존 필드 삭제·이름변경 없음. `total`·`recommended_review_order`로 truncation 복구 안내 |
 | 0.2.0 (유지) | 2026-06-05 | 패키지 **0.1.6** 검색 recall·관련도 개선. **contract_version bump 없음** — 응답 schema(필드·shape) 불변, `candidates` 표시 순서(위계순) 불변. 거동: `search_provision` 토큰 AND 매칭(다중 토큰 query 결과가 늘어나는 strict superset; 단일 토큰 불변), `candidates` cap 선별 기준을 관련도(매칭 키워드 수) 우선으로 변경(§5.2), suggest 내부 1-hop 동의어 union. 기존 필드·shape·표시 순서가 그대로라 호환 깨짐 없음 → 0.2.0 유지 |
 | 0.2.0 (유지) | 2026-06-06 | 패키지 **0.1.7** 검색 랭킹 정상화 + 호스트 위임 강화. **contract_version bump 없음** — 응답 schema·필드·shape·표시 순서(위계순) 불변. 거동: `candidates` cap 선별 1차 기준을 제목 매칭 수(title_hits) 우선으로 변경하고 v0.1.6 `_priority`(키워드 순서) 제거(§5.2). `keywords` description·프롬프트로 호스트 위임 강화, `keyword_source=="fallback"` 시 기존 `note` 필드에 품질 경고 병기(필드 추가 없음). 기존 필드·shape 불변 → 0.2.0 유지 |
+| 0.3.0 | 2026-06-07 | **minor bump** (패키지 0.1.8). `suggest_review_sources` 응답에 **`overflow_candidates`**(cap 밖 조문을 `{provision_id, label}`로 relevance 순 노출, ≤30건·overflow 추가는 전체 응답이 16k char를 넘지 않는 선에서만) + **`overflow_truncated`**(bool) **신규 필드 추가**(§5.3). 호스트가 cap에 가려진 조문을 보고 `get_provision_detail`로 drill-down. 기존 필드 삭제·이름변경·shape·거동 변경 없음(순수 additive)이나 응답 schema 추가이므로 minor bump. `review_regulation` 프롬프트·서버 `note`·도구 docstring에 새 필드 활용 안내 동기화 |
 
 - 도구 응답에 `contract_version` 필드 포함 권장 (search_provision·get_provision_detail·suggest_review_sources). 클라이언트가 호환 여부 확인 가능.

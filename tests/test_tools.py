@@ -12,8 +12,10 @@ import pytest
 from korean_rnd_regs_mcp import main as main_module
 from korean_rnd_regs_mcp.live_api import LawApiClient, LawApiError, ResolvedDocId
 from korean_rnd_regs_mcp.main import (
+    _append_overflow_candidates,
     _extract_keywords,
     _make_snippet,
+    _overflow_label,
     _resolve_effective_date,
     _revision_notice,
     _sanitize_keywords,
@@ -365,6 +367,10 @@ def test_suggest_review_sources_response_shape(mock_client):
     assert "candidates" in result
     assert "disclaimer" in result
     assert "contract_version" in result
+    assert "overflow_candidates" in result      # v0.1.8 — 항상 포함
+    assert "overflow_truncated" in result
+    assert isinstance(result["overflow_candidates"], list)
+    assert isinstance(result["overflow_truncated"], bool)
 
 
 def test_suggest_review_sources_hierarchy_sorted(mock_client):
@@ -471,6 +477,13 @@ def test_suggest_review_sources_keyword_source_on_empty(mock_client):
     assert result["keyword_source"] == "fallback"
     assert result["extracted_keywords"] == []
     assert result["candidates"] == []
+
+
+def test_suggest_review_sources_empty_path_includes_overflow_fields(mock_client):
+    """v0.1.8 회귀(Blocking 1): no-keyword early-return에도 overflow 필드 항상 포함(contract 0.3.0)."""
+    result = asyncio.run(suggest_review_sources("abc 123 ???"))   # 유효 키워드 0건 → early return
+    assert result["overflow_candidates"] == []
+    assert result["overflow_truncated"] is False
 
 
 # === B축: 출력 크기 상한 (v0.1.5) ===
@@ -612,9 +625,109 @@ def test_suggest_review_sources_snippet_truncated(mock_client):
 
 
 def test_suggest_review_sources_cap_fields_no_key_leak(mock_client):
-    """cap/truncated/note 추가 후에도 키 누설 없음."""
+    """cap/truncated/note/overflow 추가 후에도 키 누설 없음 (전체 응답 직렬화 검사)."""
     result = asyncio.run(suggest_review_sources("간접비", keywords=["간접비"]))
     assert _FAKE_KEY not in json.dumps(result, ensure_ascii=False)
+
+
+# === overflow_candidates (v0.1.8) ===
+def _ov_cand(pid, mk, title="제목", doc="문서", unit="JO0001", rsid="rs"):
+    return {"provision_id": pid, "rule_set_id": rsid, "matched_keywords": mk,
+            "title": title, "document_title": doc, "unit_id": unit}
+
+
+def test_overflow_label_format():
+    c = _ov_cand("admrul:1:JO0074", ["k"], title="사전 승인 절차",
+                 doc="국가연구개발사업 연구개발비 사용 기준", unit="JO0074")
+    assert _overflow_label(c) == "국가연구개발사업 연구개발비 사용 기준 제74조(사전 승인 절차)"
+    c2 = _ov_cand("admrul:1:BP0001", ["k"], title="서식", doc="지침", unit="BP0001")
+    assert _overflow_label(c2) == "지침 별표 1(서식)"
+    c3 = {"provision_id": "law:1", "document_title": "혁신법", "title": "전체", "unit_id": None}
+    assert _overflow_label(c3) == "혁신법 (전체)"   # document-level — unit 라벨 없음
+
+
+def test_append_overflow_basic_shape_and_disjoint():
+    candidates = [_ov_cand(f"x:1:JO{i:04d}", ["k"], unit=f"JO{i:04d}") for i in range(20)]
+    capped = candidates[:15]
+    resp = {"candidates": [{"provision_id": c["provision_id"]} for c in capped]}
+    _append_overflow_candidates(resp, candidates, capped, lambda c: 1)
+    assert isinstance(resp["overflow_candidates"], list) and resp["overflow_candidates"]
+    capped_ids = {c["provision_id"] for c in capped}
+    for it in resp["overflow_candidates"]:
+        assert set(it.keys()) == {"provision_id", "label"}      # 제목(label)+provision_id만
+        assert it["provision_id"] not in capped_ids             # cap과 disjoint
+        assert isinstance(it["label"], str) and it["label"]
+    assert resp["overflow_truncated"] is False                  # 5건 모두 수록(예산·cap 여유)
+
+
+def test_append_overflow_relevance_order():
+    """overflow 정렬 = _relevance_key (제목매칭 우선) — cap 선별과 동일 기준."""
+    base = [_ov_cand(f"x:1:JO{i:04d}", ["k"], title="무관", unit=f"JO{i:04d}") for i in range(15)]
+    hi = _ov_cand("x:1:JO9001", ["협약 변경"], title="협약의 변경", unit="JO9001")  # title_hits 1
+    lo = _ov_cand("x:1:JO9002", ["k"], title="무관", unit="JO9002")                # title_hits 0
+    candidates = base + [lo, hi]      # 17건, cap 앞 15
+    capped = base
+    resp = {"candidates": []}
+    _append_overflow_candidates(resp, candidates, capped, lambda c: 1)
+    ids = [it["provision_id"] for it in resp["overflow_candidates"]]
+    assert ids.index("x:1:JO9001") < ids.index("x:1:JO9002")   # title_hits 높은 쪽이 선두
+
+
+def test_append_overflow_cap_max():
+    n = main_module._OVERFLOW_CANDIDATES_MAX
+    candidates = [_ov_cand(f"x:1:JO{i:04d}", ["k"], unit=f"JO{i:04d}") for i in range(15 + n + 10)]
+    capped = candidates[:15]
+    resp = {"candidates": []}
+    _append_overflow_candidates(resp, candidates, capped, lambda c: 1)
+    assert len(resp["overflow_candidates"]) <= n
+    assert resp["overflow_truncated"] is True                   # cap 초과분 누락
+
+
+def test_append_overflow_char_budget_enforced():
+    """outage 핵심: base 우선 + 전체 응답 ≤ _SUGGEST_RESPONSE_CHAR_BUDGET 강제, 초과분은 overflow_truncated."""
+    budget = main_module._SUGGEST_RESPONSE_CHAR_BUDGET
+    resp = {"candidates": [{"snippet": "가" * (budget - 300)}]}   # base를 예산 근처로
+    overflow = [_ov_cand(f"x:1:JO{i:04d}", ["k"], title="긴제목" * 20, doc="문서" * 20,
+                         unit=f"JO{i:04d}") for i in range(25)]
+    candidates = [{"provision_id": "kept", "rule_set_id": "rs"}] + overflow
+    capped = [{"provision_id": "kept", "rule_set_id": "rs"}]
+    _append_overflow_candidates(resp, candidates, capped, lambda c: 1)
+    assert len(json.dumps(resp, ensure_ascii=False)) <= budget   # 절대 예산 초과 안 함
+    assert resp["overflow_truncated"] is True                    # 예산으로 일부 누락
+
+
+def test_append_overflow_empty_when_none():
+    candidates = [_ov_cand(f"x:1:JO{i:04d}", ["k"], unit=f"JO{i:04d}") for i in range(5)]
+    capped = candidates                                          # 전부 cap 안 → overflow 없음
+    resp = {"candidates": []}
+    _append_overflow_candidates(resp, candidates, capped, lambda c: 1)
+    assert resp["overflow_candidates"] == []
+    assert resp["overflow_truncated"] is False
+
+
+def test_append_overflow_base_over_budget_yields_empty():
+    """v0.1.8 회귀(Blocking 2): base가 단독으로 예산 초과면 overflow는 한 건도 안 넣고(전체를 줄이지 않음),
+    overflow가 있었으면 overflow_truncated=True. 예산이 'overflow 추가분 게이트'임을 고정."""
+    budget = main_module._SUGGEST_RESPONSE_CHAR_BUDGET
+    resp = {"question": "가" * (budget + 100)}                   # base 단독으로 예산 초과
+    overflow = [_ov_cand(f"x:1:JO{i:04d}", ["k"], unit=f"JO{i:04d}") for i in range(3)]
+    candidates = [{"provision_id": "kept", "rule_set_id": "rs"}] + overflow
+    capped = [{"provision_id": "kept", "rule_set_id": "rs"}]
+    _append_overflow_candidates(resp, candidates, capped, lambda c: 1)
+    assert resp["overflow_candidates"] == []                     # 한 건도 못 넣음
+    assert resp["overflow_truncated"] is True                    # overflow 존재했으나 전량 누락
+
+
+def test_suggest_overflow_fields_via_mock(mock_client):
+    """통합: suggest 응답에 overflow 필드 존재, truncated 시 candidates와 disjoint."""
+    result = asyncio.run(suggest_review_sources("간접비 특별평가", keywords=["간접비", "특별평가"]))
+    assert isinstance(result["overflow_candidates"], list)
+    assert isinstance(result["overflow_truncated"], bool)
+    if result["truncated"]:
+        cand_ids = {c["provision_id"] for c in result["candidates"]}
+        for it in result["overflow_candidates"]:
+            assert set(it.keys()) == {"provision_id", "label"}
+            assert it["provision_id"] not in cand_ids
 
 
 # === B축 사후 리뷰 보강 (경계·결정성·방어·결합 경로) ===
@@ -681,7 +794,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.2.0"
+    assert result["contract_version"] == "0.3.0"
 
 
 # === _build_article_content  ===

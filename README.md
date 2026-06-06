@@ -69,9 +69,9 @@
    - 키워드는 상황 표면의 단어를 복사하는 데 그치지 말고, 그 상황에 적용될 법령상 절차·개념어를 추론하여 채울 것. 사용자가 쓴 표현이 일상어이면 대응하는 정식 법령 용어로 변환할 것. 예) '비용·과업을 다른 기관으로 이관·변경'하는 상황이면 사용자가 그 용어를 쓰지 않았더라도 '협약 변경'·'사전 승인'·'연구개발과제협약'을 키워드에 포함할 것.
 
 2. suggest_review_sources 호출 (question 인자에 위 '== 검토 상황 =='의 상황 전체를, keywords 인자에 1단계에서 작성한 검색 키워드 배열을 함께 전달)
-   - extracted_keywords(실제 검색에 사용된 키워드), candidates, recommended_review_order, errors를 확인할 것.
+   - extracted_keywords(실제 검색에 사용된 키워드), candidates, overflow_candidates, recommended_review_order, errors를 확인할 것.
    - recommended_review_order는 기본 검토 순서로 삼되, 후보가 적으면 3단계에서 보완할 것.
-   - returned·truncated·note도 확인할 것: truncated가 true이면 후보가 위계·중요도 상위 일부만 반환된 것(전체 후보 수는 total)이므로, recommended_review_order의 전체 문서 목록을 기준으로 3단계에서 search_provision으로 누락 후보를 보완할 것.
+   - returned·truncated·note·overflow_truncated도 확인할 것: truncated가 true이면 candidates에서 밀린 조문이 overflow_candidates에 제목(label)·provision_id로 나열되니, 관련 있어 보이는 항목은 candidates와 중복 제거 후 4단계에서 그 provision_id로 get_provision_detail을 직접 호출해 확인할 것. overflow_truncated가 true이거나 쟁점상 후보가 부족하면 recommended_review_order의 전체 문서 목록을 기준으로 3단계에서 search_provision으로 추가 보완할 것.
 
 3. search_provision(query=...)으로 추가 검색 및 주제별 cross-check
    - 핵심 키워드, 법령상 유사어, 절차어(승인, 통보, 보고, 협약변경, 정산, 제재 등)로 검색할 것.
@@ -611,7 +611,7 @@ korean-rnd-regs-mcp 서버의 health 테스트를 진행해줘.
 
 ---
 
-## 지원 규정 (v0.1.7, 총 17개)
+## 지원 규정 (v0.1.8, 총 17개)
 
 Tier 1 — 핵심 법률·시행령·시행규칙 (3개):
 
@@ -720,7 +720,7 @@ pip install -e ".[dev]"
 
 ```bash
 pytest
-# 138 passed (mock 기반, 네트워크 미사용)
+# 147 passed (mock 기반, 네트워크 미사용)
 ```
 
 ### 빌드
@@ -773,6 +773,12 @@ LAW_API_KEY는 국가법령정보센터 OpenAPI에서 무료로 발급받는 공
 이슈·PR 환영합니다: https://github.com/smilemin07/korean-rnd-regs-mcp/issues
 
 ## Changelog
+
+### 2026. 6. 7. : v0.1.8
+
+- 가려진 관련 조문까지 노출
+  - (기존) 관련 조문이 많을 때 상위 일부만 반환돼, 그 외 관련 조문(예: '사전 승인 절차')은 목록에서 보이지 않았음
+  - (변경) 상위 목록에서 밀린 조문도 '제목 + 식별자' 형태로 함께 제공 → AI가 필요한 조문을 직접 찾아 본문을 확인
 
 ### 2026. 6. 6. : v0.1.7
 

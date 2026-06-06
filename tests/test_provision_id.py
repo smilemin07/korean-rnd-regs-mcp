@@ -7,6 +7,7 @@ from korean_rnd_regs_mcp.provision_id import (
     ProvisionId,
     build,
     parse,
+    unit_label,
     unit_type,
 )
 
@@ -15,8 +16,25 @@ def test_contract_version_pinned():
     # pre-publish 내부 이력: 1.0.0 → 1.0.1 BP → 1.0.2 본문 reconstruct → 1.0.3 article_structure additive
     #                        → 1.0.3 revision (wrapper element filter + requests 예외 포괄)
     # publish 시점에 0.x.x 대역으로 reset (외부 사용자 0명). 0.2.0 = suggest_review_sources
-    # 선택 keywords 입력·응답 additive 필드(keyword_source/returned/truncated/note)·candidates cap(거동 변경) → minor bump.
-    assert CONTRACT_VERSION == "0.2.0"
+    # 선택 keywords 입력·응답 additive 필드(keyword_source/returned/truncated/note)·candidates cap(거동 변경).
+    # 0.3.0 = suggest_review_sources 응답에 overflow_candidates·overflow_truncated 필드 추가(v0.1.8) → minor bump.
+    assert CONTRACT_VERSION == "0.3.0"
+
+
+# === unit_label (v0.1.8 — overflow_candidates label용) ===
+def test_unit_label_article_and_annex():
+    assert unit_label("JO0074") == "제74조"
+    assert unit_label("JO0001") == "제1조"
+    assert unit_label("JO0108") == "제108조"
+    assert unit_label("BP0001") == "별표 1"
+    assert unit_label("BP0013") == "별표 13"
+
+
+def test_unit_label_document_and_invalid_return_empty():
+    assert unit_label(None) == ""        # document-level
+    assert unit_label("") == ""
+    assert unit_label("XX0001") == ""    # 알 수 없는 prefix → 비-raising, "" 반환
+    assert unit_label("JOabcd") == ""    # 숫자부 아님 → ""
 
 
 # === 정상 케이스: 조문(JO) 3개 ===

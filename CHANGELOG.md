@@ -3,6 +3,28 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.1.8] - 2026-06-07
+
+`suggest_review_sources` 응답에 **`overflow_candidates`**(cap에 가려진 조문 노출) 추가. `contract_version` 0.2.0 → **0.3.0**(응답 schema additive). 변경은 도구 응답 빌드(요청별 격리)·프롬프트/note 텍스트에 한정 — 부팅·transport·health·캐시 비의존. 목적: 검색·랭킹 알고리즘(v0.1.7)은 그대로 두고, cap(15) 밖으로 밀린 핵심 조문(예: 연구개발비 사용 기준 제74조 "사전 승인 절차")을 호스트가 보고 `get_provision_detail`로 drill-down 하도록 직접 노출(Andy 명시 가치). 설계·"프롬프트 필수 수정" 판정은 `/disc` 3-AI 적대검증 수렴, MCP 응답 한도(25k=token)·응답크기는 라이브 실측으로 확인.
+
+### Added — overflow_candidates 인덱스 (핵심)
+
+- `suggest_review_sources` 응답에 신규 최상위 필드 **`overflow_candidates`**: cap(`_SUGGEST_CANDIDATES_MAX`=15)에 들지 못한 후보를 `{provision_id, label}`로 노출(snippet 없음). `label` 예: "국가연구개발사업 연구개발비 사용 기준 제74조(사전 승인 절차)". cap 선별과 **동일 relevance 기준**(`_relevance_key`) 정렬, `candidates`와 항상 disjoint.
+- 신규 필드 **`overflow_truncated`**(bool): cap(`_OVERFLOW_CANDIDATES_MAX`=30) 또는 응답 크기 예산으로 일부 누락 시 `true`. overflow 없으면 `[]`·`false`(두 필드 항상 포함).
+- **응답 크기 예산**(`_SUGGEST_RESPONSE_CHAR_BUDGET`=16,000 chars): base 응답(candidates 등) 우선 확정 후 overflow를 잔여 예산 내에서만 추가 — MCP 도구 응답 token hard limit(25,000) 회피용 보수 proxy(서버에 tokenizer 없음, 한국어 char↔token 비율 불확실분 흡수). 라이브 측정: 실제 케이스 전체 응답 15,101 chars(제74조 포함, overflow 30건).
+- 신규 헬퍼: `provision_id.unit_label`(JO0074→"제74조", BP0001→"별표 1"), `main._relevance_key`(cap·overflow 공유 정렬키 추출, 동작 보존), `main._overflow_label`, `main._append_overflow_candidates`.
+
+### Changed — 새 필드 활용 안내 동기화 (필수)
+
+- `review_regulation` 프롬프트 2단계: 확인 필드에 `overflow_candidates`·`overflow_truncated` 추가 + truncation 시 overflow_candidates의 provision_id로 직접 `get_provision_detail` 조회하도록 지시(generic — 특정 조문·짝 규칙 아님). 미수정 시 프롬프트-순응 호스트가 새 필드를 우회(search_provision)하여 기능이 inert가 되는 문제 차단(`/disc` 3-AI: 기능적 필수). README 임베드 프롬프트 동기화.
+- 서버 truncation `note`·`suggest_review_sources` docstring: overflow_candidates 우선 확인 안내로 갱신(프롬프트와 런타임 지시 일관).
+
+### 검증
+
+- 단위 테스트 138 → **147**(unit_label 2 + overflow shape·정렬·cap·char예산·empty·통합 7). `_relevance_key` 추출은 기존 cap 7테스트가 동작 보존 회귀가드.
+- 라이브 종단 검증: 동일 7키워드 케이스에서 contract 0.3.0, overflow 30건·overflow_truncated true, 전체 응답 15,101 chars(≤16k), **제74조(사전 승인 절차) overflow 포함**, candidates와 disjoint 확인.
+- **배포 전 라이브 4경로(Claude.ai·ChatGPT·Codex·플러그인) worst-case 스모크가 차단 게이트**: 응답 JSON 무손상·화면 truncation 없음·overflow provision_id로 get_provision_detail 성공 확인 필수(25k=token·Claude.ai 한도 확인불가라 실측으로만 안전 확정).
+
 ## [0.1.7] - 2026-06-06
 
 `suggest_review_sources` 검색 랭킹 정상화 + 호스트 키워드 위임 강화. `contract_version`은 **0.2.0 유지** — 응답 필드 추가·삭제·이름변경 없음(`note` 필드 재사용). 변경은 도구 로직(요청별 격리)·프롬프트 텍스트에 한정 — 부팅·transport·health·캐시 비의존. 무게중심을 "fallback 정교화"가 아니라 "호스트가 좋은 키워드를 안정적으로 넘기게 만드는 설계 + 랭킹"으로 이동(설계는 `/disc` 3-AI 적대검증 수렴 + 라이브 재측정으로 효과 확인).

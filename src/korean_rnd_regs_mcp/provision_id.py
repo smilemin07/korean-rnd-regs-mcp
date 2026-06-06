@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-CONTRACT_VERSION = "0.2.0"
+CONTRACT_VERSION = "0.3.0"
 VALID_DOC_TYPES = frozenset({"law", "admrul"})
 # JO = 조문(article), BP = 별표(annex). 둘 다 4자리 이상 숫자.
 _UNIT_PATTERN = re.compile(r"^(JO|BP)\d{4,}$")
@@ -35,6 +35,19 @@ def unit_type(unit_id: Optional[str]) -> str:
     if unit_id.startswith("BP"):
         return "annex"
     raise InvalidProvisionId(f"Unknown unit prefix in {unit_id!r}; allowed: JO/BP")
+
+
+def unit_label(unit_id: Optional[str]) -> str:
+    """unit_id를 사람이 읽는 한국어 라벨로: JO0074->'제74조', BP0001->'별표 1',
+    None/document-level/판별 불가 -> '' (비-raising — 응답 빌드에서 안전하게 사용).
+    """
+    if not unit_id:
+        return ""
+    if unit_id.startswith("JO") and unit_id[2:].isdigit():
+        return f"제{int(unit_id[2:])}조"
+    if unit_id.startswith("BP") and unit_id[2:].isdigit():
+        return f"별표 {int(unit_id[2:])}"
+    return ""
 
 
 @dataclass(frozen=True)
