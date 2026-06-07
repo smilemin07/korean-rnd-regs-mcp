@@ -96,6 +96,16 @@ def test_review_regulation_prompt_includes_limitation_notice():
     assert "변호사 자문" in body  # 법률 판단 disclaimer
 
 
+def test_review_regulation_prompt_includes_procedure_flow_section():
+    """v0.1.10: 절차형 답변 시각화 — 조건부 8절 '절차 흐름' + fabrication 가드 + literal 백틱3개 부재."""
+    body = review_regulation_prompt("X")
+    assert "### 8. 절차 흐름" in body  # 조건부 절 신설
+    assert "코드블록" in body  # 텍스트 흐름(모든 클라이언트 렌더)
+    assert "임의로 추가하지 말 것" in body  # 규정에 없는 단계 fabrication 가드
+    assert "mermaid" not in body.lower()  # mermaid 미언급(미렌더 커넥터 raw 노출 방지)
+    assert "```" not in body  # README 단일 펜스·동기화 회귀 보호(literal triple-backtick 금지)
+
+
 def test_readme_embedded_prompt_matches_template():
     """회귀: README에 임베드된 review_regulation 프롬프트가 main.py _REVIEW_PROMPT_TEMPLATE와
     정확히 일치하는지 검증 (문서-코드 drift 방지 — 단일 출처 가드)."""

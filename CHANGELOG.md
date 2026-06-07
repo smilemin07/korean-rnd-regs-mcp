@@ -3,6 +3,22 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.1.10] - 2026-06-08
+
+`review_regulation` 프롬프트 출력 형식에 조건부 **8절 "절차 흐름"** 추가 — 검토 결과가 단계적 절차·조건 분기를 포함하면, 모든 MCP 클라이언트에서 렌더되는 텍스트 흐름(번호 단계+화살표, 단계별 근거 조문 병기)을 답변에 포함하도록 유도. `contract_version` **0.3.0 유지**(프롬프트 텍스트만 — 응답 schema·필드·검색/랭킹/fallback 알고리즘 불변). 변경은 `_REVIEW_PROMPT_TEMPLATE`와 README 임베드 사본 동기화에 한정 — 부팅·transport·health·캐시·도구 응답 비의존(outage 무위험). 설계는 `/disc` 3-AI 적대검증 수렴: 조건부 8절 신설 채택(7절 통합 기각 — 흐름은 의미상 독립 산출물이고 4·7절 확정 후 시각화해야 fabrication 위험↓), mermaid 미언급·텍스트 흐름만(미렌더 커넥터의 raw 노출 방지), 단계별 근거 조문 강제 + 규정에 없는 단계 임의 추가 금지(fabrication 가드). literal triple-backtick은 템플릿에 미포함(README 단일 코드펜스·동기화 테스트 보호).
+
+### Added
+
+- `== 최종 출력 형식 ==`에 조건부 `### 8. 절차 흐름` 절: 둘 이상의 시간순 단계 또는 [예]/[아니오] 조건 분기를 포함할 때만 작성(단순 정의·단일 조항·단일 가부 판단이면 절 전체 생략). 헤더를 "1~7절 제목·순서 고정, 8절은 조건부"로 명문화. 흐름은 언어 지정 없는 Markdown 코드블록의 번호+화살표(→), 각 단계 근거 규정명·조문번호 병기·4·7절 일치, 규정 외 일반 실무 단계(접수·검토·결재·통보) 임의 추가 금지·선후 불명 시 "추가 확인 필요".
+
+### Changed
+
+- README 임베드 프롬프트 사본을 `_REVIEW_PROMPT_TEMPLATE`와 동기화.
+
+### Tests
+
+- `test_review_regulation_prompt_includes_procedure_flow_section` 추가(8절·fabrication 가드·mermaid 미언급·literal 백틱3개 부재). 전체 156.
+
 ## [0.1.9] - 2026-06-07
 
 `suggest_review_sources`의 fallback 안내(`note`)를 **명령형 degraded 신호**로 강화하고, 호스트 위임(`keywords` description·`review_regulation` 프롬프트)을 정합 강화. `contract_version` **0.3.0 유지**(응답 schema·필드 불변 — `note` 텍스트 변경 + description/prompt 텍스트만). 변경은 도구 응답 텍스트·도구 등록 description·프롬프트에 한정 — 부팅·transport·health·캐시 비의존. 목적: 검토 결과 품질이 `keyword_source` 품질에 크게 좌우되는 문제(라이브 eval로 확인 — 유능한 Claude 하니스는 현행 description만으로 첫 호출 keyword 위임 ~100%이나, 실패는 호스트 하니스 차이에 집중)에서, 서버가 keywords를 받지 못해 표면추출로 대체(degraded)한 경우 호스트가 법령 절차·개념어를 추론해 keywords로 **재호출**하도록 강하게 유도. 관련 조문 추출 알고리즘(v0.1.7)·fallback 추출기는 **불변**. 설계는 `/disc` 3-AI 적대검증 수렴: M2 soft-gate 채택(결과 보류하는 M3·required-param M4·서버→AI sampling 콜백은 기각 — 콜백은 주력 클라이언트(Claude.ai 웹 커넥터·ChatGPT 등) 미지원으로 outage 위험).
