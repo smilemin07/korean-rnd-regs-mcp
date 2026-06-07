@@ -162,6 +162,14 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 - 기존 필드(`candidates`·`total`·`returned`·`truncated`·`recommended_review_order`·`note`) 삭제·이름변경·shape 변경 없음(순수 additive). `truncated`(candidates cap 여부)와 `overflow_truncated`(overflow index 추가 누락 여부)는 서로 다른 의미.
 - 동기: Andy 명시 가치("cap에 가려진 조항까지 보고 drill-down")를 직접 충족하되, 응답 크기 증가로 인한 클라이언트 truncation을 16k char 보수 예산 + 라이브 4경로 스모크로 차단. 응답 schema에 필드 추가 → contract_version **0.3.0**(0.2.0 → 0.3.0).
 
+### 5.4 suggest_review_sources degraded note 강화 (0.3.0 유지 — `note` 텍스트 변경)
+
+- `note`(기존 선택 필드)의 **문구만** 변경 — 신규 필드·shape 변경 없음 → contract_version **0.3.0 유지**.
+- `keyword_source`가 `fallback`·`client+fallback`이거나 무키워드 early-return(후보 0건)인 경우, `note`에 **`[degraded]` 마커 + 명령형 재호출 지시**(법령 절차·개념어를 추론해 `keywords`로 `suggest_review_sources` 재호출)를 부착. 기존 약한 권고("정확도를 높이려면 keywords를 전달하십시오")를 대체.
+- 적용 경로 확대: 기존에는 `keyword_source=="fallback"`에만 note가 붙었으나, v0.1.9부터 `client+fallback`·early-return 경로에도 부착(이전 누락 보강).
+- **M2 soft-gate**: degraded여도 `candidates`는 보류 없이 그대로 반환(호스트가 무시해도 빈손이 되지 않음). gate는 신호일 뿐 결과를 막지 않으므로 재호출 루프·outage 위험 없음.
+- 동기: 검토 품질이 `keyword_source` 품질에 좌우됨(라이브 eval 확인). `keywords` arg description·`review_regulation` 프롬프트의 위임 지시(필수화 + degraded 시 재호출)와 정합. 관련 조문 추출 알고리즘(v0.1.7)·fallback 추출기 불변.
+
 ## 6. contract_version 관리
 
 - 본 문서 contract_version: **0.3.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 minor)
@@ -183,5 +191,6 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 | 0.2.0 (유지) | 2026-06-05 | 패키지 **0.1.6** 검색 recall·관련도 개선. **contract_version bump 없음** — 응답 schema(필드·shape) 불변, `candidates` 표시 순서(위계순) 불변. 거동: `search_provision` 토큰 AND 매칭(다중 토큰 query 결과가 늘어나는 strict superset; 단일 토큰 불변), `candidates` cap 선별 기준을 관련도(매칭 키워드 수) 우선으로 변경(§5.2), suggest 내부 1-hop 동의어 union. 기존 필드·shape·표시 순서가 그대로라 호환 깨짐 없음 → 0.2.0 유지 |
 | 0.2.0 (유지) | 2026-06-06 | 패키지 **0.1.7** 검색 랭킹 정상화 + 호스트 위임 강화. **contract_version bump 없음** — 응답 schema·필드·shape·표시 순서(위계순) 불변. 거동: `candidates` cap 선별 1차 기준을 제목 매칭 수(title_hits) 우선으로 변경하고 v0.1.6 `_priority`(키워드 순서) 제거(§5.2). `keywords` description·프롬프트로 호스트 위임 강화, `keyword_source=="fallback"` 시 기존 `note` 필드에 품질 경고 병기(필드 추가 없음). 기존 필드·shape 불변 → 0.2.0 유지 |
 | 0.3.0 | 2026-06-07 | **minor bump** (패키지 0.1.8). `suggest_review_sources` 응답에 **`overflow_candidates`**(cap 밖 조문을 `{provision_id, label}`로 relevance 순 노출, ≤30건·overflow 추가는 전체 응답이 16k char를 넘지 않는 선에서만) + **`overflow_truncated`**(bool) **신규 필드 추가**(§5.3). 호스트가 cap에 가려진 조문을 보고 `get_provision_detail`로 drill-down. 기존 필드 삭제·이름변경·shape·거동 변경 없음(순수 additive)이나 응답 schema 추가이므로 minor bump. `review_regulation` 프롬프트·서버 `note`·도구 docstring에 새 필드 활용 안내 동기화 |
+| 0.3.0 (유지) | 2026-06-07 | 패키지 **0.1.9** 키워드 위임 강제 신호. **contract_version bump 없음** — 응답 schema·필드·shape 불변(`note` 텍스트 변경 + `keywords` description·`review_regulation` 프롬프트 텍스트만). `note`를 `fallback`·`client+fallback`·무키워드 early-return 세 경로에 **`[degraded]` 마커 + 명령형 재호출 지시**로 강화(§5.4), `candidates`는 보류 없이 반환(M2 soft-gate). 관련 조문 추출 알고리즘(v0.1.7)·fallback 추출기 불변 → 0.3.0 유지 |
 
 - 도구 응답에 `contract_version` 필드 포함 권장 (search_provision·get_provision_detail·suggest_review_sources). 클라이언트가 호환 여부 확인 가능.

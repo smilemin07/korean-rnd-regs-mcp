@@ -12,6 +12,10 @@ import pytest
 from korean_rnd_regs_mcp import main as main_module
 from korean_rnd_regs_mcp.live_api import LawApiClient, LawApiError, ResolvedDocId
 from korean_rnd_regs_mcp.main import (
+    _DEGRADED_NOTE_CLIENT_FB,
+    _DEGRADED_NOTE_EMPTY,
+    _DEGRADED_NOTE_FALLBACK,
+    _RECALL_DIRECTIVE,
     _append_overflow_candidates,
     _extract_keywords,
     _make_snippet,
@@ -484,6 +488,57 @@ def test_suggest_review_sources_empty_path_includes_overflow_fields(mock_client)
     result = asyncio.run(suggest_review_sources("abc 123 ???"))   # 유효 키워드 0건 → early return
     assert result["overflow_candidates"] == []
     assert result["overflow_truncated"] is False
+
+
+# === v0.1.9: degraded note 명령형 신호 + 호스트 위임 강화 ===
+def test_suggest_fallback_note_is_degraded_directive(mock_client):
+    """v0.1.9(#1): fallback(무키워드)이면 note가 [degraded] 마커 + 재호출 명령(_RECALL_DIRECTIVE) 포함."""
+    result = asyncio.run(suggest_review_sources("특별평가"))
+    assert result["keyword_source"] == "fallback"
+    assert "note" in result
+    assert result["note"] == _DEGRADED_NOTE_FALLBACK
+    assert "[degraded]" in result["note"]
+    assert _RECALL_DIRECTIVE in result["note"]
+
+
+def test_suggest_fallback_still_returns_candidates_not_withheld(mock_client):
+    """v0.1.9(#1, M2 soft-gate 핵심 회귀): degraded여도 candidates를 보류하지 않고 그대로 반환."""
+    result = asyncio.run(suggest_review_sources("특별평가"))
+    assert result["keyword_source"] == "fallback"
+    assert len(result["candidates"]) >= 1  # 보류(hard-gate) 아님 — M3 미채택 보증
+
+
+def test_suggest_empty_note_is_degraded(mock_client):
+    """v0.1.9(#1, A-3): 무키워드 early-return(후보 0건)에도 degraded 재호출 지시 note 부착."""
+    result = asyncio.run(suggest_review_sources("abc 123 ???"))
+    assert result["candidates"] == []
+    assert result["note"] == _DEGRADED_NOTE_EMPTY
+    assert "[degraded]" in result["note"]
+    assert _RECALL_DIRECTIVE in result["note"]
+
+
+def test_suggest_client_fallback_note_is_degraded(mock_client):
+    """v0.1.9(#1, A-2): client+fallback(제공 keywords 0건→대체 검색)에도 degraded note 부착."""
+    result = asyncio.run(
+        suggest_review_sources("특별평가 절차", keywords=["절대로없는키워드zzz"])
+    )
+    assert result["keyword_source"] == "client+fallback"
+    assert "note" in result
+    assert _DEGRADED_NOTE_CLIENT_FB in result["note"]
+    assert "[degraded]" in result["note"]
+
+
+def test_suggest_client_keywords_no_degraded_note(mock_client):
+    """v0.1.9(#1): 정상 client 경로는 degraded 신호를 붙이지 않음(불필요한 재호출 유도 방지)."""
+    result = asyncio.run(suggest_review_sources("아무 상황 설명", keywords=["특별평가"]))
+    assert result["keyword_source"] == "client"
+    assert "[degraded]" not in result.get("note", "")
+
+
+def test_suggest_degraded_note_contract_version_unchanged(mock_client):
+    """v0.1.9: note 텍스트 변경만 — 스키마 무변, contract_version 0.3.0 유지."""
+    result = asyncio.run(suggest_review_sources("특별평가"))
+    assert result["contract_version"] == "0.3.0"
 
 
 # === B축: 출력 크기 상한 (v0.1.5) ===

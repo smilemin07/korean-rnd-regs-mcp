@@ -3,6 +3,25 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.1.9] - 2026-06-07
+
+`suggest_review_sources`의 fallback 안내(`note`)를 **명령형 degraded 신호**로 강화하고, 호스트 위임(`keywords` description·`review_regulation` 프롬프트)을 정합 강화. `contract_version` **0.3.0 유지**(응답 schema·필드 불변 — `note` 텍스트 변경 + description/prompt 텍스트만). 변경은 도구 응답 텍스트·도구 등록 description·프롬프트에 한정 — 부팅·transport·health·캐시 비의존. 목적: 검토 결과 품질이 `keyword_source` 품질에 크게 좌우되는 문제(라이브 eval로 확인 — 유능한 Claude 하니스는 현행 description만으로 첫 호출 keyword 위임 ~100%이나, 실패는 호스트 하니스 차이에 집중)에서, 서버가 keywords를 받지 못해 표면추출로 대체(degraded)한 경우 호스트가 법령 절차·개념어를 추론해 keywords로 **재호출**하도록 강하게 유도. 관련 조문 추출 알고리즘(v0.1.7)·fallback 추출기는 **불변**. 설계는 `/disc` 3-AI 적대검증 수렴: M2 soft-gate 채택(결과 보류하는 M3·required-param M4·서버→AI sampling 콜백은 기각 — 콜백은 주력 클라이언트(Claude.ai 웹 커넥터·ChatGPT 등) 미지원으로 outage 위험).
+
+### Changed — degraded note 명령형화 (#1, M2 soft-gate)
+
+- `suggest_review_sources`의 `note`: `keyword_source=="fallback"`·`"client+fallback"`·무키워드 early-return **세 경로 모두**에 명령형 재호출 지시 + **`[degraded]` 마커** 부착(기존 "정확도를 높이려면 keywords를 전달하십시오" 약한 권고를 교체). 신규 모듈 상수 `_RECALL_DIRECTIVE`·`_DEGRADED_NOTE_FALLBACK`·`_DEGRADED_NOTE_EMPTY`·`_DEGRADED_NOTE_CLIENT_FB`.
+- **결과(`candidates`)는 그대로 반환**(보류 없음) — M2 soft-gate. degraded여도 빈손 없음 → outage·UX 회귀·재호출 루프 위험 0. 루프 invariant: gate는 `keyword_source`가 fallback/client+fallback일 때만 신호이며 결과를 막지 않으므로, 무효 keywords 재호출에도 최대 1회 의미있는 추가 왕복으로 종료.
+- 기존 누락 보강: note가 없던 `client+fallback`·early-return 경로에 note 부착.
+
+### Changed — 호스트 위임 정합 (#3)
+
+- `keywords` arg description에 "규정 검토 질문엔 keywords 없이 호출 금지 — 생략 시 degraded(품질 낮음) → keywords 추론해 즉시 재호출 필요" 명시.
+- `review_regulation` 프롬프트: 1단계에 "keywords는 필수 입력 — 없이 suggest_review_sources 호출 금지", 2단계에 "`keyword_source`가 fallback/client+fallback이거나 note에 `[degraded]` 포함 시, keywords 보강해 재호출한 뒤 그 결과로 검토 진행(degraded candidates만으로 결론 금지)" 추가.
+
+### Tests
+
+- 테스트 **149 → 155**: degraded note 3경로(fallback·early-return·client+fallback)의 `[degraded]` 마커·재호출 지시(`_RECALL_DIRECTIVE`) 포함, **M2 비보류**(degraded여도 candidates 반환) 회귀 가드, 정상 `client` 경로 degraded 미부착, `contract_version` 0.3.0 유지. README 임베드 프롬프트 동기화 가드 통과.
+
 ## [0.1.8] - 2026-06-07
 
 `suggest_review_sources` 응답에 **`overflow_candidates`**(cap에 가려진 조문 노출) 추가. `contract_version` 0.2.0 → **0.3.0**(응답 schema additive). 변경은 도구 응답 빌드(요청별 격리)·프롬프트/note 텍스트에 한정 — 부팅·transport·health·캐시 비의존. 목적: 검색·랭킹 알고리즘(v0.1.7)은 그대로 두고, cap(15) 밖으로 밀린 핵심 조문(예: 연구개발비 사용 기준 제74조 "사전 승인 절차")을 호스트가 보고 `get_provision_detail`로 drill-down 하도록 직접 노출(Andy 명시 가치). 설계·"프롬프트 필수 수정" 판정은 `/disc` 3-AI 적대검증 수렴, MCP 응답 한도(25k=token)·응답크기는 라이브 실측으로 확인.

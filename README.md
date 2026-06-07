@@ -67,9 +67,11 @@
    - 권한 있는 기관(중앙행정기관·전문기관·연구개발기관 등)의 승인·보고·통보 대상인지 확인할 것.
    - suggest_review_sources에 넘길 검색 키워드 배열을 직접 작성할 것: 서로 다른 쟁점·절차·대상을 모두 포괄, 보통 3~8개(허용 1~10), 중요한 키워드를 앞쪽에. 국가·사업·연구개발 같은 지나치게 광범위한 단어는 제외하되 승인·통보·보고 같은 절차어는 포함할 것. 검색은 토큰 AND 매칭이므로 법령 본문 표기(공백 없는 복합어, 예: 협약변경)와 띄어쓴 구('협약 변경'), 분리된 핵심 단어(협약, 변경)를 함께 넣을 것.
    - 키워드는 상황 표면의 단어를 복사하는 데 그치지 말고, 그 상황에 적용될 법령상 절차·개념어를 추론하여 채울 것. 사용자가 쓴 표현이 일상어이면 대응하는 정식 법령 용어로 변환할 것. 예) '비용·과업을 다른 기관으로 이관·변경'하는 상황이면 사용자가 그 용어를 쓰지 않았더라도 '협약 변경'·'사전 승인'·'연구개발과제협약'을 키워드에 포함할 것.
+   - keywords는 본 검토의 필수 입력이다 — keywords 없이 suggest_review_sources를 호출하지 말 것. 검토 결과 품질은 keywords 품질에 직접 좌우된다.
 
 2. suggest_review_sources 호출 (question 인자에 위 '== 검토 상황 =='의 상황 전체를, keywords 인자에 1단계에서 작성한 검색 키워드 배열을 함께 전달)
-   - extracted_keywords(실제 검색에 사용된 키워드), candidates, overflow_candidates, recommended_review_order, errors를 확인할 것.
+   - extracted_keywords(실제 검색에 사용된 키워드), keyword_source, candidates, overflow_candidates, recommended_review_order, errors를 확인할 것.
+   - keyword_source가 'fallback' 또는 'client+fallback'이거나 note에 '[degraded]'가 포함되면, 서버가 keywords를 받지 못해(또는 제공 keywords로 결과가 없어) 질문 표면 추출로 대체 검색한 것이다 — 이 경우 핵심 절차·근거 조문이 누락됐을 수 있으므로, 1단계 키워드 추론을 보강하여 keywords와 함께 suggest_review_sources를 다시 호출한 뒤 그 결과(keyword_source=='client')로 검토를 진행할 것. degraded 응답의 candidates만으로 결론을 내지 말 것.
    - recommended_review_order는 기본 검토 순서로 삼되, 후보가 적으면 3단계에서 보완할 것.
    - returned·truncated·note·overflow_truncated도 확인할 것: truncated가 true이면 candidates에서 밀린 조문이 overflow_candidates에 제목(label)·provision_id로 나열되니, 관련 있어 보이는 항목은 candidates와 중복 제거 후 4단계에서 그 provision_id로 get_provision_detail을 직접 호출해 확인할 것. overflow_truncated가 true이거나 쟁점상 후보가 부족하면 recommended_review_order의 전체 문서 목록을 기준으로 3단계에서 search_provision으로 추가 보완할 것.
 
@@ -611,7 +613,7 @@ korean-rnd-regs-mcp 서버의 health 테스트를 진행해줘.
 
 ---
 
-## 지원 규정 (v0.1.8, 총 17개)
+## 지원 규정 (v0.1.9, 총 17개)
 
 Tier 1 — 핵심 법률·시행령·시행규칙 (3개):
 
@@ -773,6 +775,13 @@ LAW_API_KEY는 국가법령정보센터 OpenAPI에서 무료로 발급받는 공
 이슈·PR 환영합니다: https://github.com/smilemin07/korean-rnd-regs-mcp/issues
 
 ## Changelog
+
+### 2026. 6. 7. : v0.1.9
+
+- 키워드 없이 검토를 진행하지 않도록 신호 강화
+  - (배경) 검토 결과 품질이 AI가 넘기는 '검색 키워드' 품질에 크게 좌우됨 — 키워드를 안 넘기면 서버가 질문 표면에서 임시 추출(품질 낮음)
+  - (변경) 키워드 없이 검색된 경우, 응답에 '[degraded](품질 낮음) — 절차·개념어를 추론해 키워드와 함께 다시 호출하라'는 지시를 명확히 표시 + 도구 설명·검토 프롬프트에 '키워드 필수' 명시
+  - (안전) 키워드가 없어도 임시 결과는 그대로 제공(빈손 방지) — 다시 호출을 유도할 뿐 결과를 막지 않음
 
 ### 2026. 6. 7. : v0.1.8
 
