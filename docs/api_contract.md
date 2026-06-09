@@ -1,7 +1,7 @@
 # korean-rnd-regs-mcp API Contract
 
-- contract_version: **0.3.0** (0.1.0 첫 publish → 0.2.0 → 0.3.0 minor bump, §6 변경 이력 참조)
-- 작성일: 2026-05-24 (0.2.0 개정: 2026-06-04, 0.3.0 개정: 2026-06-07)
+- contract_version: **0.4.0** (0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 minor bump, §6 변경 이력 참조)
+- 작성일: 2026-05-24 (0.2.0 개정: 2026-06-04, 0.3.0 개정: 2026-06-07, 0.4.0 개정: 2026-06-09)
 - semver 정책: 0.x.x 대역은 unstable signal — minor bump(0.1.0 → 0.2.0)도 breaking change 허용. v0.2 가지조문 확장 시 0.2.0 minor bump로 자연스럽게 처리 (1.0.x 유지 시 2.0 major bump 필요했음)
 - 변경 정책: 본 문서 변경은 외부 사용자 코드·Claude Desktop 캐시·README 예시를 깰 수 있으므로 0.1.0 publish 이후 신중히 (§6 참조)
 
@@ -110,7 +110,7 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
     },
     ...
   ],
-  "contract_version": "0.3.0",
+  "contract_version": "0.4.0",
   "disclaimer": "본 결과는 검토 후보일 뿐 법률 판단이 아닙니다. 출처를 직접 확인하세요."
 }
 ```
@@ -137,7 +137,7 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 ## 5. 응답 길이 정책
 
 - `search_provision`의 `snippet`: 각 결과당 **≤ 2000자**
-- `get_provision_detail` 본문: 길이 제한 없음. 단 별표는 `source_url` 안내로 대체 가능 (§2.2).
+- `get_provision_detail` 본문: 조문(article)은 길이 제한 없음. 별표(annex)는 **size-tiered**(v0.4.0, §5.5) — 직렬화 응답이 보수 예산(`_ANNEX_DETAIL_CHAR_BUDGET`=16,000 chars)을 넘으면 본문 미수록(`content_format=oversized_pointer`) + 공식 링크 안내, 본문 없는 서식파일 별표는 `content_format=external_file_only`.
 - 동기: Claude Code MCP는 도구 응답이 일정 크기 초과 시 경고·truncation 가능 — `search_provision`은 후보 제시용이므로 snippet으로만 노출하고 전체 본문은 `get_provision_detail`로 유도.
 
 ### 5.1 suggest_review_sources 키워드 입력 (0.2.0 minor — additive 입력/필드)
@@ -170,9 +170,18 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 - **M2 soft-gate**: degraded여도 `candidates`는 보류 없이 그대로 반환(호스트가 무시해도 빈손이 되지 않음). gate는 신호일 뿐 결과를 막지 않으므로 재호출 루프·outage 위험 없음.
 - 동기: 검토 품질이 `keyword_source` 품질에 좌우됨(라이브 eval 확인). `keywords` arg description·`review_regulation` 프롬프트의 위임 지시(필수화 + degraded 시 재호출)와 정합. 관련 조문 추출 알고리즘(v0.1.7)·fallback 추출기 불변.
 
+### 5.5 get_provision_detail 법령 별표 지원 (0.4.0 minor — 응답 additive 필드 + 거동)
+
+- 법령(law, 시행령) 별표(BP)를 `get_provision_detail`·`search_provision`에서 지원(이전: 행정규칙 별표만). `get_law_detail`이 `<별표단위>`를 파싱(**fault-isolated** — 별표 파싱 실패가 조문 반환을 깨지 않고 `annex_parse_error`로 표면화). manifest `innovation_decree.unit_types`를 `article`→`both`로.
+- **size-tiered get_provision_detail(annex)**: 직렬화 응답이 `_ANNEX_DETAIL_CHAR_BUDGET`=16,000 chars 이내면 본문 전문(`content_format=plain_text_verbatim`); 초과하면 본문 미수록 + 신규 필드 `content_available=false`·`content_format=oversized_pointer`·`is_complete=false`·`omitted_reason`·`omitted_char_count`·`required_action`·`verbatim_quote_allowed=false`. 본문 없는 서식파일 별표는 `content_format=external_file_only`. 삭제된 별표는 `annex_status=deleted_stub`.
+- **정확성 가드**: `content_format`이 `plain_text_verbatim`이 아니면 그 `content`는 규정 원문이 아니라 안내 텍스트 — 호스트는 인용 금지(`verbatim_quote_allowed=false`), `attached_file_url`/`document_source_url` 공식 원문 확인. `review_regulation` 프롬프트·README 임베드 사본에 동일 규칙 명문화.
+- **search_provision 별표 스니펫**: 공백 정렬 표의 행 중간 절단을 막기 위해 개행(줄) 경계로 자르고 "발췌·표 원문 확인" 마커 부착. 별표 파싱 실패는 `errors`에 `code=annex_parse_failed`로 노출.
+- 한도값 근거: MCP 응답 토큰 hard limit(Claude Code 25,000) 회피용 보수 char proxy. 웹/Desktop은 더 클 수 있으나(약 150k chars 단서) ChatGPT 한도 확인 불가 → 4경로 최저선 보수 적용. LIVE 4경로 실측(별표2·7) 통과 후 상향은 별도 최적화로 분리.
+- 기존 필드 삭제·이름변경 없음(additive). 응답 schema에 신규 필드 추가 + 거동(법령 별표 노출) → contract_version **0.4.0**(0.3.0 → 0.4.0).
+
 ## 6. contract_version 관리
 
-- 본 문서 contract_version: **0.3.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 minor)
+- 본 문서 contract_version: **0.4.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 minor)
 - 코드 상수: `korean_rnd_regs_mcp.provision_id.CONTRACT_VERSION`
 - 변경 정책 (0.x.x — unstable signal):
 
@@ -193,5 +202,6 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 | 0.3.0 | 2026-06-07 | **minor bump** (패키지 0.1.8). `suggest_review_sources` 응답에 **`overflow_candidates`**(cap 밖 조문을 `{provision_id, label}`로 relevance 순 노출, ≤30건·overflow 추가는 전체 응답이 16k char를 넘지 않는 선에서만) + **`overflow_truncated`**(bool) **신규 필드 추가**(§5.3). 호스트가 cap에 가려진 조문을 보고 `get_provision_detail`로 drill-down. 기존 필드 삭제·이름변경·shape·거동 변경 없음(순수 additive)이나 응답 schema 추가이므로 minor bump. `review_regulation` 프롬프트·서버 `note`·도구 docstring에 새 필드 활용 안내 동기화 |
 | 0.3.0 (유지) | 2026-06-07 | 패키지 **0.1.9** 키워드 위임 강제 신호. **contract_version bump 없음** — 응답 schema·필드·shape 불변(`note` 텍스트 변경 + `keywords` description·`review_regulation` 프롬프트 텍스트만). `note`를 `fallback`·`client+fallback`·무키워드 early-return 세 경로에 **`[degraded]` 마커 + 명령형 재호출 지시**로 강화(§5.4), `candidates`는 보류 없이 반환(M2 soft-gate). 관련 조문 추출 알고리즘(v0.1.7)·fallback 추출기 불변 → 0.3.0 유지 |
 | 0.3.0 (유지) | 2026-06-08 | 패키지 **0.1.10** 절차 흐름 시각화. **contract_version bump 없음** — 응답 schema·필드·shape·검색/랭킹/fallback 불변. `review_regulation` 프롬프트(`_REVIEW_PROMPT_TEMPLATE`) 출력 형식에 조건부 8절 "절차 흐름" 추가(프롬프트 텍스트만, 도구 응답 무관). README 임베드 사본 동기화 → 0.3.0 유지 |
+| 0.4.0 | 2026-06-09 | **minor bump** (패키지 **0.2.0**). 법령(시행령) 별표 지원 — `get_law_detail` 별표 파싱(fault-isolated, `annex_parse_error`), `innovation_decree.unit_types` `article`→`both`, `search_provision`/`get_provision_detail`에서 혁신법 시행령 별표 1~7 노출(§5.5). `get_provision_detail(annex)` **size-tiered**: 신규 필드 `content_format`·`content_available`·`verbatim_quote_allowed`·`is_complete`·`omitted_reason`·`omitted_char_count`·`required_action`·`annex_status` 추가, 대용량 별표(별표2·7)는 본문 미수록 포인터, 서식파일 별표는 external_file_only. 별표 스니펫 줄단위 절단. `review_regulation` 프롬프트·README 임베드 사본·manifest known_limitations 동기화(별표 미지원 문구 정정). 기존 필드 삭제·이름변경 없음(additive) → minor bump |
 
 - 도구 응답에 `contract_version` 필드 포함 권장 (search_provision·get_provision_detail·suggest_review_sources). 클라이언트가 호환 여부 확인 가능.

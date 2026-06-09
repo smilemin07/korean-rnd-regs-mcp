@@ -384,6 +384,25 @@ class LawApiClient:
                 if (a.findtext("조문여부") or "").strip() == "조문"
                 and not (a.findtext("조문가지번호") or "").strip()
             ]
+            # 별표 (v0.2): 법령(시행령) 별표 inline 텍스트 지원. fault-isolation —
+            # 별표 파싱 실패가 조문(articles) 반환 경로를 깨뜨리지 않도록 독립 try/except로 격리하고,
+            # 실패는 버리지 않고 annex_parse_error로 표면화한다 (get_admin_rule_detail의 별표 schema와 동일).
+            annexes: list[dict] = []
+            annex_parse_error: str | None = None
+            try:
+                annexes = [
+                    {
+                        "별표번호": ann.findtext("별표번호", ""),
+                        "별표제목": ann.findtext("별표제목", ""),
+                        "별표내용": ann.findtext("별표내용", ""),
+                        "별표서식파일링크": ann.findtext("별표서식파일링크", ""),
+                    }
+                    for ann in root.findall(".//별표단위")
+                ]
+            except Exception as exc:  # noqa: BLE001 — 별표 파싱 실패가 조문 반환을 막지 않게
+                annex_parse_error = type(exc).__name__
+                logger.warning("get_law_detail: MST=%s 별표 파싱 실패: %s", mst, annex_parse_error)
+                annexes = []
             result = {
                 "법령ID": root.findtext(".//법령ID", ""),
                 "법령일련번호": mst,
@@ -393,6 +412,8 @@ class LawApiClient:
                 "시행일자": root.findtext(".//시행일자", ""),
                 "공포일자": root.findtext(".//공포일자", ""),
                 "articles": articles,
+                "annexes": annexes,
+                "annex_parse_error": annex_parse_error,
             }
             if not articles and not result["법령명한글"]:
                 raise LawApiError(ERROR_NOT_FOUND, f"법령 상세 결과 없음: MST={mst}")

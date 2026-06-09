@@ -35,7 +35,7 @@ rule_sets:
     api_target: law
     api_id_type: MST
     api_doc_id: "285767"
-    unit_types: article  # MVP: 본문 조문만. law detail XML에서 별표 미파싱 (v0.3 보강 예정)
+    unit_types: both  # v0.2: 별표 1~7 검색·상세 지원 (get_law_detail 별표 파싱). 대용량 별표는 size-tiered 포인터
     query:
       - 국가연구개발혁신법 시행령
       - 혁신법 시행령
@@ -43,7 +43,7 @@ rule_sets:
     effective_date: "2026-05-06"
     source_url: https://www.law.go.kr/법령/국가연구개발혁신법시행령
     known_limitations:
-      - "본 시행령은 별표 1~7(연구개발비 지원기준·사용용도·등록범위·참여제한·제재부가금 등) 포함하나, 현재 search_provision은 본문 조문만 검색 — 별표 검색은 v0.3 (LawApiClient.get_law_detail에 annexes 파싱 추가) 후 가능"
+      - "별표 1~7(연구개발비 지원기준·사용용도·등록범위·참여제한·제재부가금 등) 검색·상세 조회 지원(v0.2). 소형 별표는 본문 전문 제공, 대용량 별표(별표2·7)는 분량상 본문 미수록(content_format=oversized_pointer) — 전문은 공식 링크·search_provision로 확인"
       - "가지조문(예: 제12조의2)은 현재 provision_id 포맷(JO + 숫자만)에서 표현 불가 — 검색·상세 조회 누락 가능. v0.3 contract major bump 예정"
 
   - id: innovation_rule

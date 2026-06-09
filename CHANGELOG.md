@@ -3,6 +3,30 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.2.0] - 2026-06-09
+
+**법령(시행령) 별표 추출 지원** — 그동안 행정규칙 별표만 가능하고 법령 별표는 미지원이던 한계를 해소. 국가연구개발혁신법 시행령 별표 1~7(정부지원 지원기준·연구개발비 사용용도·등록범위·참여제한·제재부가금 등 — 실제 답이 되는 수치가 담긴 부분)을 `search_provision`·`get_provision_detail`로 조회 가능. OpenAPI에 inline 텍스트로 존재함을 LIVE 확인했고, `get_law_detail`이 `<별표단위>`를 파싱하도록 확장(PDF/OCR 불필요). `contract_version` **0.4.0**(0.3.0 → minor bump — 응답 schema additive 필드 추가). 설계·구현은 `/goal-disc-out` 2라운드 3-AI 적대검증으로 수렴(blocking 3건 사전 차단). 변경은 도구 fetch·검색·상세 로직(요청별 격리)에 한정 — 부팅·HTTP transport·캐시·OC 미들웨어 비의존(outage 저위험).
+
+### Added
+
+- **법령 별표 파싱** (`live_api.get_law_detail`): `<별표단위>` → `별표번호/별표제목/별표내용/별표서식파일링크`. **fault-isolation** — 별표 파싱 실패가 기존 조문(articles) 반환 경로를 깨지 않도록 독립 try/except로 격리하고 실패를 `annex_parse_error`로 표면화.
+- **size-tiered `get_provision_detail`(별표)**: 직렬화 응답이 보수 예산(`_ANNEX_DETAIL_CHAR_BUDGET`=16,000 chars) 이내면 본문 전문(`content_format=plain_text_verbatim`); 초과(별표2 17,480자·별표7 17,949자)하면 본문 미수록 + 신규 필드 `content_available`·`content_format=oversized_pointer`·`is_complete`·`omitted_reason`·`omitted_char_count`·`required_action`·`verbatim_quote_allowed`. 본문 없는 서식파일 별표 → `external_file_only`. 삭제 별표 → `annex_status=deleted_stub`.
+- **별표 전용 줄단위 스니펫**(`_annex_snippet`): 공백 정렬 표의 행 중간 절단을 막기 위해 개행 경계로 자르고 "발췌·표 원문 확인" 마커 부착. 별표 파싱 실패는 `search_provision` errors에 `annex_parse_failed`로 노출.
+
+### Changed
+
+- `rule_sets.yaml` `innovation_decree.unit_types`: `article` → **`both`**(별표 검색·상세 활성화). known_limitations의 "별표 검색 v0.3 이후 가능" 문구를 v0.2 지원·size-tiered 안내로 정정.
+- `review_regulation` 프롬프트: "시행령 별표 미커버/fetch 불가" 문구 정정 + **`content_format`이 `plain_text_verbatim`이 아니면 그 content를 규정 원문으로 인용 금지·공식 원문 확인** 규칙 명문화. README 임베드 사본 동기화.
+- `docs/api_contract.md`: §5.5 신설 + "`get_provision_detail` 본문 길이 제한 없음" 문구 정정 + 0.4.0 이력. `contract_version` 0.3.0 → **0.4.0**.
+
+### Notes
+
+- 대용량 별표(별표2·7) 전문 제공은 **보수적으로 보류**(ChatGPT MCP 응답 한도 확인 불가 + 한국어 char↔token 비율 불확실) — LIVE 4경로 실측 통과 후 별도 최적화로 상향 검토.
+
+### Tests
+
+- 별표 신규 12건(`_build_annex_detail` 전문/포인터/외부파일/삭제stub·예산 준수, `_annex_snippet` 마커·줄경계·개행없는 장문 안전절단, 법령 별표 BP 조회, 파서 실패 표면화, both-empty external_file_only, 삭제 동사 오탐 방지). contract_version 핀 0.4.0 갱신. 전체 **168**.
+
 ## [0.1.10] - 2026-06-08
 
 `review_regulation` 프롬프트 출력 형식에 조건부 **8절 "절차 흐름"** 추가 — 검토 결과가 단계적 절차·조건 분기를 포함하면, 모든 MCP 클라이언트에서 렌더되는 텍스트 흐름(번호 단계+화살표, 단계별 근거 조문 병기)을 답변에 포함하도록 유도. `contract_version` **0.3.0 유지**(프롬프트 텍스트만 — 응답 schema·필드·검색/랭킹/fallback 알고리즘 불변). 변경은 `_REVIEW_PROMPT_TEMPLATE`와 README 임베드 사본 동기화에 한정 — 부팅·transport·health·캐시·도구 응답 비의존(outage 무위험). 설계는 `/disc` 3-AI 적대검증 수렴: 조건부 8절 신설 채택(7절 통합 기각 — 흐름은 의미상 독립 산출물이고 4·7절 확정 후 시각화해야 fabrication 위험↓), mermaid 미언급·텍스트 흐름만(미렌더 커넥터의 raw 노출 방지), 단계별 근거 조문 강제 + 규정에 없는 단계 임의 추가 금지(fabrication 가드). literal triple-backtick은 템플릿에 미포함(README 단일 코드펜스·동기화 테스트 보호).

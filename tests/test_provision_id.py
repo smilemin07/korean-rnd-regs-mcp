@@ -18,7 +18,8 @@ def test_contract_version_pinned():
     # publish 시점에 0.x.x 대역으로 reset (외부 사용자 0명). 0.2.0 = suggest_review_sources
     # 선택 keywords 입력·응답 additive 필드(keyword_source/returned/truncated/note)·candidates cap(거동 변경).
     # 0.3.0 = suggest_review_sources 응답에 overflow_candidates·overflow_truncated 필드 추가(v0.1.8) → minor bump.
-    assert CONTRACT_VERSION == "0.3.0"
+    # 0.4.0 = 법령 별표 지원 — get_provision_detail(annex) size-tiered 필드(content_format 등) 추가(v0.2.0) → minor bump.
+    assert CONTRACT_VERSION == "0.4.0"
 
 
 # === unit_label (v0.1.8 — overflow_candidates label용) ===
