@@ -3,6 +3,7 @@
 See docs/api_contract.md for endpoint mapping, ID conventions, and error codes.
 Sync API; wrap with asyncio.to_thread when called from FastMCP tools.
 """
+import html
 import logging
 import os
 import re
@@ -393,7 +394,13 @@ class LawApiClient:
                 annexes = [
                     {
                         "별표번호": ann.findtext("별표번호", ""),
-                        "별표제목": ann.findtext("별표제목", ""),
+                        # v0.2.1: 가지별표(별표 N의M)·별지/서식 구분 — BP id 충돌(오도달) 해소의 전제.
+                        "별표가지번호": ann.findtext("별표가지번호", ""),
+                        "별표구분": ann.findtext("별표구분", ""),
+                        # v0.2.1: 소스가 CDATA 안에 사전 이스케이프 텍스트를 담는 경우가 있어
+                        # (예: 삭제 별표 제목 '삭제 &lt;2016.1.22.&gt;') 제목만 단일 관문에서 unescape.
+                        # 본문·조문은 LIVE 실측상 실문자라 적용하지 않음 (이중 unescape 방지).
+                        "별표제목": html.unescape(ann.findtext("별표제목", "")),
                         "별표내용": ann.findtext("별표내용", ""),
                         "별표서식파일링크": ann.findtext("별표서식파일링크", ""),
                     }
@@ -467,7 +474,10 @@ class LawApiClient:
             annexes = [
                 {
                     "별표번호": ann.findtext("별표번호", ""),
-                    "별표제목": ann.findtext("별표제목", ""),
+                    # v0.2.1: 가지별표·별지/서식 구분 + 제목 unescape — law 파서와 동일 (단일 관문)
+                    "별표가지번호": ann.findtext("별표가지번호", ""),
+                    "별표구분": ann.findtext("별표구분", ""),
+                    "별표제목": html.unescape(ann.findtext("별표제목", "")),
                     "별표내용": ann.findtext("별표내용", ""),
                     "별표서식파일링크": ann.findtext("별표서식파일링크", ""),
                 }

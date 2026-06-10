@@ -3,6 +3,28 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.2.1] - 2026-06-10
+
+**별표 발견성·정확 선택 강화** — v0.2.0 첫 실사용에서 호스트 AI가 라벨 없는 `annexes_count` 정수만 보고 별표를 추측 선택(운으로 적중)한 갭을 데이터(제목 목록·의존조문 단서)와 프롬프트(동반조회)로 폐쇄. 동시에 LIVE 실측으로 발견한 **가지별표 미인식·별지/서식 BP 충돌(오도달)** 현존 결함을 수정. `contract_version` **0.5.0**(0.4.0 → minor bump). 설계는 17-에이전트 후보 분석 + `/disc` R1 + 6-에이전트 구현 실측 + `/goal-disc-out` R2 적대 재검증(blocking 0 수렴)으로 확정. 변경은 파서·응답 조립·프롬프트·동의어 사전에 한정 — 부팅·HTTP transport·캐시·OC 미들웨어 비의존(outage 저위험).
+
+### Added
+
+- **document-level 별표 목록**: `get_provision_detail`(unit_id 생략) 응답에 `annexes: [{provision_id, label, title, dependent_article_hints?, deleted?}]` — 호스트가 추측 대신 제목을 보고 BP를 선택. 본문 미포함(최악 문서 실측 +3.0k chars, 16k 예산 내). `annexes_count`는 종전 의미(전건 집계) 유지, 구성은 신규 `annexes_count_by_kind`(예: 별표 8·별지 22)로 표시.
+- **가지별표 인식**: OpenAPI `별표단위`의 `별표가지번호`·`별표구분` 파싱 추가. 가지별표는 6자리 BP id(`BP{번호4}{가지2}`, 예: `BP000102`=별표 1의2)로 검색·상세·목록에서 도달 가능(이전: 주소 자체가 없어 도달 불가 — 공익신고자 보호법 시행령 별표 1의2 등). 본별표의 기존 4자리 id는 불변(하위호환). `unit_label` 가지-aware("별표 1의2").
+- **별표 의존조문 단서**: 별표 제목의 조문 참조("(제19조제3항 관련)")를 전건 추출한 `dependent_article_hints`(복수 list, 미검증 단서 명시 note 동봉) — 별표 상세 + document-level 목록 항목. `review_regulation` 프롬프트 5단계에 동반조회(1-hop 한정·힌트 자체 인용 금지)·문서레벨 목록 선택(추측 BP 조회 금지) 지시 2건 추가(README 임베드 동기화).
+- **별표 파싱 실패 정직성**(law 한정): document-level에 `annexes_unavailable`·`annex_parse_error` 표면화 — `annexes_count=0`이 "별표 없음"으로 오인되는 거짓 신호 차단.
+- **현장어 동의어(단방향 alias)**: "정부출연연구비"·"정출연연구비"·"출연연구비" → 정식어(정부지원연구개발비 등) 확장. corpus-dead(LIVE 0건) 현장어라 역방향 미확장으로 16-term cap 보호(suggest 경로 전용, 응답 schema 무관).
+
+### Fixed
+
+- **별지·서식 BP 충돌(오도달) 버그**: `별표구분`이 '별지'·'서식'인 항목은 별표와 번호가 독립 채번이라 같은 BP id로 충돌(별표1·별지1 모두 BP0001) — 별지 검색 결과를 조회하면 동번호 별표가 반환되던 결함. 별지·서식을 검색·상세 매칭·목록에서 제외(별지만 매칭되던 질의는 결과 감소 가능 — 공식 원문은 `document_source_url`).
+- **BP 우연 첫-일치 제거**: `get_provision_detail`(BP)을 (번호, 가지) 엄격 매칭으로 — 없는 별표는 `not_found`(엉뚱한 별표 반환 차단).
+- **별표 제목 이중 이스케이프**: 소스가 CDATA 안에 사전 이스케이프 텍스트를 송신하는 경우(삭제 별표 제목 "삭제 &amp;lt;날짜&amp;gt;")를 live_api 파서 단일 관문에서 `html.unescape`. 삭제 별표 판정을 제목 기반("삭제" 정확 일치·"삭제 <" 시작)으로 보강 — admrul 삭제 별표("<삭 제>" 공백형)도 `deleted_stub`로 정합 분류.
+
+### Changed
+
+- `provision_id`: `_UNIT_PATTERN`을 BP 4자리(본별표)/6자리(가지별표) 한정으로 협소화 — 5자리 등 디코드 의미 미정의 입력은 `invalid_provision_id`(종전 "4자리 이상" 대비 형식적 변경, 서버 발급 이력은 4자리뿐이라 실영향 0). `docs/api_contract.md` §5.6 신설, `contract_version` 0.4.0 → **0.5.0**. 테스트 168 → **183**.
+
 ## [0.2.0] - 2026-06-09
 
 **법령(시행령) 별표 추출 지원** — 그동안 행정규칙 별표만 가능하고 법령 별표는 미지원이던 한계를 해소. 국가연구개발혁신법 시행령 별표 1~7(정부지원 지원기준·연구개발비 사용용도·등록범위·참여제한·제재부가금 등 — 실제 답이 되는 수치가 담긴 부분)을 `search_provision`·`get_provision_detail`로 조회 가능. OpenAPI에 inline 텍스트로 존재함을 LIVE 확인했고, `get_law_detail`이 `<별표단위>`를 파싱하도록 확장(PDF/OCR 불필요). `contract_version` **0.4.0**(0.3.0 → minor bump — 응답 schema additive 필드 추가). 설계·구현은 `/goal-disc-out` 2라운드 3-AI 적대검증으로 수렴(blocking 3건 사전 차단). 변경은 도구 fetch·검색·상세 로직(요청별 격리)에 한정 — 부팅·HTTP transport·캐시·OC 미들웨어 비의존(outage 저위험).

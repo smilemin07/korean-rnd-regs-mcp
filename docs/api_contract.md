@@ -1,6 +1,6 @@
 # korean-rnd-regs-mcp API Contract
 
-- contract_version: **0.4.0** (0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 minor bump, §6 변경 이력 참조)
+- contract_version: **0.5.0** (0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 minor bump, §6 변경 이력 참조)
 - 작성일: 2026-05-24 (0.2.0 개정: 2026-06-04, 0.3.0 개정: 2026-06-07, 0.4.0 개정: 2026-06-09)
 - semver 정책: 0.x.x 대역은 unstable signal — minor bump(0.1.0 → 0.2.0)도 breaking change 허용. v0.2 가지조문 확장 시 0.2.0 minor bump로 자연스럽게 처리 (1.0.x 유지 시 2.0 major bump 필요했음)
 - 변경 정책: 본 문서 변경은 외부 사용자 코드·Claude Desktop 캐시·README 예시를 깰 수 있으므로 0.1.0 publish 이후 신중히 (§6 참조)
@@ -68,7 +68,7 @@
 |---|---|---|
 | `doc_type` | `law` 또는 `admrul` | 소문자, MVP에서 두 값만 (확장 시 §6 minor bump) |
 | `doc_id` | 숫자열 문자열 | doc_type=law → `법령일련번호`(MST); doc_type=admrul → `행정규칙일련번호`(ID) |
-| `unit_id` (선택) | `JO` + 4자리 이상 숫자(조문, 예: `JO0003`) **또는** `BP` + 4자리 이상 숫자(별표, 예: `BP0001`) | 생략 시 document-level reference |
+| `unit_id` (선택) | `JO` + 4자리 이상 숫자(조문, 예: `JO0003`) **또는** `BP` + 4자리 숫자(본별표, 예: `BP0001`=별표 1) **또는** `BP` + 6자리 숫자(가지별표 — 번호 4자리 + 가지 2자리, 예: `BP000102`=별표 1의2; 0.5.0) | 생략 시 document-level reference. BP 5자리 등 그 외 길이는 디코드 의미 미정의로 `invalid_provision_id` (0.5.0 협소화 — 종전 "4자리 이상"에서 변경, 서버 발급 이력은 4자리뿐이라 실영향 0) |
 
 **JO vs BP**: LIVE 검증에서 일부 행정규칙(예: "국가연구개발사업 연구개발비 사용 기준" ID=2100000278740)은 조문 0개 + 별표 30개로 구성됨을 발견. 따라서 별표 단위 reference가 필요. `unit_type(unit_id)` 헬퍼로 article/annex/document 판정.
 
@@ -81,6 +81,7 @@ admrul:2100000023234             # 행정규칙(ID=2100000023234) 전체
 admrul:2100000023234:JO0007      # 동 행정규칙 제7조
 admrul:2100000278740:BP0001      # "연구개발비 사용 기준" 별표 1 (기본사업연구개발비계상기준)
 admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
+law:264451:BP000102              # 공익신고자 보호법 시행령 별표 1의2 (가지별표, 0.5.0)
 ```
 
 ### 3.3 doc_type 선행 강제 이유
@@ -91,7 +92,7 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 ### 3.4 구현
 
 - 모듈: `src/korean_rnd_regs_mcp/provision_id.py`
-- 공개 API: `parse(str) -> ProvisionId`, `build(doc_type, doc_id, unit_id=None) -> str`, `unit_type(unit_id) -> str` (article/annex/document), `ProvisionId` dataclass, `InvalidProvisionId` 예외, `CONTRACT_VERSION` 상수.
+- 공개 API: `parse(str) -> ProvisionId`, `build(doc_type, doc_id, unit_id=None) -> str`, `unit_type(unit_id) -> str` (article/annex/document), `unit_label(unit_id) -> str` (제N조/별표 N/별표 N의M — 0.5.0 가지-aware), `ProvisionId` dataclass, `InvalidProvisionId` 예외, `CONTRACT_VERSION` 상수.
 - 테스트: `tests/test_provision_id.py` (정상 조문 3건 + 별표 2건 + malformed 6건 + helper 4건 + round-trip 3건).
 
 ## 4. 표준 오류 코드 + envelope
@@ -110,7 +111,7 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
     },
     ...
   ],
-  "contract_version": "0.4.0",
+  "contract_version": "0.5.0",
   "disclaimer": "본 결과는 검토 후보일 뿐 법률 판단이 아닙니다. 출처를 직접 확인하세요."
 }
 ```
@@ -127,6 +128,8 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 | `not_found` | 검색 결과 0건 또는 상세조회 대상 없음 | API 응답에 항목 없음 |
 | `invalid_provision_id` | provision_id 포맷 위반 | `parse()` 호출 시 `InvalidProvisionId` 발생 |
 | `invalid_query` | search_provision의 query가 공백 제외 2자 미만 | 반영 — 무차별 매칭 방어 |
+| `annex_parse_failed` | 법령 별표 파싱 실패 (search_provision, 0.4.0) | fault-isolated — 조문 검색은 정상, errors에 rule_set_id와 함께 노출 |
+| `annex_unavailable_parse_failed` | 별표 파싱 실패로 BP 상세조회 불가 (get_provision_detail, 0.4.0) | not_found 대신 정직하게 표면화 — 공식 원문 확인 안내 |
 
 ### 4.3 보안 정책
 
@@ -179,9 +182,20 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 - 한도값 근거: MCP 응답 토큰 hard limit(Claude Code 25,000) 회피용 보수 char proxy. 웹/Desktop은 더 클 수 있으나(약 150k chars 단서) ChatGPT 한도 확인 불가 → 4경로 최저선 보수 적용. LIVE 4경로 실측(별표2·7) 통과 후 상향은 별도 최적화로 분리.
 - 기존 필드 삭제·이름변경 없음(additive). 응답 schema에 신규 필드 추가 + 거동(법령 별표 노출) → contract_version **0.4.0**(0.3.0 → 0.4.0).
 
+### 5.6 별표 발견성·정확 선택 강화 (0.5.0 minor — 응답 additive 필드 + BP 인코딩 확장 + 거동)
+
+- **document-level `annexes` 목록** (additive): `get_provision_detail`(unit_id 생략) 응답에 별표 목록 `annexes: [{provision_id, label, title, dependent_article_hints?, deleted?}]` 추가 — 호스트가 별표 번호를 추측하지 않고 제목을 보고 BP를 선택. **`별표구분`=='별표'인 항목만** 수록(별지·서식 제외 — 아래 거동 변경 참조), 본문 미포함(제목만). `annexes_count`는 종전 의미(별표단위 전건 — 별표·별지·서식 포함) 유지(하위호환), 전건 구성은 신규 `annexes_count_by_kind`(예: `{"별표": 8, "별지": 22}`)로 표시 — count(30)와 목록 길이(8)의 차이를 응답 내 산술로 해소.
+- **가지별표 BP 인코딩** (0.5.0): OpenAPI `별표단위`의 `별표가지번호` 파싱 추가. 가지 00(본별표)은 종전 4자리 `BP{번호4}` **불변**, 가지 != 00은 6자리 `BP{번호4}{가지2}`(예: `BP000102`=별표 1의2). `_UNIT_PATTERN`을 BP 4/6자리 한정으로 **협소화**(5자리 등은 `invalid_provision_id` — 종전 "4자리 이상" 대비 형식적 변경이나 서버 발급 이력은 4자리뿐). `unit_label` 가지-aware("별표 1의2").
+- **별지·서식 BP 노출 제외** (거동 변경 = 오도달 버그 수정): `별표구분`이 '별지'·'서식'인 항목은 별표와 번호가 독립 채번이라 BP id가 충돌(별표1·별지1 모두 BP0001) — 종전에는 별지가 검색에 노출되고 조회 시 동번호 별표가 반환되는 **오도달 결함**. 0.5.0부터 search_provision·get_provision_detail(BP)·document-level 목록에서 별지·서식 제외. 별지·서식만 매칭되던 질의는 결과가 줄거나 0건일 수 있음(공식 원문은 `document_source_url`).
+- **(번호,가지) 엄격 매칭** (거동 변경): get_provision_detail(BP)이 종전 문서순 첫 일치에서 (번호, 가지) 정확 일치로 변경 — 해당 별표가 없으면 `not_found`(우연 반환 제거).
+- **`dependent_article_hints`** (additive): 별표 상세·document-level 목록 항목에 별표 제목의 조문 참조(예: "(제19조제3항 관련)")를 전건 추출한 문자열 list. **제목 기반 미검증 단서** — provision_id로 변환하지 않으며, 호스트는 힌트 자체를 인용하지 말고 해당 조문을 직접 조회해야 함(`dependent_article_hints_note` 동봉, 프롬프트 5단계에 동반조회 1-hop 지시).
+- **별표 파싱 실패 정직성** (additive, law 한정): law 별표 파싱 실패 시 document-level에 `annexes_unavailable: true`·`annex_parse_error` 표면화 — `annexes_count=0`이 "별표 없음"으로 오인되는 거짓 신호 차단. admrul 경로에는 fault-isolation이 없어 본 플래그가 발화하지 않음(law 전용).
+- **별표 제목 정규화**: 소스가 CDATA 안에 사전 이스케이프 텍스트를 송신하는 경우(삭제 별표 제목 '삭제 &lt;날짜&gt;')를 live_api 파서 단일 관문에서 `html.unescape` — 응답 전 경로(검색·상세·목록)의 제목 표기 일원화. 삭제 별표는 제목 기반 판정(`'삭제'` 정확 일치 또는 `'삭제 <'` 시작)으로 목록 `deleted: true` + 상세 `annex_status=deleted_stub` 정합.
+- 동기: v0.2.0 첫 실사용에서 호스트가 라벨 없는 `annexes_count` 정수만 보고 별표를 추측 선택(운으로 적중)한 갭과, 가지별표(공익신고자 보호법 시행령 별표 1의2 등)가 주소 자체가 없어 도달 불가하던 결함을 함께 해소. 응답 schema 신규 필드 + BP 인코딩 확장 + 오도달 버그 수정 거동 변경 → contract_version **0.5.0**(0.4.0 → 0.5.0).
+
 ## 6. contract_version 관리
 
-- 본 문서 contract_version: **0.4.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 minor)
+- 본 문서 contract_version: **0.5.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 minor)
 - 코드 상수: `korean_rnd_regs_mcp.provision_id.CONTRACT_VERSION`
 - 변경 정책 (0.x.x — unstable signal):
 
@@ -203,5 +217,6 @@ admrul:2100000278740:BP0030      # 동 행정규칙 별표 30
 | 0.3.0 (유지) | 2026-06-07 | 패키지 **0.1.9** 키워드 위임 강제 신호. **contract_version bump 없음** — 응답 schema·필드·shape 불변(`note` 텍스트 변경 + `keywords` description·`review_regulation` 프롬프트 텍스트만). `note`를 `fallback`·`client+fallback`·무키워드 early-return 세 경로에 **`[degraded]` 마커 + 명령형 재호출 지시**로 강화(§5.4), `candidates`는 보류 없이 반환(M2 soft-gate). 관련 조문 추출 알고리즘(v0.1.7)·fallback 추출기 불변 → 0.3.0 유지 |
 | 0.3.0 (유지) | 2026-06-08 | 패키지 **0.1.10** 절차 흐름 시각화. **contract_version bump 없음** — 응답 schema·필드·shape·검색/랭킹/fallback 불변. `review_regulation` 프롬프트(`_REVIEW_PROMPT_TEMPLATE`) 출력 형식에 조건부 8절 "절차 흐름" 추가(프롬프트 텍스트만, 도구 응답 무관). README 임베드 사본 동기화 → 0.3.0 유지 |
 | 0.4.0 | 2026-06-09 | **minor bump** (패키지 **0.2.0**). 법령(시행령) 별표 지원 — `get_law_detail` 별표 파싱(fault-isolated, `annex_parse_error`), `innovation_decree.unit_types` `article`→`both`, `search_provision`/`get_provision_detail`에서 혁신법 시행령 별표 1~7 노출(§5.5). `get_provision_detail(annex)` **size-tiered**: 신규 필드 `content_format`·`content_available`·`verbatim_quote_allowed`·`is_complete`·`omitted_reason`·`omitted_char_count`·`required_action`·`annex_status` 추가, 대용량 별표(별표2·7)는 본문 미수록 포인터, 서식파일 별표는 external_file_only. 별표 스니펫 줄단위 절단. `review_regulation` 프롬프트·README 임베드 사본·manifest known_limitations 동기화(별표 미지원 문구 정정). 기존 필드 삭제·이름변경 없음(additive) → minor bump |
+| 0.5.0 | 2026-06-10 | **minor bump** (패키지 **0.2.1**). 별표 발견성·정확 선택 강화(§5.6) — document-level `annexes` 목록·`annexes_count_by_kind`·`annexes_unavailable`·`dependent_article_hints`(+note) additive 추가; BP 6자리 가지별표 인코딩(`BP{번호4}{가지2}`) + `_UNIT_PATTERN` 4/6자리 협소화; **별지·서식 BP 노출 제외**(별표↔별지 번호 충돌로 인한 오도달 버그 수정, 별지만 매칭되던 검색은 결과 감소 가능); get_provision_detail(BP) (번호,가지) 엄격 매칭(우연 첫-일치 제거); 별표 제목 unescape(단일 관문)·제목 기반 deleted 판정; suggest 단방향 현장어 alias(응답 schema 무관); `review_regulation` 프롬프트 5단계에 의존조문 동반조회(1-hop)·문서레벨 목록 선택 지시 + README 동기화 |
 
 - 도구 응답에 `contract_version` 필드 포함 권장 (search_provision·get_provision_detail·suggest_review_sources). 클라이언트가 호환 여부 확인 가능.

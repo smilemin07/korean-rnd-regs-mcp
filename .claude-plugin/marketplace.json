@@ -13,7 +13,7 @@
         "repo": "smilemin07/korean-rnd-regs-mcp"
       },
       "description": "국가연구개발혁신법·시행령·핵심 행정규칙·국토교통 R&D 관련 규정 검색·검토용 MCP 서버. 17개 규정 조문·별표 자연어 검색 + 상세 조회.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "Andy Kim"
       },

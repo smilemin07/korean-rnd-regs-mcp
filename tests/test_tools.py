@@ -539,7 +539,7 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
     """v0.1.9: note 텍스트 변경만 — 스키마 무변, contract_version 0.3.0 유지."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.4.0"
+    assert result["contract_version"] == "0.5.0"
 
 
 # === B축: 출력 크기 상한 (v0.1.5) ===
@@ -850,7 +850,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.4.0"
+    assert result["contract_version"] == "0.5.0"
 
 
 # === _build_article_content  ===
@@ -1718,3 +1718,219 @@ def test_build_annex_detail_active_annex_with_delete_verb_not_flagged():
     resp = main_module._build_annex_detail("law:285767:BP0004", "BP0004", _fake_rs(), ann, "20260506")
     assert resp.get("annex_status") != "deleted_stub"
     assert resp["content_format"] == "plain_text_verbatim"
+
+
+# === v0.2.1: 별표 발견성·정확 선택 강화 (가지별표·별지 구분·doc-level 목록·hints·alias) ===
+
+
+def test_annex_unit_id_and_kind_helpers():
+    """가지 00·키 부재 → 기존 4자리 BP 불변(하위호환), 가지 != 0 → 6자리. 별지·서식 노출 제외."""
+    assert main_module._annex_unit_id({"별표번호": "1", "별표가지번호": "00"}) == "BP0001"
+    assert main_module._annex_unit_id({"별표번호": "1"}) == "BP0001"  # mock·키 부재 호환
+    assert main_module._annex_unit_id({"별표번호": "1", "별표가지번호": "02"}) == "BP000102"
+    assert main_module._annex_unit_id({"별표번호": "비고"}) is None
+    assert main_module._is_annex_kind({"별표구분": "별표"}) is True
+    assert main_module._is_annex_kind({}) is True  # 키 부재(mock)는 별표 간주
+    assert main_module._is_annex_kind({"별표구분": "별지"}) is False
+    assert main_module._is_annex_kind({"별표구분": "서식"}) is False
+
+
+def test_dependent_article_hints_extraction():
+    """B: 제목의 조문 참조 전건 추출 — 가지조문·항·다중 참조, 무참조는 빈 list."""
+    f = main_module._dependent_article_hints
+    assert f("정부지원연구개발비의 지원기준(제19조제3항 관련)") == ["제19조제3항"]
+    assert f("이행강제금의 부과기준(제17조의3 관련)") == ["제17조의3"]
+    assert f("기준(제59조제1항 및 제60조제2항 관련)") == ["제59조제1항", "제60조제2항"]
+    assert f("삭제 <2016.1.22.>") == []
+
+
+def test_is_deleted_annex_title():
+    """deleted 제목 술어 — law형 '삭제 <날짜>'·admrul형 '삭제' 한정, '삭제○○' 활성 제목 오탐 방지(R2)."""
+    f = main_module._is_deleted_annex_title
+    assert f("삭제") is True
+    assert f("삭제 <2016.1.22.>") is True
+    assert f("삭제기준(제30조 관련)") is False
+    assert f("과태료의 부과기준(제30조 관련)") is False
+
+
+def test_get_provision_detail_branch_annex_strict_match(mock_client):
+    """D: 동일 번호의 삭제 본별표(가지00)+활성 가지별표(가지02) 공존 —
+    BP0001=deleted_stub, BP000102=활성 본문 (엄격 매칭, 첫-일치 오도달 제거)."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "annexes": [
+            {"별표번호": "1", "별표가지번호": "00", "별표구분": "별표",
+             "별표제목": "삭제 <2016.1.22.>", "별표내용": "[별표 1] 삭제 <2016.1.22.>",
+             "별표서식파일링크": ""},
+            {"별표번호": "1", "별표가지번호": "02", "별표구분": "별표",
+             "별표제목": "이행강제금의 부과기준(제17조의3 관련)",
+             "별표내용": "이행강제금 부과기준 본문", "별표서식파일링크": ""},
+        ],
+        "annex_parse_error": None,
+    }
+    stub = asyncio.run(get_provision_detail("law:285767:BP0001"))
+    assert stub.get("annex_status") == "deleted_stub"
+    active = asyncio.run(get_provision_detail("law:285767:BP000102"))
+    assert active.get("annex_status") != "deleted_stub"
+    assert "이행강제금" in active["content"]
+    assert active["dependent_article_hints"] == ["제17조의3"]
+    assert "미검증" in active["dependent_article_hints_note"]
+
+
+def test_get_provision_detail_bp_ignores_forms(mock_client):
+    """D: 별지(구분=별지)는 BP 매칭 제외 — 동번호 별표가 반환됨(오도달 버그 수정)."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "annexes": [
+            {"별표번호": "1", "별표가지번호": "00", "별표구분": "별지",
+             "별표제목": "신청서", "별표내용": "별지 서식 본문", "별표서식파일링크": ""},
+            {"별표번호": "1", "별표가지번호": "00", "별표구분": "별표",
+             "별표제목": "지원기준(제19조 관련)", "별표내용": "지원 비율 75",
+             "별표서식파일링크": ""},
+        ],
+        "annex_parse_error": None,
+    }
+    result = asyncio.run(get_provision_detail("law:285767:BP0001"))
+    assert "지원 비율" in result["content"]
+
+
+def test_search_provision_emits_branch_annex_and_skips_forms(mock_client):
+    """D: search — 가지별표는 6자리 BP id로 emit, 별지·서식은 미노출."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "annexes": [
+            {"별표번호": "1", "별표가지번호": "02", "별표구분": "별표",
+             "별표제목": "특수기준", "별표내용": "특별평가 특수기준 본문",
+             "별표서식파일링크": ""},
+            {"별표번호": "3", "별표가지번호": "00", "별표구분": "별지",
+             "별표제목": "특수신청서식", "별표내용": "특별평가 신청 서식 본문",
+             "별표서식파일링크": ""},
+        ],
+        "annex_parse_error": None,
+    }
+    result = asyncio.run(search_provision("특별평가"))
+    annex_results = [r for r in result["results"] if r.get("unit_type") == "annex"]
+    annex_ids = [r["provision_id"] for r in annex_results]
+    assert any(pid.endswith("BP000102") for pid in annex_ids)
+    assert not any("신청서식" in r.get("title", "") for r in annex_results)
+
+
+def test_doc_level_annexes_listing(mock_client):
+    """A: document-level — annexes 목록(별표 한정·본문 미포함)·count_by_kind·deleted·가지 id·중복 0."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "annexes": [
+            {"별표번호": "1", "별표가지번호": "00", "별표구분": "별표",
+             "별표제목": "삭제 <2016.1.22.>", "별표내용": "[별표 1] 삭제 <2016.1.22.>",
+             "별표서식파일링크": ""},
+            {"별표번호": "1", "별표가지번호": "02", "별표구분": "별표",
+             "별표제목": "이행강제금의 부과기준(제17조의3 관련)", "별표내용": "본문",
+             "별표서식파일링크": ""},
+            {"별표번호": "1", "별표가지번호": "00", "별표구분": "별지",
+             "별표제목": "신청서", "별표내용": "서식", "별표서식파일링크": ""},
+        ],
+        "annex_parse_error": None,
+    }
+    result = asyncio.run(get_provision_detail("law:285767"))
+    assert result["annexes_count"] == 3  # 전건 집계 — 하위호환 유지
+    assert result["annexes_count_by_kind"] == {"별표": 2, "별지": 1}
+    listed = result["annexes"]
+    assert [a["provision_id"] for a in listed] == ["law:285767:BP0001", "law:285767:BP000102"]
+    assert listed[0]["deleted"] is True
+    assert listed[1]["label"] == "별표 1의2"
+    assert listed[1]["dependent_article_hints"] == ["제17조의3"]
+    assert all("content" not in a and "별표내용" not in a for a in listed)  # 본문 미포함
+
+
+def test_doc_level_annex_parse_error_honesty(mock_client):
+    """G: law 별표 파싱 실패 시 doc-level이 annexes_count=0으로 '별표 없음' 위장하지 않음."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base, "annexes": [], "annex_parse_error": "ParseError",
+    }
+    result = asyncio.run(get_provision_detail("law:285767"))
+    assert result["annexes_unavailable"] is True
+    assert result["annex_parse_error"] == "ParseError"
+    assert any("별표 파싱 실패" in w for w in result["warnings"])
+
+
+def test_build_annex_detail_admrul_deleted_title_flagged():
+    """admrul형 삭제 별표(content '<삭 제>' 공백형·제목 '삭제') → 제목 보조 판정으로 deleted_stub
+    (doc-level deleted 표시와 상세 분류 정합 — content 술어 단독으로는 전건 미탐)."""
+    ann = {"별표번호": "4", "별표제목": "삭제",
+           "별표내용": "■ 국가연구개발사업 연구개발비 사용 기준 [별표 4]  \n\n\n\n<삭 제>",
+           "별표서식파일링크": ""}
+    resp = main_module._build_annex_detail(
+        "admrul:2100000278740:BP0004", "BP0004", _fake_rs(), ann, "20260506")
+    assert resp.get("annex_status") == "deleted_stub"
+
+
+def test_build_search_terms_alias_one_way():
+    """F: 현장어 alias 입력 → 정식어 확장 / 정식어 입력 → alias 미확장(역방향 차단, cap 보호)."""
+    pairs = main_module._build_search_terms(["정부출연연구비"])
+    terms = [t for t, _ in pairs]
+    assert "정부지원연구개발비" in terms
+    assert "출연금" in terms
+    assert "정부출연금" in terms
+    assert {o for _, o in pairs} == {"정부출연연구비"}
+    reverse_terms = [t for t, _ in main_module._build_search_terms(["정부지원연구개발비"])]
+    for alias in ("정부출연연구비", "정출연연구비", "출연연구비"):
+        assert alias not in reverse_terms
+
+
+def test_law_detail_annex_title_unescaped_and_branch_captured(monkeypatch):
+    """E+D(live_api): CDATA 사전 이스케이프 제목 unescape(단일 관문) + 가지번호·구분 캡처 +
+    bare '&'(R&D) 과해소 없음. 네트워크 없이 로컬 XML."""
+    import requests as requests_mod
+    from korean_rnd_regs_mcp.live_api import LawApiClient
+
+    fake_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<법령>
+  <기본정보>
+    <법령ID>9999</법령ID>
+    <법령명_한글>테스트 시행령</법령명_한글>
+    <시행일자>20260101</시행일자>
+  </기본정보>
+  <조문>
+    <조문단위>
+      <조문번호>1</조문번호>
+      <조문여부>조문</조문여부>
+      <조문제목>목적</조문제목>
+      <조문내용>제1조(목적) 본문</조문내용>
+    </조문단위>
+  </조문>
+  <별표>
+    <별표단위>
+      <별표번호>0001</별표번호>
+      <별표가지번호>02</별표가지번호>
+      <별표구분>별표</별표구분>
+      <별표제목><![CDATA[삭제 &lt;2021. 1. 19.&gt;]]></별표제목>
+      <별표내용><![CDATA[[별표 1의2] 삭제 <2021. 1. 19.>]]></별표내용>
+    </별표단위>
+    <별표단위>
+      <별표번호>0002</별표번호>
+      <별표가지번호>00</별표가지번호>
+      <별표구분>별표</별표구분>
+      <별표제목><![CDATA[R&D 수당 기준(제25조 관련)]]></별표제목>
+      <별표내용>본문</별표내용>
+    </별표단위>
+  </별표>
+</법령>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_xml
+        headers = {"Content-Type": "application/xml"}
+
+    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    result = client.get_law_detail("9999")
+    ann1, ann2 = result["annexes"]
+    assert ann1["별표제목"] == "삭제 <2021. 1. 19.>"  # 이중 이스케이프 해소
+    assert ann1["별표가지번호"] == "02"
+    assert ann1["별표구분"] == "별표"
+    assert ann2["별표제목"] == "R&D 수당 기준(제25조 관련)"  # bare '&' 불변

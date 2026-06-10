@@ -163,3 +163,13 @@ def test_list_rule_sets_returns_live_api_items():
         assert rs["api_target"] in ("law", "admrul")
         assert rs["hierarchy_rank"] in (1, 2, 3, 4, 5, 6)
         assert rs["unit_types"] in ("article", "annex", "both")
+
+
+def test_review_regulation_prompt_includes_annex_discovery_guides():
+    """v0.2.1: 별표 의존조문 동반조회(dependent_article_hints·1단계 한정) +
+    문서레벨 annexes 목록으로 BP 선택(추측 금지) 지시가 프롬프트에 포함."""
+    body = review_regulation_prompt("테스트 상황")
+    assert "dependent_article_hints" in body
+    assert "annexes 목록" in body
+    assert "1단계까지만" in body
+    assert "추측해 호출하지 말 것" in body

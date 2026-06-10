@@ -96,6 +96,8 @@
 5. 참조 조항 추적
    - 조문이 "제X조에 따라", "시행령 제X조", "별표", "고시로 정하는" 등을 참조하면 해당 조항도 조회할 것.
    - 별표(BP)는 행정규칙·시행령 모두 get_provision_detail로 조회 가능하다(v0.2). 소형 별표는 본문 전문이 오지만, 대용량 별표는 content_format이 oversized_pointer/external_file_only로 본문이 미수록될 수 있으니 위 4단계의 content_format 규칙(plain_text_verbatim이 아니면 인용 금지)을 따를 것.
+   - 별표 상세 응답에 dependent_article_hints가 있으면, 힌트에 적힌 조문을 같은 문서에서 get_provision_detail로 함께 조회할 것. 힌트는 별표 제목에서 뽑은 미검증 단서이므로 힌트 자체를 근거로 인용하지 말고, 조회된 조문 원문만 근거로 삼을 것. 이 동반 조회는 힌트에 적힌 조문 1단계까지만 자동 수행하고, 그 조문에서 이어지는 참조는 본 5단계의 일반 규칙에 따를 것.
+   - 별표 번호나 가지번호가 불확실하면 BP provision_id를 추측해 호출하지 말 것. 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 annexes 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.
    - 참조 조항 확인 없이 결론을 확정하지 말 것.
 
 6. 조문 요건 해석, 사실관계 분석, 상위 규정 우선 원칙
@@ -621,7 +623,7 @@ korean-rnd-regs-mcp 서버의 health 테스트를 진행해줘.
 
 ---
 
-## 지원 규정 (v0.2.0, 총 17개)
+## 지원 규정 (v0.2.1, 총 17개)
 
 Tier 1 — 핵심 법률·시행령·시행규칙 (3개):
 
@@ -729,7 +731,7 @@ pip install -e ".[dev]"
 
 ```bash
 pytest
-# 147 passed (mock 기반, 네트워크 미사용)
+# 183 passed (mock 기반, 네트워크 미사용)
 ```
 
 ### 빌드
@@ -782,6 +784,11 @@ LAW_API_KEY는 국가법령정보센터 OpenAPI에서 무료로 발급받는 공
 이슈·PR 환영합니다: https://github.com/smilemin07/korean-rnd-regs-mcp/issues
 
 ## Changelog
+
+### 2026. 6. 10. : v0.2.1
+
+- 별표를 정확하게 찾도록 개선 — 문서 조회 시 별표 제목 목록 제공(추측 선택 방지), 별표가 의존하는 조문 함께 조회 유도
+- 가지별표(예: 별표 1의2) 조회 지원 + 별지·서식이 별표로 잘못 조회되던 문제 수정
 
 ### 2026. 6. 9. : v0.2.0
 
