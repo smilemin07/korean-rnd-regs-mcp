@@ -676,7 +676,7 @@ Supplementary — 신고·포상금·부패행위·청탁금지·공익신고자
 | `health`                 | 서비스 상태·API 키 설정 여부 확인                                                                             |
 | `list_rule_sets`         | 등록된 17개 규정 목록·hierarchy rank·문서 ID 조회                                                            |
 | `search_provision`       | 조문·별표 본문에서 키워드 검색 → snippet + provision_id 후보 list                                            |
-| `get_provision_detail`   | provision_id로 단일 조문/별표 본문 verbatim 조회 (LLM 임의 부제 발명 방어 metadata 포함)                       |
+| `get_provision_detail`   | provision_id로 단일 조문/별표 본문 verbatim 조회 (LLM 임의 부제 발명 방어 metadata 포함). 문서 단위 조회 시 별표 제목 목록을 함께 제공 — AI가 별표를 추측하지 않고 제목을 보고 선택 (v0.2.1) |
 | `suggest_review_sources` | 자연어 질문 → 키워드 추출 → 검토할 규정·조문 후보 + 추천 검토 순서 (법률 → 시행령 → 시행규칙 → 행정규칙) |
 
 **1개 MCP prompt**:
@@ -787,8 +787,8 @@ LAW_API_KEY는 국가법령정보센터 OpenAPI에서 무료로 발급받는 공
 
 ### 2026. 6. 10. : v0.2.1
 
-- 별표를 정확하게 찾도록 개선 — 문서 조회 시 별표 제목 목록 제공(추측 선택 방지), 별표가 의존하는 조문 함께 조회 유도
-- 가지별표(예: 별표 1의2) 조회 지원 + 별지·서식이 별표로 잘못 조회되던 문제 수정
+- 조문의 상세 내용이 별표에 담겨 있는 경우 → AI가 별표를 조회하도록 유도하는 장치 추가
+- 가지별표(예: 별표 1의2) 조회 지원 등
 
 ### 2026. 6. 9. : v0.2.0
 
