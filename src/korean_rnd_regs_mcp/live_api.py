@@ -123,7 +123,8 @@ def _request_with_retry(
                 if response.status_code in (401, 403):
                     raise LawApiError(
                         ERROR_AUTH_FAILED,
-                        f"HTTP {response.status_code} — LAW_API_KEY 확인 필요",
+                        f"HTTP {response.status_code} — LAW_API_KEY 확인 필요. "
+                        "원격(HTTP) 사용 시 커넥터 URL의 ?oc= 값이 올바른지 확인",
                     )
                 raise LawApiError(
                     ERROR_PARSE_FAILED,
@@ -223,10 +224,10 @@ def _parse_flat_article(elem: ET.Element) -> Optional[dict]:
     wrapper 없이 `<조문내용>` element가 root 직속으로 평면 배치됨. 이 schema를 fallback으로 지원.
 
     가지조문(제15조의2 등) silent skip.
-    - 현재 contract 0.1.0 provision_id는 JO + 숫자만 지원 — 가지번호 표현 불가
+    - 현행 provision_id의 JO unit_id는 숫자만 지원 — 조문 가지번호 표현 불가(가지별표 BP는 v0.2.1 지원)
     - 정규식이 가지조문 매칭하면 본 조문(제15조)과 동일 조문번호=15로 collision 발생
     - 예: rnd_funding_standard에 제10조의2/제11조의2/제15조의2/제16조의2/제17조의2 등 8건 LIVE 발견
-    - skip + logger.warning으로 누락 통지. v0.2 prefix 확장 시 자동 활성화 예정.
+    - skip + logger.warning으로 누락 통지. v0.3 JO prefix 확장 시 자동 활성화 예정.
     """
     text = (elem.text or "").strip()
     if not text:
@@ -240,9 +241,9 @@ def _parse_flat_article(elem: ET.Element) -> Optional[dict]:
         return None
     no, gaji, title, _body = m.groups()
     if gaji:
-        # 가지조문 — contract 0.1.0 미지원, skip하여 collision 방지
+        # 가지조문 — JO 가지번호 미지원(현행 contract 동일), skip하여 collision 방지
         logger.warning(
-            "flat schema: 가지조문 제%s조의%s(%s) skip — contract 0.1.0 미지원 (v0.2 deferred)",
+            "flat schema: 가지조문 제%s조의%s(%s) skip — JO 가지번호 미지원 (v0.3 prefix 확장 예정)",
             no, gaji, title,
         )
         return None
@@ -291,7 +292,11 @@ class LawApiClient:
 
     def _require_key(self) -> None:
         if not self.api_key:
-            raise LawApiError(ERROR_AUTH_FAILED, "LAW_API_KEY가 설정되지 않음")
+            raise LawApiError(
+                ERROR_AUTH_FAILED,
+                "LAW_API_KEY가 설정되지 않음 — 로컬(stdio)은 .env의 LAW_API_KEY, "
+                "원격(HTTP)은 커넥터 URL의 ?oc= 값 설정 확인",
+            )
 
     def _check_caches(self, cache_key: tuple, success_cache: TTLCache) -> Any:
         if cache_key in self._failure_cache:
@@ -369,8 +374,8 @@ class LawApiClient:
             # LIVE 검증: <조문여부>=전문 element는 장/절/관 wrapper(예: "제1장 총칙")로
             # 실제 조문이 아님. 동일 조문번호로 wrapper + 실제 조문이 함께 등장하여 (혁신법·시행령 7건 collision)
             # JO0001 검색·상세조회 시 wrapper만 반환되는 silent bug 발생. 조문여부="조문"만 articles에 포함.
-            # 가지조문(<조문가지번호> 채워진 element)도 skip — 현재 contract 0.1.0
-            # provision_id가 JO + 숫자만 지원하므로 가지조문은 본 조문과 collision (예: 제15조 ↔ 제15조의2).
+            # 가지조문(<조문가지번호> 채워진 element)도 skip — 현행 contract에서도
+            # JO unit_id가 숫자만 지원하므로 가지조문은 본 조문과 collision (예: 제15조 ↔ 제15조의2).
             articles = [
                 {
                     "조문번호": a.findtext("조문번호", ""),

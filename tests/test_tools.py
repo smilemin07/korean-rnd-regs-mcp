@@ -542,6 +542,20 @@ def test_suggest_degraded_note_contract_version_unchanged(mock_client):
     assert result["contract_version"] == "0.5.0"
 
 
+def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
+    """v0.2.2(④): fallback+truncated 결합 경로 전용 회귀 — degraded note 선두 + truncation 안내가
+    단일 공백으로 결합(v0.1.9 라이브 확인 거동, 기존 테스트는 각 note 단독 경로만 커버)."""
+    result = asyncio.run(suggest_review_sources("간접비 특별평가"))  # 무키워드 → fallback, 후보 cap 초과 → truncated
+    assert result["keyword_source"] == "fallback"
+    assert result["truncated"] is True
+    note = result["note"]
+    assert note.startswith(_DEGRADED_NOTE_FALLBACK + " ")  # degraded가 선두 + 단일 공백 결합
+    assert _RECALL_DIRECTIVE in note                       # 재호출 지시 보존
+    assert note.count("[degraded]") == 1                   # 마커 중복 없음
+    assert "overflow_candidates" in note                   # truncation 안내(drill-down 지시) 보존
+    assert len(note) > len(_DEGRADED_NOTE_FALLBACK)        # 두 안내가 모두 포함됨
+
+
 # === B축: 출력 크기 상한 (v0.1.5) ===
 def test_select_capped_candidates_under_max_returns_input():
     cands = [{"provision_id": f"p{i}", "rule_set_id": "rs", "matched_keywords": ["k"]} for i in range(5)]
@@ -1934,3 +1948,92 @@ def test_law_detail_annex_title_unescaped_and_branch_captured(monkeypatch):
     assert ann1["별표가지번호"] == "02"
     assert ann1["별표구분"] == "별표"
     assert ann2["별표제목"] == "R&D 수당 기준(제25조 관련)"  # bare '&' 불변
+
+
+def test_admrul_detail_annex_fields_captured_and_title_unescaped(monkeypatch):
+    """v0.2.2(④ 회귀): get_admin_rule_detail도 v0.2.1 필드(별표가지번호·별표구분) 캡처 +
+    제목 html.unescape 단일 관문 + bare '&' 과해소 없음 + 별지도 파서 층에서는 캡처(필터는 main.py 책임).
+    law 전례(test_law_detail_annex_title_unescaped_and_branch_captured)의 admrul 대응 —
+    조문 0개 + 별표만 구조(사용기준형)에서 not_found 미발화도 함께 고정. 네트워크 없이 로컬 XML."""
+    import requests as requests_mod
+    from korean_rnd_regs_mcp.live_api import LawApiClient
+
+    fake_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<AdmRulService>
+  <행정규칙ID>5555</행정규칙ID>
+  <행정규칙명>테스트 사용 기준</행정규칙명>
+  <소관부처명>과학기술정보통신부</소관부처명>
+  <시행일자>20260506</시행일자>
+  <별표>
+    <별표단위>
+      <별표번호>0004</별표번호>
+      <별표가지번호>00</별표가지번호>
+      <별표구분>별표</별표구분>
+      <별표제목><![CDATA[삭제 &lt;2021. 1. 19.&gt;]]></별표제목>
+      <별표내용><![CDATA[■ 테스트 사용 기준 [별표 4]  <삭 제>]]></별표내용>
+      <별표서식파일링크>/LSW/flDownload.do?flSeq=1</별표서식파일링크>
+    </별표단위>
+    <별표단위>
+      <별표번호>0001</별표번호>
+      <별표가지번호>02</별표가지번호>
+      <별표구분>별표</별표구분>
+      <별표제목><![CDATA[R&D 수당 계상기준(제74조 관련)]]></별표제목>
+      <별표내용>수당 본문</별표내용>
+      <별표서식파일링크></별표서식파일링크>
+    </별표단위>
+    <별표단위>
+      <별표번호>0001</별표번호>
+      <별표가지번호>00</별표가지번호>
+      <별표구분>별지</별표구분>
+      <별표제목>신청서 서식</별표제목>
+      <별표내용>별지 본문</별표내용>
+      <별표서식파일링크>/LSW/flDownload.do?flSeq=2</별표서식파일링크>
+    </별표단위>
+  </별표>
+</AdmRulService>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_xml
+        headers = {"Content-Type": "application/xml"}
+
+    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    result = client.get_admin_rule_detail("5555")
+    assert result["articles"] == []                        # 조문 0 + 별표만 → not_found 아님
+    deleted, branch, form = result["annexes"]
+    assert deleted["별표제목"] == "삭제 <2021. 1. 19.>"    # CDATA 사전 이스케이프 해소(1회)
+    assert deleted["별표가지번호"] == "00"
+    assert deleted["별표구분"] == "별표"
+    assert "<삭 제>" in deleted["별표내용"]                # 본문은 unescape 미적용(실문자 보존)
+    assert branch["별표제목"] == "R&D 수당 계상기준(제74조 관련)"  # bare '&' 불변(과해소 없음)
+    assert branch["별표가지번호"] == "02"
+    assert form["별표구분"] == "별지"                      # 파서 층은 별지도 캡처 — 필터는 main.py
+    assert form["별표번호"] == "0001"                      # 별표1과 동번호(독립 채번) 그대로 표면화
+
+
+def test_doc_level_annexes_listing_admrul(mock_client):
+    """v0.2.2(④): admrul doc-level(unit_id 없음) — annexes 목록·count_by_kind가 admrul 경로에서도
+    반환(기존 doc-level 테스트는 law 한정). 별지 제외·가지 6자리 id·annexes_unavailable 미발화."""
+    mock_client.get_admin_rule_detail.return_value = {
+        **mock_client.get_admin_rule_detail.return_value,
+        "annexes": [
+            {"별표번호": "1", "별표가지번호": "00", "별표구분": "별표",
+             "별표제목": "계상기준(제74조 관련)", "별표내용": "본문", "별표서식파일링크": ""},
+            {"별표번호": "1", "별표가지번호": "02", "별표구분": "별표",
+             "별표제목": "특례기준", "별표내용": "본문2", "별표서식파일링크": ""},
+            {"별표번호": "1", "별표가지번호": "00", "별표구분": "별지",
+             "별표제목": "신청서", "별표내용": "서식", "별표서식파일링크": ""},
+        ],
+    }
+    result = asyncio.run(get_provision_detail("admrul:2100000278740"))
+    assert result["unit_type"] == "document"
+    assert result["annexes_count"] == 3                    # 전건 집계(별지 포함) — 하위호환
+    assert result["annexes_count_by_kind"] == {"별표": 2, "별지": 1}
+    listed = result["annexes"]
+    assert [a["provision_id"] for a in listed] == [
+        "admrul:2100000278740:BP0001", "admrul:2100000278740:BP000102"]
+    assert listed[0]["dependent_article_hints"] == ["제74조"]
+    assert listed[1]["label"] == "별표 1의2"
+    assert all("content" not in a and "별표내용" not in a for a in listed)  # 본문 미포함
+    assert "annexes_unavailable" not in result             # admrul은 annex_parse_error 미발화

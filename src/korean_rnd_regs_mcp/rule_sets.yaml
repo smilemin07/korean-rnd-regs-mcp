@@ -3,7 +3,7 @@
 # schema: src/korean_rnd_regs_mcp/manifest.py (Pydantic RuleSet model, 13 fields)
 # 단계: (schema 정의) + (MVP 4개 항목 입력)
 #
-# 본 4개 항목은 LIVE 검증으로 MST/ID 확인 완료.
+# 본 17개 항목은 LIVE 검증으로 MST/ID 확인 완료.
 # 추가 항목 (기관별 운영규정, 매뉴얼 등)은 v0.3 이후 prebuilt_index로 확장 예정.
 
 rule_sets:
@@ -54,7 +54,7 @@ rule_sets:
     api_target: law
     api_id_type: MST
     api_doc_id: "285043"
-    unit_types: article  # MVP: 본문 조문만 (시행규칙은 별표 적음)
+    unit_types: article  # 본문 조문만 — LIVE: 별표 0·서식 10종(서식은 BP 미지원)
     query:
       - 국가연구개발혁신법 시행규칙
       - 혁신법 시행규칙
@@ -83,8 +83,8 @@ rule_sets:
     effective_date: "2026-05-06"  # LIVE 검증(2026-05-30): 일련번호 2100000278740 불변, 현행 시행일 갱신
     source_url: https://www.law.go.kr/행정규칙/국가연구개발사업연구개발비사용기준
     known_limitations:
-      - "본 행정규칙은 평면 schema(<조문내용> root 직속) — get_admin_rule_detail의 fallback으로 조문 117개 + 별표 30개 모두 검색"
-      - "가지조문 8건(예: 제10조의2, 제15조의2) 검색·상세조회 누락 — v0.2 prefix 확장 예정 (현재는 silent skip으로 collision 방지)"
+      - "본 행정규칙은 평면 schema(<조문내용> root 직속) — get_admin_rule_detail의 fallback으로 조문 117개 + 별표 8개 검색(별지 22종은 BP·검색 미지원)"
+      - "가지조문 8건(예: 제10조의2, 제15조의2) 검색·상세조회 누락 — v0.3 JO prefix 확장 예정 (현재는 silent skip으로 collision 방지)"
       - "일부 별표는 HWP/PDF 첨부파일 형태 — 별표내용 필드가 비어있으면 source_url 별도 확인"
 
   - id: simultaneous_research_limit
@@ -105,7 +105,7 @@ rule_sets:
     source_url: https://www.law.go.kr/행정규칙/국가연구개발사업동시수행연구개발과제수제한기준
     known_limitations:
       - "본 행정규칙은 평면 schema(<조문내용> root 직속) — get_admin_rule_detail의 fallback으로 처리"
-      - "가지조문(예: 제5조의2) 검색·상세조회 누락 가능 — v0.2 prefix 확장 예정"
+      - "가지조문(예: 제5조의2) 검색·상세조회 누락 가능 — v0.3 prefix 확장 예정"
 
   - id: facility_equipment_standard
     title: 국가연구개발 시설·장비의 관리 등에 관한 표준지침
@@ -183,7 +183,7 @@ rule_sets:
     effective_date: "2026-03-03"
     source_url: https://www.law.go.kr/법령/부패방지및국민권익위원회의설치와운영에관한법률시행령
     known_limitations:
-      - "별표·서식 검색은 v0.2 deferred (시행령 별표 미지원)"
+      - "별표는 검색 미노출(unit_types=article) — document-level annexes 목록·BP 상세로 접근"
 
   - id: improper_solicitation_act
     title: 부정청탁 및 금품등 수수의 금지에 관한 법률
@@ -220,7 +220,7 @@ rule_sets:
     effective_date: "2025-12-30"
     source_url: https://www.law.go.kr/법령/부정청탁및금품등수수의금지에관한법률시행령
     known_limitations:
-      - "별표·서식 검색은 v0.2 deferred"
+      - "별표는 검색 미노출(unit_types=article) — document-level annexes 목록·BP 상세로 접근"
 
   - id: public_interest_whistleblower_act
     title: 공익신고자 보호법
@@ -257,7 +257,7 @@ rule_sets:
     effective_date: "2024-08-07"
     source_url: https://www.law.go.kr/법령/공익신고자보호법시행령
     known_limitations:
-      - "별표·서식 검색은 v0.2 deferred"
+      - "별표는 검색 미노출(unit_types=article) — document-level annexes 목록·BP 상세로 접근"
 
   # === Sector: 국토교통 R&D family (혁신법과 함께 적용) ===
   # 혁신법(일반법)이 모든 국가 R&D에 일괄 적용되는 반면, 본 family는 국토교통 분야 R&D 운영의 특화 근거.
@@ -298,7 +298,7 @@ rule_sets:
     effective_date: "2024-08-07"
     source_url: https://www.law.go.kr/법령/국토교통과학기술육성법시행령
     known_limitations:
-      - "MVP: 본문 조문만. 시행령 별표 검색은 v0.3 예정"
+      - "별표 없음(LIVE 실측 0건) — 본문 조문만 검토 대상"
       - "가지조문 검색·상세조회 누락 가능"
 
   - id: sector_kt_rule
@@ -336,6 +336,6 @@ rule_sets:
     effective_date: "2024-01-22"
     source_url: https://www.law.go.kr/행정규칙/국토교통부소관연구개발사업운영규정
     known_limitations:
-      - "LIVE 검증: 조문 44개 + 별표 5개 (별표 1은 삭제 상태)"
+      - "LIVE 검증: 조문 44개 + 별표 3개(별표 1은 삭제)·별지 2종(별지는 검색·BP 조회 미지원)"
       - "혁신법·시행령·연구개발비 사용기준 등 상위 규정을 우선 적용 — 본 운영규정은 국토교통부 특화"
       - "가지조문(예: 제29조의2 인건비 현금 계상기준 관련) 검색·상세조회 누락 가능"

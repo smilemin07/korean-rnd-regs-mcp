@@ -71,7 +71,7 @@
 
 2. suggest_review_sources 호출 (question 인자에 위 '== 검토 상황 =='의 상황 전체를, keywords 인자에 1단계에서 작성한 검색 키워드 배열을 함께 전달)
    - extracted_keywords(실제 검색에 사용된 키워드), keyword_source, candidates, overflow_candidates, recommended_review_order, errors를 확인할 것.
-   - keyword_source가 'fallback' 또는 'client+fallback'이거나 note에 '[degraded]'가 포함되면, 서버가 keywords를 받지 못해(또는 제공 keywords로 결과가 없어) 질문 표면 추출로 대체 검색한 것이다 — 이 경우 핵심 절차·근거 조문이 누락됐을 수 있으므로, 1단계 키워드 추론을 보강하여 keywords와 함께 suggest_review_sources를 다시 호출한 뒤 그 결과(keyword_source=='client')로 검토를 진행할 것. degraded 응답의 candidates만으로 결론을 내지 말 것.
+   - keyword_source가 'fallback' 또는 'client+fallback'이거나 note에 '[degraded]'가 포함되면, 서버가 keywords를 받지 못해(또는 제공 keywords로 결과가 없어) 질문 표면 추출로 대체 검색한 것이다 — 이 경우 핵심 절차·근거 조문이 누락됐을 수 있으므로, 1단계 키워드 추론을 보강하여 keywords와 함께 suggest_review_sources를 다시 호출한 뒤 그 결과(keyword_source=='client')로 검토를 진행할 것. degraded 응답의 candidates만으로 결론을 내지 말 것. 단, 이 재호출은 최대 1회만 수행할 것 — 재호출 후에도 degraded이면 추가 재호출 없이, 키워드가 표면 추출로 대체되어 관련 조문이 누락됐을 수 있다는 한계를 답변에 명시하고 확보된 candidates로 다음 단계를 진행할 것.
    - recommended_review_order는 기본 검토 순서로 삼되, 후보가 적으면 3단계에서 보완할 것.
    - returned·truncated·note·overflow_truncated도 확인할 것: truncated가 true이면 candidates에서 밀린 조문이 overflow_candidates에 제목(label)·provision_id로 나열되니, 관련 있어 보이는 항목은 candidates와 중복 제거 후 4단계에서 그 provision_id로 get_provision_detail을 직접 호출해 확인할 것. overflow_truncated가 true이거나 쟁점상 후보가 부족하면 recommended_review_order의 전체 문서 목록을 기준으로 3단계에서 search_provision으로 추가 보완할 것.
 
@@ -623,7 +623,7 @@ korean-rnd-regs-mcp 서버의 health 테스트를 진행해줘.
 
 ---
 
-## 지원 규정 (v0.2.1, 총 17개)
+## 지원 규정 (v0.2.2, 총 17개)
 
 Tier 1 — 핵심 법률·시행령·시행규칙 (3개):
 
@@ -704,10 +704,12 @@ Supplementary — 신고·포상금·부패행위·청탁금지·공익신고자
 
 - 검색어를 바꿔서 다시 시도 (띄어쓰기·약칭). 예: "연구개발비 사용 기준" → "연구개발비사용기준"
 - 가지조문(예: 제15조의2)은 현재 버전에서 검색·상세 조회가 누락될 수 있습니다.
+- 별지·서식(예: 별지 제1호 서식)은 현재 버전에서 검색·본문 조회를 지원하지 않습니다(별표만 지원). 공식 원문은 도구 응답의 document_source_url 링크에서 확인하십시오.
 
 ### Q4. "auth_failed" 오류
 
 - LAW_API_KEY가 비어있거나 잘못됨. open.law.go.kr 마이페이지 → API 키 재발급
+- 원격(웹 커넥터)으로 사용 중이라면 커넥터 URL의 ?oc= 값이 본인의 API 키와 일치하는지 확인하십시오.
 
 ### Q5. "rate_limited" 오류
 
@@ -731,7 +733,7 @@ pip install -e ".[dev]"
 
 ```bash
 pytest
-# 183 passed (mock 기반, 네트워크 미사용)
+# 186 passed (mock 기반, 네트워크 미사용)
 ```
 
 ### 빌드
@@ -784,6 +786,12 @@ LAW_API_KEY는 국가법령정보센터 OpenAPI에서 무료로 발급받는 공
 이슈·PR 환영합니다: https://github.com/smilemin07/korean-rnd-regs-mcp/issues
 
 ## Changelog
+
+### 2026. 6. 11. : v0.2.2
+
+- 별표 안내 마감
+  - AI가 별표·별지를 찾다 막다른 길에 빠지지 않도록 안내 문구 보강(별지·서식 미지원 안내, 별표 조회 실패 시 재탐색 경로 안내, 낡은 "별표 미지원" 문구 현행화 등)
+- 빌드 재현성 강화(서버 프레임워크 버전 고정)
 
 ### 2026. 6. 10. : v0.2.1
 

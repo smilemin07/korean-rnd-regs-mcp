@@ -3,6 +3,34 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.2.2] - 2026-06-11
+
+**별표 발견성 마감 — 호스트 오도·막다른 길 신호 제거** — v0.2.1이 데이터(doc-level 별표 목록·가지별표 BP)로 연 별표 발견 경로의 잔여 마찰을 기존 텍스트 채널(`warnings`·오류 `message`·프롬프트)만으로 마감. 별지·서식 BP 미노출을 모르는 호스트의 막다른 길, BP `not_found` 후 복구 경로 부재, v0.2.0~0.2.1 별표 지원을 "미지원"으로 덮던 stale 안내 문구를 제거. `contract_version` **0.5.0 유지**(응답 schema·필드 무변 — 신규 필드 없음, 검색·랭킹·fallback 알고리즘 불변). 변경은 응답 텍스트·프롬프트·테스트·Docker 빌드 핀에 한정 — 부팅·HTTP transport·캐시·OC 미들웨어 비의존(outage 저위험).
+
+### Added
+
+- **별지·서식 막다른 길 신호**: 별지·서식 보유 문서의 document-level 응답 `warnings`에 "별지·서식 N건은 본 도구로 본문 조회 불가 — document_source_url의 공식 원문에서 확인" 1줄 — 호스트가 존재하지 않는 별지 BP를 헛검색하는 경로 차단. document-level `annexes`에 `dependent_article_hints`가 있으면 미검증 단서 경고 1줄도 동봉(별표 상세의 기존 note와 정합).
+- **오류 복구 안내 텍스트**: ① BP `not_found` 메시지에 "별표 번호를 추측해 재시도하지 말 것 — unit_id 없이 문서를 조회해 annexes 목록에서 선택" 복구 경로 안내 ② `auth_failed` 메시지에 원격(HTTP) 모드의 `?oc=` URL 파라미터 확인 안내 병기(키 값 미포함) ③ `review_regulation` 프롬프트에 degraded 재호출 종료조건 1줄(최대 1회 — README 임베드 동기화) — 모두 기존 필드의 텍스트만, 신규 필드 없음.
+
+### Fixed
+
+- **stale 안내 문구 정정**: manifest `known_limitations`의 "별표·서식 검색은 v0.2 deferred" 등 v0.2.0~0.2.1 별표 지원을 부정하던 문구 4건을 현행 거동(document-level 목록·BP 상세 접근 가능)으로 갱신 — 공익신고자 보호법 시행령 별표 1의2 등 v0.2.1 수혜 경로를 경고문이 가리던 active-harm 해소. "별표 30개 모두 검색"(실제: 별표 8 + 별지 22) 등 과대 기술 2건과 가지조문 "v0.2 예정" 시점 표기, `search_provision` docstring의 law 별표 검색 미반영도 함께 정정.
+- `docs/api_contract.md` 헤더 개정일에 0.5.0(2026-06-10) 누락 보충.
+
+### Changed
+
+- **Dockerfile fastmcp 핀**: `pip install`에 `fastmcp==3.4.2`(NAS 라이브 v0.2.1 이미지 실측 버전) 추가 — uvicorn==0.48.0·python-multipart==0.0.30과 동일한 "라이브 검증 버전 핀" 정책으로 재빌드 시 서버 프레임워크 자동 업데이트로 인한 --http 거동 변화 차단. 런타임 코드 무변(pyproject 범위 `fastmcp>=3.3,<4` 불변 — stdio/pip 설치 사용자 영향 없음).
+
+### Tests
+
+- admrul 별표 파서의 v0.2.1 신규 필드(`별표구분`·`별표가지번호`·제목 unescape) 캡처 회귀 + admrul document-level `annexes` 목록 경로 + `suggest_review_sources` fallback+truncated 결합 note 전용 테스트. 전체 183 → **186**.
+
+### Repo
+
+- **pytest CI 신설**: `.github/workflows/tests.yml` — push/PR 시 단위 테스트 자동 실행(mock 기반·네트워크/secrets 불요).
+- **Fly.dev 자동 배포 제거**: `.github/workflows/fly-deploy.yml` 삭제 — Fly.dev는 NAS 배포 전환 후 미사용이며, main push마다 통제 밖 섀도 배포가 발생하던 경로 차단(GitHub 워크플로 비활성 처리 병행).
+- `.gitignore`에 `uv.lock` 추가(본 프로젝트는 uv 미사용).
+
 ## [0.2.1] - 2026-06-10
 
 **별표 발견성·정확 선택 강화** — v0.2.0 첫 실사용에서 호스트 AI가 라벨 없는 `annexes_count` 정수만 보고 별표를 추측 선택(운으로 적중)한 갭을 데이터(제목 목록·의존조문 단서)와 프롬프트(동반조회)로 폐쇄. 동시에 LIVE 실측으로 발견한 **가지별표 미인식·별지/서식 BP 충돌(오도달)** 현존 결함을 수정. `contract_version` **0.5.0**(0.4.0 → minor bump). 설계는 17-에이전트 후보 분석 + `/disc` R1 + 6-에이전트 구현 실측 + `/goal-disc-out` R2 적대 재검증(blocking 0 수렴)으로 확정. 변경은 파서·응답 조립·프롬프트·동의어 사전에 한정 — 부팅·HTTP transport·캐시·OC 미들웨어 비의존(outage 저위험).
