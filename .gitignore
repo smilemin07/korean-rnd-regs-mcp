@@ -9,6 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
+# uv lockfile — 본 프로젝트는 uv를 사용하지 않음 (shared venv 정책)
+uv.lock
+
 # Secrets — NEVER commit
 .env
 .env.*
