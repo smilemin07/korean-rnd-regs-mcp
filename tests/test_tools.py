@@ -46,11 +46,11 @@ def mock_client(monkeypatch):
     client.api_key = _FAKE_KEY
     client.get_law_detail.return_value = {
         "법령ID": "013774",
-        "법령일련번호": "260807",
+        "법령일련번호": "283849",
         "법령명한글": "국가연구개발혁신법",
         "법령구분명": "법률",
         "소관부처명": "과학기술정보통신부",
-        "시행일자": "20250228",
+        "시행일자": "20260611",
         "공포일자": "20240227",
         "articles": [
             {
@@ -250,7 +250,7 @@ def test_get_provision_detail_not_in_manifest_returns_errors_list(mock_client):
 
 
 def test_get_provision_detail_article(mock_client):
-    result = asyncio.run(get_provision_detail("law:260807:JO0015"))
+    result = asyncio.run(get_provision_detail("law:283849:JO0015"))
     assert result["unit_type"] == "article"
     assert result["unit_id"] == "JO0015"
     assert result["title"] == "특별평가"
@@ -267,14 +267,14 @@ def test_get_provision_detail_annex_attached_url_is_absolute(mock_client):
 
 
 def test_get_provision_detail_document_level_includes_disclaimer(mock_client):
-    result = asyncio.run(get_provision_detail("law:260807"))
+    result = asyncio.run(get_provision_detail("law:283849"))
     assert result["unit_type"] == "document"
     assert "articles_count" in result
     assert "disclaimer" in result
 
 
 def test_get_provision_detail_no_key_leak(mock_client):
-    result = asyncio.run(get_provision_detail("law:260807:JO0015"))
+    result = asyncio.run(get_provision_detail("law:283849:JO0015"))
     response_str = json.dumps(result, ensure_ascii=False)
     assert _FAKE_KEY not in response_str
     assert _FAKE_KEY[:6] not in response_str
@@ -288,7 +288,7 @@ def test_get_provision_detail_no_per_user_oc_key_leak(mock_client, monkeypatch):
     monkeypatch.setitem(main_module._client_by_key, per_user_oc, mock_client)
     token = _request_api_key.set(per_user_oc)
     try:
-        result = asyncio.run(get_provision_detail("law:260807:JO0015"))
+        result = asyncio.run(get_provision_detail("law:283849:JO0015"))
         response_str = json.dumps(result, ensure_ascii=False)
         assert per_user_oc not in response_str
         assert per_user_oc[:6] not in response_str
@@ -299,7 +299,7 @@ def test_get_provision_detail_no_per_user_oc_key_leak(mock_client, monkeypatch):
 # === LLM 환각 방어 (article_structure + format_instructions) ===
 def test_get_provision_detail_article_includes_verbatim_metadata(mock_client):
     """회귀: content가 verbatim임을 명시하는 metadata 포함."""
-    result = asyncio.run(get_provision_detail("law:260807:JO0015"))
+    result = asyncio.run(get_provision_detail("law:283849:JO0015"))
     assert result.get("content_format") == "plain_text_verbatim"
     assert "format_instructions" in result
     instructions = result["format_instructions"]
@@ -311,7 +311,7 @@ def test_get_provision_detail_article_includes_verbatim_metadata(mock_client):
 
 def test_get_provision_detail_article_includes_article_structure(mock_client):
     """회귀: machine-readable nested hierarchy."""
-    result = asyncio.run(get_provision_detail("law:260807:JO0015"))
+    result = asyncio.run(get_provision_detail("law:283849:JO0015"))
     structure = result.get("article_structure")
     assert structure is not None
     assert "title" in structure
@@ -648,9 +648,9 @@ def test_select_capped_tie_breaks_by_provision_id_not_priority():
     """
     used = ["정부지원연구개발비", "협약 변경"]  # 정부지원연구개발비가 앞(idx0)
     cands = [
-        {"provision_id": "law:260807:JO0033", "rule_set_id": "act",
+        {"provision_id": "law:283849:JO0033", "rule_set_id": "act",
          "matched_keywords": ["정부지원연구개발비"], "title": "제재처분의 절차"},
-        {"provision_id": "law:260807:JO0011", "rule_set_id": "act",
+        {"provision_id": "law:283849:JO0011", "rule_set_id": "act",
          "matched_keywords": ["협약 변경"], "title": "연구개발과제 협약 등"},
     ]
     for i in range(20):
@@ -659,7 +659,7 @@ def test_select_capped_tie_breaks_by_provision_id_not_priority():
     rank_of = lambda c: 1 if c["rule_set_id"] == "act" else 2
     capped = _select_capped_candidates(cands, used, rank_of)
     pids = {c["provision_id"] for c in capped}
-    assert "law:260807:JO0011" in pids  # priority 제거 → pid tie-break(0011<0033)로 보존
+    assert "law:283849:JO0011" in pids  # priority 제거 → pid tie-break(0011<0033)로 보존
 
 
 def test_select_capped_no_score_field_leak():
@@ -1007,8 +1007,8 @@ def test_request_with_retry_log_no_key_prefix(monkeypatch, caplog):
 def test_get_law_detail_excludes_wrapper_elements(monkeypatch):
     """장/절 wrapper(조문여부='전문')는 articles에서 제외 — 동일 조문번호 collision 방어.
 
-    LIVE 검증 발견: 혁신법 MST 260807 + 시행령 285767의 각 7개 조문번호에서 wrapper("제1장 총칙" 등)와
-    실제 조문이 동일 조문번호로 중복 등장. 직전 buggy 상태에서는 get_provision_detail("law:260807:JO0001")이
+    LIVE 검증 발견: 혁신법 MST 283849 + 시행령 285767의 각 7개 조문번호에서 wrapper("제1장 총칙" 등)와
+    실제 조문이 동일 조문번호로 중복 등장. 직전 buggy 상태에서는 get_provision_detail("law:283849:JO0001")이
     wrapper만 반환하고 실제 제1조(목적)는 못 받았음. 본 test는 fix 후 wrapper exclude 검증.
     """
     import requests as requests_mod
@@ -1053,7 +1053,7 @@ def test_get_law_detail_excludes_wrapper_elements(monkeypatch):
     monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
 
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
-    result = client.get_law_detail("260807")
+    result = client.get_law_detail("283849")
     # wrapper("제1장 총칙") 제외 → 실제 조문 2개만
     assert len(result["articles"]) == 2, f"wrapper filter 실패: {result['articles']}"
     titles = [a["조문제목"] for a in result["articles"]]
@@ -1166,12 +1166,12 @@ def test_resolve_latest_doc_id_no_change():
     from korean_rnd_regs_mcp.live_api import LawApiClient, SearchResult, DocumentRef
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
     sr = SearchResult(total=1, page=1, page_size=5, items=[
-        DocumentRef(doc_type="law", doc_id="260807", title="국가연구개발혁신법",
+        DocumentRef(doc_type="law", doc_id="283849", title="국가연구개발혁신법",
                     extra={"시행일자": "20250228"}),
     ])
     client.search_laws = MagicMock(return_value=sr)
-    result = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "260807")
-    assert result.doc_id == "260807"
+    result = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "283849")
+    assert result.doc_id == "283849"
     assert result.is_updated is False
 
 
@@ -1199,8 +1199,8 @@ def test_resolve_latest_doc_id_fallback_on_error():
     from korean_rnd_regs_mcp.live_api import LawApiClient
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
     client.search_laws = MagicMock(side_effect=LawApiError("parse_failed", "test"))
-    result = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "260807")
-    assert result.doc_id == "260807"
+    result = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "283849")
+    assert result.doc_id == "283849"
     assert result.is_updated is False
 
 
@@ -1213,8 +1213,8 @@ def test_resolve_latest_doc_id_cache_hit():
                     extra={"시행일자": "20260506"}),
     ])
     client.search_laws = MagicMock(return_value=sr)
-    r1 = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "260807")
-    r2 = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "260807")
+    r1 = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "283849")
+    r2 = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "283849")
     assert r1 == r2
     assert client.search_laws.call_count == 1
 
@@ -1222,9 +1222,9 @@ def test_resolve_latest_doc_id_cache_hit():
 def test_search_provision_uses_resolved_id(mock_client):
     """search_provision이 resolved doc_id로 detail API를 호출하는지 검증."""
     mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
-        doc_id="NEW_ID" if mid == "260807" else mid,
-        effective_date="2026-05-06" if mid == "260807" else "",
-        is_updated=(mid == "260807"),
+        doc_id="NEW_ID" if mid == "283849" else mid,
+        effective_date="2026-05-06" if mid == "283849" else "",
+        is_updated=(mid == "283849"),
         manifest_doc_id=mid,
     )
     result = asyncio.run(search_provision("특별평가"))
@@ -1263,12 +1263,12 @@ def test_search_provision_no_truncation_when_under_limit(mock_client):
 def test_get_provision_detail_uses_resolved_id(mock_client):
     """get_provision_detail이 resolved ID로 상세 조회."""
     mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
-        doc_id="NEW_MST" if mid == "260807" else mid,
-        effective_date="2026-05-06" if mid == "260807" else "",
-        is_updated=(mid == "260807"),
+        doc_id="NEW_MST" if mid == "283849" else mid,
+        effective_date="2026-05-06" if mid == "283849" else "",
+        is_updated=(mid == "283849"),
         manifest_doc_id=mid,
     )
-    result = asyncio.run(get_provision_detail("law:260807:JO0015"))
+    result = asyncio.run(get_provision_detail("law:283849:JO0015"))
     assert result.get("revision_notice")
     assert "개정 반영" in result["revision_notice"]
     assert result["effective_date"] == "2026-05-06"
@@ -1278,9 +1278,9 @@ def test_get_provision_detail_uses_resolved_id(mock_client):
 def test_get_provision_detail_with_resolved_doc_id_in_provision_id(mock_client):
     """회귀: search_provision이 반환한 resolved doc_id로 get_provision_detail 호출 시 정상 동작."""
     mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
-        doc_id="NEW_MST" if mid == "260807" else mid,
-        effective_date="2026-05-06" if mid == "260807" else "",
-        is_updated=(mid == "260807"),
+        doc_id="NEW_MST" if mid == "283849" else mid,
+        effective_date="2026-05-06" if mid == "283849" else "",
+        is_updated=(mid == "283849"),
         manifest_doc_id=mid,
     )
     # NEW_MST는 manifest에 없지만, resolve fallback으로 innovation_act에 매칭되어야 함
@@ -1319,8 +1319,8 @@ def test_resolve_latest_doc_id_no_title_match_falls_back():
                     extra={"시행일자": "20260101"}),
     ])
     client.search_laws = MagicMock(return_value=sr)
-    result = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "260807")
-    assert result.doc_id == "260807"
+    result = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "283849")
+    assert result.doc_id == "283849"
     assert result.is_updated is False
 
 
@@ -1330,8 +1330,8 @@ def test_resolve_latest_doc_id_failure_uses_short_ttl_cache():
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
 
     client.search_laws = MagicMock(side_effect=LawApiError("parse_failed", "transient"))
-    r1 = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "260807")
-    assert r1.doc_id == "260807"
+    r1 = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "283849")
+    assert r1.doc_id == "283849"
     assert r1.is_updated is False
 
     # failure 캐시에 저장됨 — success 캐시에는 없어야 함
@@ -1346,7 +1346,7 @@ def test_resolve_latest_doc_id_failure_uses_short_ttl_cache():
                     extra={"시행일자": "20260506"}),
     ])
     client.search_laws = MagicMock(return_value=sr)
-    r2 = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "260807")
+    r2 = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "283849")
     assert r2.doc_id == "NEW_MST"
     assert r2.is_updated is True
 
@@ -1382,9 +1382,9 @@ def test_resolve_no_key_leak(mock_client):
 def test_suggest_review_sources_works_with_resolved_ids(mock_client):
     """suggest_review_sources가 resolved ID로도 정상 동작 (rule_set_id 기반 lookup)."""
     mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
-        doc_id="CHANGED_ID" if mid == "260807" else mid,
-        effective_date="2026-05-06" if mid == "260807" else "",
-        is_updated=(mid == "260807"),
+        doc_id="CHANGED_ID" if mid == "283849" else mid,
+        effective_date="2026-05-06" if mid == "283849" else "",
+        is_updated=(mid == "283849"),
         manifest_doc_id=mid,
     )
     result = asyncio.run(suggest_review_sources("특별평가 절차는 어떻게 되나요?"))
@@ -1443,7 +1443,7 @@ def test_get_provision_detail_detects_amendment_on_stable_serial(mock_client):
     mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
         doc_id=mid, effective_date="2099-12-31", is_updated=False, manifest_doc_id=mid,
     )
-    result = asyncio.run(get_provision_detail("law:260807:JO0015"))
+    result = asyncio.run(get_provision_detail("law:283849:JO0015"))
     assert result["effective_date"] == "2099-12-31"
     assert result.get("revision_notice")
     assert "개정 반영" in result["revision_notice"]
@@ -2147,6 +2147,21 @@ def test_suggest_candidates_strip_annex_snippet_marker(mock_client):
     for c in annex_cands:
         assert not c["snippet"].startswith("[별표")
         assert "전체 수록" not in c["snippet"]
+
+
+def test_annex_snippet_multi_token_frequent_token_does_not_starve_rare():
+    """v0.2.4: 빈출 토큰(반복 표 머리글)이 매칭 줄 cap을 선점해도 희소 토큰의 매칭 행이
+    수집됨 — 라이브 실증 회귀(간접비 머리글이 cap 6 소진 → 서울대 본교 행 27.01 탈락)."""
+    header = "││구 분│기 관 명│간접비고시비율(%)│필러 칸 자리│"
+    body = []
+    for k in range(8):                      # 빈출 토큰 매칭 머리글 8줄 (cap 6 초과)
+        body.append(header)
+        body += [f"│기관{k:02d}{i:02d}│10.00│자료 행 필러 데이터 칸│" for i in range(12)]
+    body.append("││서울대학교│27.01│서울미디어대학원대학교│20.00││")  # 희소 토큰의 유일 매칭 행(문서 끝)
+    content = "\n".join(body)
+    assert len(content) > main_module._SNIPPET_MAX            # 발췌 경로 강제
+    snip = main_module._annex_snippet(content, ["간접비", "서울대학교"])
+    assert "27.01" in snip, "토큰별 quota 미보장 시 빈출 토큰이 cap을 선점해 희소 행 누락"
 
 
 def test_build_annex_detail_oversized_pointer_prefers_official_source_and_warns_hwp():

@@ -16,13 +16,13 @@ rule_sets:
     retrieval: live_api
     api_target: law
     api_id_type: MST
-    api_doc_id: "260807"
+    api_doc_id: "283849"  # 2026-06-11 시행 개정 발효 (2026-06-12 /regs-audit — 합본 상세응답 시행일자는 20260911 미래분이므로 검색 행 기준)
     unit_types: article
     query:
       - 국가연구개발혁신법
       - 혁신법
     license_status: public_data
-    effective_date: "2025-02-28"
+    effective_date: "2026-06-11"
     source_url: https://www.law.go.kr/법령/국가연구개발혁신법
     known_limitations:
       - "가지조문(예: 제15조의2) 검색·상세조회 누락 가능 — v0.3 contract major bump로 provision_id 포맷 확장 예정"
@@ -40,7 +40,7 @@ rule_sets:
       - 국가연구개발혁신법 시행령
       - 혁신법 시행령
     license_status: public_data
-    effective_date: "2026-05-06"
+    effective_date: "2026-06-11"  # MST 285767 불변, 분리시행분 발효 — 법령도 MST 불변 시행일 진행 사례
     source_url: https://www.law.go.kr/법령/국가연구개발혁신법시행령
     known_limitations:
       - "별표 1~7(연구개발비 지원기준·사용용도·등록범위·참여제한·제재부가금 등) 검색·상세 조회 지원(v0.2). 소형 별표는 본문 전문 제공, 대용량 별표(별표2·7)는 분량상 본문 미수록(content_format=oversized_pointer) — 전문은 공식 링크·search_provision로 확인"
@@ -53,13 +53,13 @@ rule_sets:
     retrieval: live_api
     api_target: law
     api_id_type: MST
-    api_doc_id: "285043"
+    api_doc_id: "286879"  # 2026-06-11 시행 개정 발효 (2026-06-12 /regs-audit)
     unit_types: article  # 본문 조문만 — LIVE: 별표 0·서식 10종(서식은 BP 미지원)
     query:
       - 국가연구개발혁신법 시행규칙
       - 혁신법 시행규칙
     license_status: public_data
-    effective_date: "2026-03-25"
+    effective_date: "2026-06-11"
     source_url: https://www.law.go.kr/법령/국가연구개발혁신법시행규칙
     known_limitations:
       - "가지조문(예: 제5조의2) 검색·상세조회 누락 가능 — v0.3에서 provision_id 포맷 확장 예정"

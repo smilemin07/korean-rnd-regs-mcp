@@ -428,12 +428,29 @@ def _annex_snippet(content: str, anchors: list[str], max_len: int = _SNIPPET_MAX
     body_budget = max(1, max_len - len(_ANNEX_SNIPPET_MARKER_EXCERPT))
     lines = content.split("\n")
     terms = [a for a in anchors if a]
-    matched: list[int] = []
+    # v0.2.4: 토큰별 매칭 행 quota — 빈출 토큰(반복 표 머리글 등)이 cap을 선점해 희소
+    # 토큰의 매칭 행이 수집에서 탈락하던 기아 방지 (라이브 실증: [간접비, 서울대학교]에서
+    # "간접비" 머리글 5줄이 cap 6을 소진 → 본교 행 탈락). 토큰별 ceil(cap/토큰수)개를
+    # 먼저 확보하고, 잔여 cap은 문서 순서 합집합으로 충원한다.
+    matched_set: set[int] = set()
+    if terms:
+        quota = max(1, -(-_ANNEX_SNIPPET_MATCH_LINES_MAX // len(terms)))
+        for t in terms:
+            taken = 0
+            for i, ln in enumerate(lines):
+                if len(matched_set) >= _ANNEX_SNIPPET_MATCH_LINES_MAX:
+                    break
+                if t in ln:
+                    matched_set.add(i)
+                    taken += 1
+                    if taken >= quota:
+                        break
     for i, ln in enumerate(lines):
-        if any(t in ln for t in terms):
-            matched.append(i)
-            if len(matched) >= _ANNEX_SNIPPET_MATCH_LINES_MAX:
-                break
+        if len(matched_set) >= _ANNEX_SNIPPET_MATCH_LINES_MAX:
+            break
+        if i not in matched_set and any(t in ln for t in terms):
+            matched_set.add(i)
+    matched = sorted(matched_set)
     if not matched:
         matched = [0]  # 제목만 매칭 등 본문 무매칭 → 문서 머리 폴백(종전 동작 보존)
 
