@@ -3,7 +3,7 @@
 # schema: src/korean_rnd_regs_mcp/manifest.py (Pydantic RuleSet model, 13 fields)
 # 단계: (schema 정의) + (MVP 4개 항목 입력)
 #
-# 본 17개 항목은 LIVE 검증으로 MST/ID 확인 완료.
+# 본 25개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.2.5: 산업부·중기부 R&D family 8건 확대)
 # 추가 항목 (기관별 운영규정, 매뉴얼 등)은 v0.3 이후 prebuilt_index로 확장 예정.
 
 rule_sets:
@@ -339,3 +339,160 @@ rule_sets:
       - "LIVE 검증: 조문 44개 + 별표 3개(별표 1은 삭제)·별지 2종(별지는 검색·BP 조회 미지원)"
       - "혁신법·시행령·연구개발비 사용기준 등 상위 규정을 우선 적용 — 본 운영규정은 국토교통부 특화"
       - "가지조문(예: 제29조의2 인건비 현금 계상기준 관련) 검색·상세조회 누락 가능"
+
+  # === Sector: 산업기술 R&D family (산업통상부 소관 — 혁신법과 함께 적용, v0.2.5) ===
+  # 산업부 공고 R&D 과제는 혁신법(일반)과 본 family(산업기술 특화)를 함께 검토.
+  # 2026-06-12 LIVE 검증으로 MST/ID·시행일 확인. 부처명은 OpenAPI가 개편명("산업통상부")을 반환.
+
+  - id: industry_tech_act
+    title: 산업기술혁신 촉진법
+    tier: "Tier 1"
+    hierarchy_rank: 1
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "280041"
+    unit_types: article
+    query:
+      - 산업기술혁신 촉진법
+      - 산업기술혁신촉진법
+    license_status: public_data
+    effective_date: "2026-06-03"
+    source_url: https://www.law.go.kr/법령/산업기술혁신촉진법
+    known_limitations:
+      - "LIVE 검증(2026-06-12): 조문 49·별표 없음. 가지조문 검색·상세조회 누락 가능"
+
+  - id: industry_tech_decree
+    title: 산업기술혁신 촉진법 시행령
+    tier: "Tier 1"
+    hierarchy_rank: 2
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "285891"
+    unit_types: both
+    query:
+      - 산업기술혁신 촉진법 시행령
+      - 산업기술혁신촉진법 시행령
+    license_status: public_data
+    effective_date: "2026-06-03"
+    source_url: https://www.law.go.kr/법령/산업기술혁신촉진법시행령
+    known_limitations:
+      - "LIVE 검증(2026-06-12): 조문 60·별표 4(검색·BP 상세 지원). 가지조문 누락 가능"
+
+  - id: industry_tech_rule
+    title: 산업기술혁신 촉진법 시행규칙
+    tier: "Tier 1"
+    hierarchy_rank: 3
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "286385"
+    unit_types: both
+    query:
+      - 산업기술혁신 촉진법 시행규칙
+      - 산업기술혁신촉진법 시행규칙
+    license_status: public_data
+    effective_date: "2026-06-03"
+    source_url: https://www.law.go.kr/법령/산업기술혁신촉진법시행규칙
+    known_limitations:
+      - "LIVE 검증(2026-06-12): 조문 12·별표 5·서식 15(서식은 BP·검색 미지원). 별표·서식 총량 대용량 — 대용량 별표는 본문 미수록(oversized_pointer)"
+
+  - id: industry_tech_operating
+    title: 산업기술혁신사업 공통 운영요령
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000251982"
+    unit_types: both
+    query:
+      - 산업기술혁신사업 공통 운영요령
+      - 공통 운영요령
+      - 산업부 운영요령
+    license_status: public_data
+    effective_date: "2024-12-30"
+    source_url: https://www.law.go.kr/행정규칙/산업기술혁신사업공통운영요령
+    known_limitations:
+      - "본 행정규칙은 평면 schema — LIVE 검증(2026-06-12): 조문 53·별표 7·서식 9(서식은 BP·검색 미지원). 가지조문 누락 가능"
+      - "별표·서식 총량 약 27만자 대용량 — 대용량 별표는 본문 미수록(oversized_pointer), 전문은 공식 링크 확인"
+      - "혁신법·시행령이 상위 일반 규범 — 산업부 소관 사업에 본 요령 특화 적용"
+
+  # === Sector: 중소기업 R&D family (중소벤처기업부 소관 — 혁신법과 함께 적용, v0.2.5) ===
+  # 중기부 공고 R&D 과제는 혁신법(일반)과 본 family(중소기업 기술혁신 특화)를 함께 검토.
+
+  - id: sme_tech_act
+    title: 중소기업 기술혁신 촉진법
+    tier: "Tier 1"
+    hierarchy_rank: 1
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "286263"
+    unit_types: article
+    query:
+      - 중소기업 기술혁신 촉진법
+      - 중소기업기술혁신촉진법
+    license_status: public_data
+    effective_date: "2026-05-26"
+    source_url: https://www.law.go.kr/법령/중소기업기술혁신촉진법
+    known_limitations:
+      - "LIVE 검증(2026-06-12): 조문 33·별표 없음. 가지조문 검색·상세조회 누락 가능"
+
+  - id: sme_tech_decree
+    title: 중소기업 기술혁신 촉진법 시행령
+    tier: "Tier 1"
+    hierarchy_rank: 2
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "283001"
+    unit_types: both
+    query:
+      - 중소기업 기술혁신 촉진법 시행령
+      - 중소기업기술혁신촉진법 시행령
+    license_status: public_data
+    effective_date: "2026-02-01"
+    source_url: https://www.law.go.kr/법령/중소기업기술혁신촉진법시행령
+    known_limitations:
+      - "LIVE 검증(2026-06-12): 조문 23·별표 4(검색·BP 상세 지원). 가지조문 누락 가능"
+
+  - id: sme_tech_rule
+    title: 중소기업 기술혁신 촉진법 시행규칙
+    tier: "Tier 1"
+    hierarchy_rank: 3
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "220365"
+    unit_types: article
+    query:
+      - 중소기업 기술혁신 촉진법 시행규칙
+      - 중소기업기술혁신촉진법 시행규칙
+    license_status: public_data
+    effective_date: "2020-07-30"
+    source_url: https://www.law.go.kr/법령/중소기업기술혁신촉진법시행규칙
+    known_limitations:
+      - "LIVE 검증(2026-06-12): 조문 8·별표 없음·서식 7(서식은 BP·검색 미지원)"
+
+  - id: sme_rnd_operating
+    title: 중소기업기술개발 지원사업 운영요령
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000273462"
+    unit_types: both
+    query:
+      - 중소기업기술개발 지원사업 운영요령
+      - 중소기업 기술개발 지원사업 운영요령
+      - 중기부 운영요령
+    license_status: public_data
+    effective_date: "2026-01-21"
+    source_url: https://www.law.go.kr/행정규칙/중소기업기술개발지원사업운영요령
+    known_limitations:
+      - "본 행정규칙은 평면 schema — LIVE 검증(2026-06-12): 조문 51·별표 3(검색·BP 상세 지원). 가지조문 누락 가능"
+      - "정식 제목은 '중소기업기술개발'(공백 없음) — 검색·resolve 시 표기 주의"
+      - "혁신법·시행령이 상위 일반 규범 — 중기부 소관 사업에 본 요령 특화 적용"

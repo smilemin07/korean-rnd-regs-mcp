@@ -497,7 +497,9 @@ def test_suggest_fallback_note_is_degraded_directive(mock_client):
     result = asyncio.run(suggest_review_sources("특별평가"))
     assert result["keyword_source"] == "fallback"
     assert "note" in result
-    assert result["note"] == _DEGRADED_NOTE_FALLBACK
+    # v0.2.5: 25개 규정 확대로 mock 환경에서 cap 초과(truncation note 결합) 가능 —
+    # degraded note가 선두에 그대로 오는지로 검증(결합 형식은 별도 테스트가 고정)
+    assert result["note"].startswith(_DEGRADED_NOTE_FALLBACK)
     assert "[degraded]" in result["note"]
     assert _RECALL_DIRECTIVE in result["note"]
 
@@ -2141,12 +2143,28 @@ def test_suggest_candidates_strip_annex_snippet_marker(mock_client):
     제거 — 절단본에 '전체 수록·줄 생략 없음' 주장이 잔존하는 오신호 방지."""
     content = "\n".join(f"│기관{i:03d}│10.00│ 간접비 비율 자료" for i in range(60))
     mock_client.get_admin_rule_detail.return_value["annexes"][0]["별표내용"] = content
-    result = asyncio.run(suggest_review_sources("간접비 비율 확인", keywords=["간접비"]))
+    # 키워드는 mock 조문에 없는 "비율"만 — 별표 후보가 cap(15) 안에 들도록 (v0.2.5 25규정 확대 대응)
+    result = asyncio.run(suggest_review_sources("간접비 비율 확인", keywords=["비율"]))
     annex_cands = [c for c in result["candidates"] if ":BP" in c.get("provision_id", "")]
     assert annex_cands, "별표 후보가 생성돼야"
     for c in annex_cands:
         assert not c["snippet"].startswith("[별표")
         assert "전체 수록" not in c["snippet"]
+
+
+def test_search_provision_response_char_budget(mock_client):
+    """v0.2.5: 광역 질의로 결과가 비대해도 전체 응답 직렬화가 예산(16k) 이내 —
+    뒤쪽 결과 절단(최소 1건 보장) + 기존 returned/truncated 필드로 신호."""
+    fat = "예산검증용 " * 400                      # ~2,400자 — snippet은 2000자로 cap
+    arts = mock_client.get_law_detail.return_value["articles"]
+    for a in arts:
+        a["조문내용"] = a["조문내용"] + " " + fat
+    mock_client.get_admin_rule_detail.return_value["annexes"][0]["별표내용"] = fat * 3
+    result = asyncio.run(search_provision("예산검증용"))
+    assert result["results"], "최소 1건 보장"
+    assert len(json.dumps(result, ensure_ascii=False)) <= main_module._SEARCH_RESPONSE_CHAR_BUDGET
+    assert result["returned"] == len(result["results"]) < result["total"]
+    assert result["truncated"] is True
 
 
 def test_annex_snippet_multi_token_frequent_token_does_not_starve_rare():

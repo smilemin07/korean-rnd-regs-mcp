@@ -138,12 +138,12 @@ def test_review_prompt_instructs_keyword_array_to_suggest():
 
 
 def test_list_rule_sets_returns_live_api_items():
-    """v0.1.3 범위: 13건(혁신법 family 4 + Tier 2 행정규칙 3 + Supplementary 6) + 국토교통 family 4 = 17건."""
+    """v0.1.3 범위 17건 + v0.2.5 산업부·중기부 R&D family 8건 = 25건."""
     result = asyncio.run(list_rule_sets())
     assert "rule_sets" in result
     assert isinstance(result["rule_sets"], list)
-    assert result["total"] == 17
-    assert len(result["rule_sets"]) == 17
+    assert result["total"] == 25
+    assert len(result["rule_sets"]) == 25
     ids = {rs["id"] for rs in result["rule_sets"]}
     expected = {
         # Tier 1 + 기존 Tier 2 (혁신법 family + 연구개발비 사용 기준)
@@ -156,6 +156,10 @@ def test_list_rule_sets_returns_live_api_items():
         "public_interest_whistleblower_act", "public_interest_whistleblower_decree",
         # v0.1.3 — 국토교통 R&D family (혁신법과 함께 적용)
         "sector_kt_act", "sector_kt_decree", "sector_kt_rule", "kt_rnd_operations",
+        # v0.2.5 — 산업기술 R&D family (산업통상부)
+        "industry_tech_act", "industry_tech_decree", "industry_tech_rule", "industry_tech_operating",
+        # v0.2.5 — 중소기업 R&D family (중소벤처기업부)
+        "sme_tech_act", "sme_tech_decree", "sme_tech_rule", "sme_rnd_operating",
     }
     assert ids == expected, f"id 불일치: 누락={expected - ids}, 추가={ids - expected}"
     # 모든 항목이 필수 field. rank 5/6 = Supplementary 법률/시행령 (추가)

@@ -3,6 +3,24 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.2.5] - 2026-06-13
+
+**지원 규정 확대 1차 — 3부처 R&D (17→25개) + 검색 응답 예산 가드** — 과기부(기존 커버)·산업부·중소벤처기업부 공고 R&D 참여 연구자가 참조하는 핵심 규정 8건을 추가. 전 항목 LIVE 검증(2026-06-12) 식별자·시행일로 등록. 확대로 광역 질의 응답이 40k+자(25k token 한도 초과 위험)로 실측됨에 따라 `search_provision` 전체 응답 16k char 예산을 동승 도입. `contract_version` **0.5.0 유지**(응답 schema·필드 무변 — 기존 `returned`/`truncated` 필드가 절단 신호).
+
+### Added
+
+- **산업기술 R&D family (4건)**: 산업기술혁신 촉진법(MST 280041)·시행령(285891, 별표 4)·시행규칙(286385, 별표 5·서식 15)·산업기술혁신사업 공통 운영요령(2100000251982, 평면 schema·조문 53·별표 7·서식 9)
+- **중소기업 R&D family (4건)**: 중소기업 기술혁신 촉진법(MST 286263)·시행령(283001, 별표 4)·시행규칙(220365)·중소기업기술개발 지원사업 운영요령(2100000273462, 평면 schema·조문 51·별표 3)
+- review_regulation 프롬프트 "MCP 적용 범위" 절에 두 family 추가(17→25개 규정) + README 임베드 동기화
+
+### Changed
+
+- **search_provision 전체 응답 char 예산(16k)**: 직렬화 누적이 예산을 넘으면 뒤쪽 결과 절단(최소 1건 보장·manifest 순서 유지). LIVE 실측 — "간접비" 41.7k→14.5k, "기술료" 45.5k→14.6k, 핀포인트 질의("서울대학교" 등)는 무영향. 광역 질의는 `truncated=true` 신호를 보고 키워드를 좁혀 재검색(docstring 안내 추가)
+
+### Tests
+
+- 25개 manifest id·count 검증 갱신 + 응답 예산 가드 1건 추가 + mock cap 초과 환경 보정 2건. 전체 196 → **197**.
+
 ## [0.2.4] - 2026-06-12
 
 **검증 후속 보정 — 혁신법 현행 시행일 정합 + 토큰별 매칭 행 보장** — v0.2.3 배포 직후 수행한 전수 감사(/regs-audit)와 라이브 eval에서 실증된 정합 결함 2건을 마감. `contract_version` **0.5.0 유지**(응답 schema·필드 무변, `_SNIPPET_MAX` 2000 불변). 변경은 manifest 데이터·순수 함수(`_annex_snippet` 수집부)·테스트에 한정 — 부팅·HTTP transport 비의존(outage 무위험).
