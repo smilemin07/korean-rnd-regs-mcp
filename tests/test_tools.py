@@ -1663,7 +1663,7 @@ def test_build_annex_detail_deleted_stub():
 def test_annex_snippet_has_marker_and_line_boundary():
     """별표 스니펫 — 발췌 마커 + 개행 경계 절단(공백표 행 중간 절단 방지)."""
     content = "\n".join(f"행{i}\t값{i}" for i in range(2000))
-    snip = main_module._annex_snippet(content, "행1000")
+    snip = main_module._annex_snippet(content, ["행1000"])
     assert "발췌" in snip
     assert len(snip) <= main_module._SNIPPET_MAX
     body_lines = [ln for ln in snip.split("\n") if "\t" in ln]
@@ -1710,7 +1710,7 @@ def test_search_provision_surfaces_annex_parse_error(mock_client):
 def test_annex_snippet_single_long_line_truncates_with_indicator():
     """리뷰 보강: 개행 없는 장문 별표내용 → 마커 + char 안전 절단 + 생략표시(…), max_len 준수."""
     content = "정부지원율 " + "9" * 5000  # 개행 없음(sparse)
-    snip = main_module._annex_snippet(content, "정부지원율")
+    snip = main_module._annex_snippet(content, ["정부지원율"])
     assert "발췌" in snip
     assert snip.endswith("…")
     assert len(snip) <= main_module._SNIPPET_MAX
@@ -2037,3 +2037,132 @@ def test_doc_level_annexes_listing_admrul(mock_client):
     assert listed[1]["label"] == "별표 1의2"
     assert all("content" not in a and "별표내용" not in a for a in listed)  # 본문 미포함
     assert "annexes_unavailable" not in result             # admrul은 annex_parse_error 미발화
+
+
+# === v0.2.3: 대용량 별표 핀포인트 도달성 (멀티윈도우 스니펫 + 포인터 문구) ===
+def _far_rows_annex_content(first_row, second_row):
+    """두 매칭 행이 스니펫 예산(_SNIPPET_MAX=2000자) 밖으로 떨어진 표 본문 생성.
+
+    중간 필러 80행(약 2,800자 > 2000)이 두 행을 갈라놓아 단일 연속 윈도우로는
+    동시 포함 불가 — 멀티윈도우 합집합 수집이어야만 둘 다 스니펫에 들어간다.
+    필러에는 검증 토큰(서울대학교·간접비·27.01)이 등장하지 않는다.
+    """
+    front = [f"│앞쪽기관{i:03d}│10.00│" for i in range(5)]
+    gap = [f"│중간기관{i:03d}│15.00│연구기관 비율 자료 행 필러 데이터│" for i in range(80)]
+    back = [f"│뒤쪽기관{i:03d}│12.00│" for i in range(5)]
+    return "\n".join(front + [first_row] + gap + [second_row] + back)
+
+
+def test_annex_snippet_multiwindow_includes_all_matching_rows_case0():
+    """사례0 회귀: 한 토큰('서울대학교')의 매칭 행 2개(남서울대학교/본교 27.01)가
+    예산 밖으로 떨어져 있어도 두 행 모두 스니펫에 포함 — 단일 윈도우 매몰 금지."""
+    content = _far_rows_annex_content(
+        "│남서울대학교│20.00│",
+        "││서울대학교│27.01│서울미디어대학원대학교│20.00││",
+    )
+    snip = main_module._annex_snippet(content, ["서울대학교"])
+    assert "남서울대학교" in snip                       # 앞 매칭 행
+    assert "27.01" in snip, "본교 행(사례0 핵심 수치) 도달 실패"  # 뒤 매칭 행
+    assert snip.index("남서울대학교") < snip.index("27.01")     # 문서 순서 유지
+
+
+def test_annex_snippet_multiwindow_separator_and_budget():
+    """비연속 윈도우 사이 '…' 단독 구분 줄 존재 + 전체 ≤ _SNIPPET_MAX + 행 원문 무절단."""
+    content = _far_rows_annex_content(
+        "│남서울대학교│20.00│",
+        "││서울대학교│27.01│서울미디어대학원대학교│20.00││",
+    )
+    snip = main_module._annex_snippet(content, ["서울대학교"])
+    assert len(snip) <= main_module._SNIPPET_MAX
+    lines = snip.split("\n")
+    i_first = next(i for i, ln in enumerate(lines) if "남서울대학교" in ln)
+    i_second = next(i for i, ln in enumerate(lines) if "27.01" in ln)
+    assert any(ln.strip() == "…" for ln in lines[i_first + 1:i_second]), \
+        "비연속 윈도우 사이 '…' 구분 줄 누락"
+    # 본문 행은 원문 줄 그대로(중간 절단 없음) — 마커는 '│' 미포함 전제
+    orig = set(content.split("\n"))
+    assert all(ln in orig for ln in lines if "│" in ln)
+
+
+def test_annex_snippet_full_inclusion_marker_when_content_fits():
+    """소형 별표(예산 내 전체 수록) → '발췌' 오표기 금지 + 전체 수록 표기 + 본문 무손실."""
+    content = "기관명\t간접비율\n한국대학교\t15.00"
+    snip = main_module._annex_snippet(content, ["간접비율"])
+    assert content in snip                  # 본문 전체 수록
+    assert "발췌" not in snip               # 전체 수록인데 누락 가능 신호를 주지 않음
+    assert "전체" in snip                   # 전체 수록 마커
+    assert len(snip) <= main_module._SNIPPET_MAX
+
+
+def test_annex_snippet_partial_marker_signals_excerpt_path():
+    """대형 별표(부분) → 발췌 마커 + 전문 확인 경로(get_provision_detail) 안내 보존."""
+    content = "\n".join(f"행{i}\t값{i}" for i in range(2000))
+    snip = main_module._annex_snippet(content, ["행1000"])
+    assert "발췌" in snip
+    assert "get_provision_detail" in snip
+
+
+def test_annex_snippet_adjacent_matches_merge_without_duplicates():
+    """인접한 매칭 줄(±1 윈도우 중첩)은 병합 — 줄 중복·불필요한 '…' 구분 없음."""
+    rows = [f"│기관{i:03d}│10.00│" for i in range(40)]
+    rows[20] = "│남서울대학교│20.00│"
+    rows[21] = "││서울대학교│27.01│"          # 바로 다음 줄 — 윈도우 중첩
+    content = "\n".join(rows + [f"│하단{i:03d}│필러 데이터 행│" for i in range(120)])
+    snip = main_module._annex_snippet(content, ["서울대학교"])
+    assert snip.count("│남서울대학교│20.00│") == 1
+    lines = snip.split("\n")
+    i1 = next(i for i, ln in enumerate(lines) if "남서울대학교" in ln)
+    i2 = next(i for i, ln in enumerate(lines) if "27.01" in ln)
+    assert i2 == i1 + 1, "인접 매칭 줄 사이에 구분/중복 줄이 끼면 안 됨"
+
+
+def test_annex_snippet_multi_token_union_collects_rows_per_token():
+    """토큰별 매칭 행 합집합: [간접비, 서울대학교] 각각의 매칭 행이 멀리 떨어져도 모두 포함."""
+    content = _far_rows_annex_content("│간접비 계상 기준 행│", "││서울대학교│27.01│")
+    snip = main_module._annex_snippet(content, ["간접비", "서울대학교"])
+    assert "간접비 계상 기준 행" in snip
+    assert "27.01" in snip
+
+
+def test_search_provision_annex_snippet_covers_all_query_tokens(mock_client):
+    """통합(호출부 회귀 가드): search_provision이 첫 anchor만이 아니라 본문 존재
+    토큰 전부를 _annex_snippet에 전달 — 다중 토큰 질의의 양쪽 매칭 행이 snippet에 포함."""
+    content = _far_rows_annex_content("│간접비 계상 기준 행│", "││서울대학교│27.01│")
+    mock_client.get_admin_rule_detail.return_value["annexes"][0]["별표내용"] = content
+    result = asyncio.run(search_provision("간접비 서울대학교"))
+    annex_hits = [r for r in result["results"] if r["unit_type"] == "annex"]
+    assert annex_hits, "별표가 토큰 AND로 매칭돼야 (간접비·서울대학교 모두 본문에 존재)"
+    snip = annex_hits[0]["snippet"]
+    assert "간접비" in snip and "27.01" in snip, "호출부가 단일 anchor만 넘기면 27.01 누락"
+
+
+def test_suggest_candidates_strip_annex_snippet_marker(mock_client):
+    """v0.2.3: suggest 후보 snippet은 300자 절단을 거치므로 별표 마커(전체 수록/발췌)를
+    제거 — 절단본에 '전체 수록·줄 생략 없음' 주장이 잔존하는 오신호 방지."""
+    content = "\n".join(f"│기관{i:03d}│10.00│ 간접비 비율 자료" for i in range(60))
+    mock_client.get_admin_rule_detail.return_value["annexes"][0]["별표내용"] = content
+    result = asyncio.run(suggest_review_sources("간접비 비율 확인", keywords=["간접비"]))
+    annex_cands = [c for c in result["candidates"] if ":BP" in c.get("provision_id", "")]
+    assert annex_cands, "별표 후보가 생성돼야"
+    for c in annex_cands:
+        assert not c["snippet"].startswith("[별표")
+        assert "전체 수록" not in c["snippet"]
+
+
+def test_build_annex_detail_oversized_pointer_prefers_official_source_and_warns_hwp():
+    """v0.2.3 C2: oversized_pointer 안내 — ① document_source_url(공식 원문) 1순위
+    ② 첨부는 HWP·HWPX 등 기계 열람 불가 가능 보수 문구 ③ 기존 '인용 금지' 신호 보존."""
+    big = "구분\t정부지원\t기관부담\n" * 3000     # 기존 oversized fixture 구성 재사용
+    ann = {"별표번호": "6", "별표제목": "간접비율표", "별표내용": big,
+           "별표서식파일링크": "https://www.law.go.kr/x.hwp"}
+    resp = main_module._build_annex_detail(
+        "admrul:2100000278740:BP0006", "BP0006", _fake_rs(), ann, "20260506")
+    assert resp["content_format"] == "oversized_pointer"
+    c = resp["content"]
+    assert "document_source_url" in c and "attached_file_url" in c
+    assert c.index("document_source_url") < c.index("attached_file_url"), \
+        "공식 원문(document_source_url)이 1순위로 와야"
+    assert "HWP" in c and "열람" in c          # 첨부 형식 보수 문구
+    assert "인용하지 마십시오" in c             # 기존 인용 금지 신호 보존
+    ra = resp["required_action"]
+    assert ra.index("document_source_url") < ra.index("attached_file_url")

@@ -404,40 +404,100 @@ def _make_snippet(content: str, query: str, max_len: int = _SNIPPET_MAX) -> str:
     return snippet[:max_len]
 
 
-def _annex_snippet(content: str, anchor: str, max_len: int = _SNIPPET_MAX) -> str:
-    """별표(표) 전용 스니펫 — 공백 정렬 표의 행 중간 절단을 막기 위해 개행(줄) 경계로 자르고
-    '발췌' 마커를 붙인다. 대용량 별표는 detail에서 본문이 미수록되므로 이 스니펫이 호스트가
-    보는 유일한 별표 텍스트일 수 있어, 표 원문 확정 금지를 명시한다 (v0.2)."""
-    marker = "[별표 발췌 — 표 전체·정확한 수치는 원문(get_provision_detail 또는 공식 링크) 확인 필요]\n"
-    body_budget = max(1, max_len - len(marker))
-    if len(content) <= body_budget:
-        return marker + content
+# v0.2.3 멀티윈도우 별표 스니펫: 마커 2형(전체 수록/발췌) + 질의 토큰 매칭 줄 합집합 발췌
+_ANNEX_SNIPPET_MARKER_FULL = "[별표 본문 전체 수록 — 줄 생략 없음(원문 그대로). 수치 확정은 공식 원문 대조 권장]\n"
+_ANNEX_SNIPPET_MARKER_EXCERPT = (
+    "[별표 발췌 — 질의 매칭 행 중심 발췌(발췌 행 자체는 원문 그대로, 비연속 구간은 … 표시). "
+    "표 제목·인접 행이 누락될 수 있어 표 전체·정확한 수치는 "
+    "원문(get_provision_detail 또는 공식 링크) 확인 필요]\n"
+)
+_ANNEX_SNIPPET_GAP = "…"  # 비연속 윈도우 구분 줄 · 양끝 생략 표시
+_ANNEX_SNIPPET_MATCH_LINES_MAX = 6  # 질의 토큰 매칭 줄 합집합 cap (문서 순서 유지·중복 없음)
+
+
+def _annex_snippet(content: str, anchors: list[str], max_len: int = _SNIPPET_MAX) -> str:
+    """별표(표) 전용 멀티윈도우 스니펫 (v0.2.3) — 공백 정렬 표의 행 중간 절단을 막기 위해
+    개행(줄) 경계로 자르고, anchors(질의 토큰들)의 매칭 줄 합집합(cap 6) 각각에 ±1줄 맥락
+    윈도우를 만들어 예산 내 앞 윈도우 우선 배치 + 라운드로빈 줄 확장한다. 종전의 '첫 매칭
+    줄 1곳' 발췌가 substring 선점(예: '서울대학교' 질의가 앞쪽 '남서울대학교' 줄에 선점돼
+    본교 행 누락)으로 후순위 매칭 행을 침묵 누락하던 결함 해소. 대용량 별표는 detail에서
+    본문 미수록이라 이 스니펫이 호스트가 보는 유일한 별표 텍스트일 수 있어, 본문 전체
+    수록 여부를 마커 2형으로 구분 표기한다."""
+    if len(content) <= max(1, max_len - len(_ANNEX_SNIPPET_MARKER_FULL)):
+        return _ANNEX_SNIPPET_MARKER_FULL + content
+    body_budget = max(1, max_len - len(_ANNEX_SNIPPET_MARKER_EXCERPT))
     lines = content.split("\n")
-    a = next((i for i, ln in enumerate(lines) if anchor in ln), 0)
-    lo = hi = a
-    grow_budget = max(1, body_budget - 8)  # 양끝 생략표시("…\n"/"\n…") 자리 예약
-    size = len(lines[a])
+    terms = [a for a in anchors if a]
+    matched: list[int] = []
+    for i, ln in enumerate(lines):
+        if any(t in ln for t in terms):
+            matched.append(i)
+            if len(matched) >= _ANNEX_SNIPPET_MATCH_LINES_MAX:
+                break
+    if not matched:
+        matched = [0]  # 제목만 매칭 등 본문 무매칭 → 문서 머리 폴백(종전 동작 보존)
+
+    def _merged(segs: list[list[int]]) -> list[list[int]]:
+        # 중첩·인접 윈도우 병합 — 병합되면 사이 구분 줄도 자연 소멸
+        out: list[list[int]] = []
+        for lo, hi in segs:
+            if out and lo <= out[-1][1] + 1:
+                out[-1][1] = max(out[-1][1], hi)
+            else:
+                out.append([lo, hi])
+        return out
+
+    def _render(segs: list[list[int]]) -> str:
+        # 윈도우 본문 + 비연속 구간 "…" 구분 줄 + 문서 양끝 미도달 시 "…" 표시
+        parts = ["\n".join(lines[lo:hi + 1]) for lo, hi in segs]
+        body = ("\n" + _ANNEX_SNIPPET_GAP + "\n").join(parts)
+        if segs[0][0] > 0:
+            body = _ANNEX_SNIPPET_GAP + "\n" + body
+        if segs[-1][1] < len(lines) - 1:
+            body = body + "\n" + _ANNEX_SNIPPET_GAP
+        return body
+
+    windows = _merged([[max(0, m - 1), min(len(lines) - 1, m + 1)] for m in matched])
+    placed: list[list[int]] = []
+    for w in windows:
+        cand = placed + [list(w)]
+        if len(_render(cand)) <= body_budget:
+            placed = cand
+        else:
+            break  # 예산 초과 시 이후 윈도우 생략 — 앞(문서 순서) 윈도우 우선 배치
+    if not placed:
+        m0 = matched[0]
+        if len(_render([[m0, m0]])) <= body_budget:
+            placed = [[m0, m0]]
+        else:
+            # 매칭 줄 단독도 예산 초과(개행 없는 장문 별표 등) → char 단위 안전 절단 + 생략표시
+            cut = max(1, body_budget - 1)
+            return (_ANNEX_SNIPPET_MARKER_EXCERPT + lines[m0][:cut] + _ANNEX_SNIPPET_GAP)[:max_len]
+    # 잔여 예산: 윈도우 라운드로빈 ±1줄 확장 (종전 단일 윈도우 greedy 확장의 일반화)
     grew = True
     while grew:
         grew = False
-        if lo - 1 >= 0 and size + len(lines[lo - 1]) + 1 <= grow_budget:
-            lo -= 1
-            size += len(lines[lo]) + 1
-            grew = True
-        if hi + 1 < len(lines) and size + len(lines[hi + 1]) + 1 <= grow_budget:
-            hi += 1
-            size += len(lines[hi]) + 1
-            grew = True
-    snippet = "\n".join(lines[lo:hi + 1])
-    if len(snippet) > grow_budget:
-        # anchor 줄 단독이 예산 초과(개행 없는 장문 별표 등) → char 단위 안전 절단 + 생략표시
-        snippet = snippet[:max(1, grow_budget)] + "…"
-    else:
-        if lo > 0:
-            snippet = "…\n" + snippet
-        if hi < len(lines) - 1:
-            snippet = snippet + "\n…"
-    return (marker + snippet)[:max_len]
+        k = 0
+        while k < len(placed):
+            for delta in (-1, 1):
+                lo, hi = placed[k]
+                if delta < 0 and lo - 1 < 0:
+                    continue
+                if delta > 0 and hi + 1 > len(lines) - 1:
+                    continue
+                cand = [list(s) for s in placed]
+                if delta < 0:
+                    cand[k][0] = lo - 1
+                else:
+                    cand[k][1] = hi + 1
+                cand = _merged(cand)
+                if len(_render(cand)) <= body_budget:
+                    placed = cand
+                    grew = True
+                    if k >= len(placed):
+                        k = len(placed) - 1
+            k += 1
+    return (_ANNEX_SNIPPET_MARKER_EXCERPT + _render(placed))[:max_len]
 
 _request_api_key: contextvars.ContextVar[str] = contextvars.ContextVar("_request_api_key", default="")
 
@@ -672,9 +732,10 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
     base.update({
         "content": (
             f"[본문 생략: 별표 분량이 응답 한도를 초과합니다(약 {len(content):,}자). "
-            "이 안내 텍스트를 규정 원문으로 인용하지 마십시오. 전문은 attached_file_url 또는 "
-            "document_source_url의 공식 원문을 확인하고, 특정 부분이 필요하면 search_provision으로 "
-            "키워드를 좁혀 조회하십시오.]"
+            "이 안내 텍스트를 규정 원문으로 인용하지 마십시오. 전문은 document_source_url"
+            "(법제처 공식 원문)을 1순위로 확인하고, 특정 부분이 필요하면 search_provision으로 "
+            "키워드를 좁혀 매칭 행 발췌를 조회하십시오. attached_file_url 첨부(있는 경우)는 "
+            "HWP·HWPX 등 기계 열람이 불가할 수 있는 형식입니다.]"
         ),
         "content_available": False,
         "content_format": "oversized_pointer",
@@ -682,7 +743,10 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
         "is_complete": False,
         "omitted_reason": "oversized_tool_response",
         "omitted_char_count": len(content),
-        "required_action": "공식 원문(attached_file_url/document_source_url) 확인 또는 search_provision로 부분 검색",
+        "required_action": (
+            "1순위: document_source_url(법제처 공식 원문) 확인, 2순위: search_provision으로 부분 검색. "
+            "attached_file_url 첨부는 HWP·HWPX 등 기계 열람이 불가할 수 있는 형식"
+        ),
         "warnings": base["warnings"] + ["대용량 별표 — 본문 미수록. 표시된 안내 텍스트를 규정 원문으로 인용 금지."],
     })
     return base
@@ -808,8 +872,9 @@ async def search_provision(query: str) -> dict:
                 if _content_matches(title, content):
                     unit_id = _annex_unit_id(ann)
                     if unit_id:
-                        anchor = next((t for t in tokens if t in content), query)
-                        snippet = _annex_snippet(content, anchor)
+                        # v0.2.3: 본문에 존재하는 전 토큰을 전달 — 매칭 줄 합집합 멀티윈도우
+                        present = [t for t in tokens if t in content]
+                        snippet = _annex_snippet(content, present or [query])
                         matches.append(_build_match(rs, unit_id, "annex", title, snippet, resolved))
 
     truncated = len(matches) > _RESULTS_MAX
@@ -961,7 +1026,12 @@ async def suggest_review_sources(
     returned_candidates = []
     for c in capped:
         c2 = dict(c)  # shallow copy — snippet(str)만 교체, warnings 등 원본 미변경
-        c2["snippet"] = _shorten_snippet(c2.get("snippet", ""))
+        snip = c2.get("snippet", "")
+        # v0.2.3: 별표 마커는 search_provision 전용 신호 — 300자 절단을 거치는 suggest 후보에
+        # 남기면 절단본에 "전체 수록" 주장이 잔존(오신호)하므로 마커 첫 줄을 제거 후 단축
+        if snip.startswith((_ANNEX_SNIPPET_MARKER_FULL, _ANNEX_SNIPPET_MARKER_EXCERPT)):
+            snip = snip.split("\n", 1)[1] if "\n" in snip else ""
+        c2["snippet"] = _shorten_snippet(snip)
         returned_candidates.append(c2)
 
     response = {
