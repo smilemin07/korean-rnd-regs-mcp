@@ -22,7 +22,8 @@ def test_contract_version_pinned():
     # 0.5.0 = 별표 발견성·정확 선택 강화(v0.2.1) — document-level annexes 목록·annexes_count_by_kind·
     #         dependent_article_hints additive + BP 6자리 가지별표 인코딩(4/6자리 한정으로 협소화)·
     #         별지/서식 BP 노출 제외(오도달 버그 수정)·(번호,가지) 엄격 매칭 → minor bump.
-    assert CONTRACT_VERSION == "0.5.0"
+    # 0.6.0 = 소관부처(ministry) resolve 필터 + list_rule_sets ministry 필드(v0.2.6) → minor bump.
+    assert CONTRACT_VERSION == "0.6.0"
 
 
 # === unit_label (v0.1.8 — overflow_candidates label용) ===
@@ -152,9 +153,9 @@ def test_str_representation():
 
 # === v0.2.1: BP 가지별표 (6자리 = 번호4 + 가지2) ===
 def test_parse_branch_annex_six_digit_bp():
-    pid = parse("law:264451:BP000102")
+    pid = parse("law:189938:BP000102")
     assert pid.unit_id == "BP000102"
-    assert build("law", "264451", "BP000102") == "law:264451:BP000102"
+    assert build("law", "189938", "BP000102") == "law:189938:BP000102"
     assert unit_type("BP000102") == "annex"
 
 
@@ -169,8 +170,8 @@ def test_parse_rejects_undefined_bp_lengths():
     # v0.2.1 협소화: BP는 4자리(본별표)/6자리(가지별표)만 — 5·7자리는 디코드 의미 미정의라 reject.
     # (서버 emit 이력은 4자리뿐 — 실영향 0. contract 0.5.0 이력 명시.)
     with pytest.raises(InvalidProvisionId):
-        parse("law:264451:BP00012")
+        parse("law:189938:BP00012")
     with pytest.raises(InvalidProvisionId):
-        parse("law:264451:BP0001023")
+        parse("law:189938:BP0001023")
     # JO(조문)는 종전대로 4자리 이상 허용 (불변)
-    assert parse("law:264451:JO00012").unit_id == "JO00012"
+    assert parse("law:189938:JO00012").unit_id == "JO00012"

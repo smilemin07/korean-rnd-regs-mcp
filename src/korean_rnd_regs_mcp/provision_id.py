@@ -8,7 +8,7 @@ Format: {doc_type}:{doc_id}[:{unit_id}]
   - "BP" + 4 digits (본별표), e.g. "BP0001" = 별표 1
   - "BP" + 6 digits (가지별표, 번호 4 + 가지 2 — v0.2.1), e.g. "BP000102" = 별표 1의2
     (자릿수 고정으로 'BP0102'=별표 102와 'BP000102'=별표 1의2가 길이로 구분됨.
-     5자리 등 그 외 길이는 의미가 정의되지 않아 reject — contract 0.5.0)
+     5자리 등 그 외 길이는 의미가 정의되지 않아 reject — contract 0.6.0)
 
 Examples:
 - "law:189938"                    -> 법령 document-level
@@ -16,13 +16,13 @@ Examples:
 - "admrul:2100000278740"          -> 행정규칙 document-level
 - "admrul:2100000278740:JO0007"   -> 행정규칙 제7조
 - "admrul:2100000278740:BP0001"   -> 행정규칙 별표 1 (LIVE 검증으로 추가)
-- "law:264451:BP000102"           -> 법령 별표 1의2 (가지별표, v0.2.1)
+- "law:189938:BP000102"           -> 법령 별표 1의2 (가지별표, v0.2.1)
 """
 import re
 from dataclasses import dataclass
 from typing import Optional
 
-CONTRACT_VERSION = "0.5.0"
+CONTRACT_VERSION = "0.6.0"
 VALID_DOC_TYPES = frozenset({"law", "admrul"})
 # JO = 조문(article): 4자리 이상. BP = 별표(annex): 4자리(본별표) 또는 6자리(가지별표, 번호4+가지2).
 # BP 5자리 등은 디코드 의미가 정의되지 않아 reject (v0.2.1 — 서버 emit 이력은 4자리뿐이라 실영향 0).

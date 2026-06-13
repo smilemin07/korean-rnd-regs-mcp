@@ -3,7 +3,7 @@
 # schema: src/korean_rnd_regs_mcp/manifest.py (Pydantic RuleSet model, 13 fields)
 # 단계: (schema 정의) + (MVP 4개 항목 입력)
 #
-# 본 25개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.2.5: 산업부·중기부 R&D family 8건 확대)
+# 본 28개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.2.5: 산업부·중기부 R&D family 8건 확대)
 # 추가 항목 (기관별 운영규정, 매뉴얼 등)은 v0.3 이후 prebuilt_index로 확장 예정.
 
 rule_sets:
@@ -145,119 +145,6 @@ rule_sets:
     known_limitations:
       - "본 행정규칙은 평면 schema(<조문내용> root 직속) — get_admin_rule_detail의 fallback으로 처리"
       - "부처별 자체 연구노트 관리지침은 별도 — 본 manifest는 과기정통부 표준 지침만 포함"
-
-  # === Supplementary: 부패방지·청탁금지·공익신고자보호 (신고·보상금·금품수수·공직자행동강령 검토) ===
-
-  - id: anti_corruption_act
-    title: 부패방지 및 국민권익위원회의 설치와 운영에 관한 법률
-    tier: "Supplementary"
-    hierarchy_rank: 5
-    retrieval: live_api
-    api_target: law
-    api_id_type: MST
-    api_doc_id: "268657"
-    unit_types: article
-    query:
-      - 부패방지 및 국민권익위원회
-      - 부패방지법
-      - 국민권익위원회
-    license_status: public_data
-    effective_date: "2025-01-21"
-    source_url: https://www.law.go.kr/법령/부패방지및국민권익위원회의설치와운영에관한법률
-    known_limitations:
-      - "R&D 분야 신고·포상금·부패행위 검토 시 cross-reference"
-
-  - id: anti_corruption_decree
-    title: 부패방지 및 국민권익위원회의 설치와 운영에 관한 법률 시행령
-    tier: "Supplementary"
-    hierarchy_rank: 6
-    retrieval: live_api
-    api_target: law
-    api_id_type: MST
-    api_doc_id: "283781"
-    unit_types: article
-    query:
-      - 부패방지 및 국민권익위원회 시행령
-      - 부패방지법 시행령
-    license_status: public_data
-    effective_date: "2026-03-03"
-    source_url: https://www.law.go.kr/법령/부패방지및국민권익위원회의설치와운영에관한법률시행령
-    known_limitations:
-      - "별표는 검색 미노출(unit_types=article) — document-level annexes 목록·BP 상세로 접근"
-
-  - id: improper_solicitation_act
-    title: 부정청탁 및 금품등 수수의 금지에 관한 법률
-    tier: "Supplementary"
-    hierarchy_rank: 5
-    retrieval: live_api
-    api_target: law
-    api_id_type: MST
-    api_doc_id: "268655"
-    unit_types: article
-    query:
-      - 부정청탁 및 금품등 수수
-      - 청탁금지법
-      - 김영란법
-    license_status: public_data
-    effective_date: "2025-01-21"
-    source_url: https://www.law.go.kr/법령/부정청탁및금품등수수의금지에관한법률
-    known_limitations:
-      - "공직자·연구자 금품수수·부정청탁 사례 검토 시 cross-reference"
-
-  - id: improper_solicitation_decree
-    title: 부정청탁 및 금품등 수수의 금지에 관한 법률 시행령
-    tier: "Supplementary"
-    hierarchy_rank: 6
-    retrieval: live_api
-    api_target: law
-    api_id_type: MST
-    api_doc_id: "281817"
-    unit_types: article
-    query:
-      - 부정청탁 및 금품등 수수 시행령
-      - 청탁금지법 시행령
-    license_status: public_data
-    effective_date: "2025-12-30"
-    source_url: https://www.law.go.kr/법령/부정청탁및금품등수수의금지에관한법률시행령
-    known_limitations:
-      - "별표는 검색 미노출(unit_types=article) — document-level annexes 목록·BP 상세로 접근"
-
-  - id: public_interest_whistleblower_act
-    title: 공익신고자 보호법
-    tier: "Supplementary"
-    hierarchy_rank: 5
-    retrieval: live_api
-    api_target: law
-    api_id_type: MST
-    api_doc_id: "268861"
-    unit_types: article
-    query:
-      - 공익신고자 보호법
-      - 공익신고자
-      - 공익신고
-    license_status: public_data
-    effective_date: "2026-02-01"
-    source_url: https://www.law.go.kr/법령/공익신고자보호법
-    known_limitations:
-      - "연구부정행위 신고·신변보호·보상금 검토 시 cross-reference"
-
-  - id: public_interest_whistleblower_decree
-    title: 공익신고자 보호법 시행령
-    tier: "Supplementary"
-    hierarchy_rank: 6
-    retrieval: live_api
-    api_target: law
-    api_id_type: MST
-    api_doc_id: "264451"
-    unit_types: article
-    query:
-      - 공익신고자 보호법 시행령
-      - 공익신고자보호법 시행령
-    license_status: public_data
-    effective_date: "2024-08-07"
-    source_url: https://www.law.go.kr/법령/공익신고자보호법시행령
-    known_limitations:
-      - "별표는 검색 미노출(unit_types=article) — document-level annexes 목록·BP 상세로 접근"
 
   # === Sector: 국토교통 R&D family (혁신법과 함께 적용) ===
   # 혁신법(일반법)이 모든 국가 R&D에 일괄 적용되는 반면, 본 family는 국토교통 분야 R&D 운영의 특화 근거.
@@ -496,3 +383,196 @@ rule_sets:
       - "본 행정규칙은 평면 schema — LIVE 검증(2026-06-12): 조문 51·별표 3(검색·BP 상세 지원). 가지조문 누락 가능"
       - "정식 제목은 '중소기업기술개발'(공백 없음) — 검색·resolve 시 표기 주의"
       - "혁신법·시행령이 상위 일반 규범 — 중기부 소관 사업에 본 요령 특화 적용"
+
+  # === 성과평가 family (과기정통부 소관 — 사업·기관 단위 성과평가·성과관리, v0.2.6) ===
+
+  - id: performance_eval_act
+    title: 국가연구개발사업 등의 성과평가 및 성과관리에 관한 법률
+    tier: "Tier 1"
+    hierarchy_rank: 1
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "255639"
+    unit_types: article
+    query:
+      - 국가연구개발사업 등의 성과평가 및 성과관리에 관한 법률
+      - 성과평가법
+      - 연구성과 성과평가
+    license_status: public_data
+    effective_date: "2023-10-31"
+    source_url: https://www.law.go.kr/법령/국가연구개발사업등의성과평가및성과관리에관한법률
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "LIVE 검증(2026-06-13): 조문 30·별표 없음. 사업·기관 단위 성과평가의 상위 근거 — 개별 과제 평가는 혁신법 시행령 소관"
+      - "가지조문 검색·상세조회 누락 가능"
+
+  - id: performance_eval_decree
+    title: 국가연구개발사업 등의 성과평가 및 성과관리에 관한 법률 시행령
+    tier: "Tier 1"
+    hierarchy_rank: 2
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "270435"
+    unit_types: article
+    query:
+      - 국가연구개발사업 등의 성과평가 및 성과관리에 관한 법률 시행령
+      - 성과평가법 시행령
+    license_status: public_data
+    effective_date: "2025-04-01"
+    source_url: https://www.law.go.kr/법령/국가연구개발사업등의성과평가및성과관리에관한법률시행령
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "LIVE 검증(2026-06-13): 조문 29·별표 없음"
+      - "가지조문 검색·상세조회 누락 가능"
+
+  # === 공통 행정규칙 (과기정통부 소관 — 범부처 R&D 공통, v0.2.6) ===
+
+  - id: rnd_info_processing
+    title: 국가연구개발정보처리기준
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000195842"
+    unit_types: both
+    query:
+      - 국가연구개발정보처리기준
+      - 연구개발정보 처리기준
+      - 정보처리기준
+    license_status: public_data
+    effective_date: "2021-01-01"
+    source_url: https://www.law.go.kr/행정규칙/국가연구개발정보처리기준
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "본 행정규칙은 평면 schema — LIVE 검증(2026-06-13): 조문 25·별표 2(검색·BP 상세 지원). 가지조문 누락 가능"
+      - "별표 채번 특이(첫 별표 '0000' → BP0000). IRIS/NTIS 정보 등록·과제/연구자/성과정보 처리 기준"
+
+  - id: rnd_security_measures
+    title: 국가연구개발사업 보안대책
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000231472"
+    unit_types: both
+    query:
+      - 국가연구개발사업 보안대책
+      - 연구개발 보안대책
+      - 보안과제 연구보안
+    license_status: public_data
+    effective_date: "2023-11-20"
+    source_url: https://www.law.go.kr/행정규칙/국가연구개발사업보안대책
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "본 행정규칙은 평면 schema — LIVE 검증(2026-06-13): 조문 18·별표 1·별지 1(별지는 BP·검색 미지원). 9개 부처 공동소관이나 과기정통부 기준으로 등록"
+      - "가지조문 검색·상세조회 누락 가능"
+
+  - id: msit_rnd_processing
+    title: 과학기술정보통신부 소관 과학기술분야 연구개발사업 처리규정
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000228284"
+    unit_types: both
+    query:
+      - 과학기술정보통신부 소관 과학기술분야 연구개발사업 처리규정
+      - 과기정통부 과학기술분야 처리규정
+      - 과학기술분야 연구개발사업 처리규정
+    license_status: public_data
+    effective_date: "2023-08-24"
+    source_url: https://www.law.go.kr/행정규칙/과학기술정보통신부소관과학기술분야연구개발사업처리규정
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "본 행정규칙은 평면 schema — LIVE 검증(2026-06-13): 조문 29·별표 1·별지 5·별첨 2(별지·별첨은 BP·검색 미지원). 가지조문 누락 가능"
+      - "과기정통부 소관 과학기술분야 R&D의 기획·선정·협약·평가·관리 절차"
+
+  - id: ict_rnd_management
+    title: 정보통신·방송 연구개발 관리규정
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000258836"
+    unit_types: both
+    query:
+      - 정보통신·방송 연구개발 관리규정
+      - 정보통신 방송 연구개발 관리규정
+      - ICT 연구개발 관리규정
+    license_status: public_data
+    effective_date: "2025-05-13"
+    source_url: https://www.law.go.kr/행정규칙/정보통신ㆍ방송연구개발관리규정
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "본 행정규칙은 평면 schema — LIVE 검증(2026-06-13): 조문 54·별표 6. 본문·별표 대용량(별표2 약 6만자) — 대용량 별표는 본문 미수록(oversized_pointer)"
+      - "IITP·NIPA 등 정보통신·방송 분야 R&D 사업에 적용. 가지조문 누락 가능"
+
+  - id: ict_research_ethics
+    title: 정보통신·방송 연구윤리 진실성 확보 등에 관한 규정
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000248908"
+    unit_types: article
+    query:
+      - 정보통신·방송 연구윤리 진실성 확보 등에 관한 규정
+      - 정보통신 방송 연구윤리
+      - ICT 연구윤리 진실성
+    license_status: public_data
+    effective_date: "2024-10-31"
+    source_url: https://www.law.go.kr/행정규칙/정보통신ㆍ방송연구윤리진실성확보등에관한규정
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "본 행정규칙은 평면 schema — LIVE 검증(2026-06-13): 조문 25·별표 없음. ICT·방송 R&D의 연구부정행위·진실성 검증 절차"
+
+  # === 기술료 family (산업부·중기부 소관 — 동명 충돌 방지 ministry 필터 적용, v0.2.6) ===
+
+  - id: tech_fee_integrated
+    title: 기술료 징수 및 관리에 관한 통합요령
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000257278"
+    unit_types: both
+    query:
+      - 기술료 징수 및 관리에 관한 통합요령
+      - 기술료 통합요령
+      - 기술료 징수 관리
+    license_status: public_data
+    effective_date: "2025-04-07"
+    source_url: https://www.law.go.kr/행정규칙/기술료징수및관리에관한통합요령
+    ministry: 산업통상부
+    known_limitations:
+      - "★동명 규정이 기후에너지환경부에도 존재(별도 일련번호) — ministry='산업통상부' 필터로 산업부 건만 resolve. 부처 미지정 시 오집 가능"
+      - "본 행정규칙은 평면 schema — LIVE 검증(2026-06-13): 조문 22·별표 1·별지 5(별지는 BP·검색 미지원). 가지조문 누락 가능"
+
+  - id: sme_tech_fee
+    title: 중소기업기술개발 지원사업 기술료 관리규정
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000276844"
+    unit_types: both
+    query:
+      - 중소기업기술개발 지원사업 기술료 관리규정
+      - 중소기업 기술료 관리규정
+      - 중기부 기술료
+    license_status: public_data
+    effective_date: "2026-04-02"
+    source_url: https://www.law.go.kr/행정규칙/중소기업기술개발지원사업기술료관리규정
+    ministry: 중소벤처기업부
+    known_limitations:
+      - "정식 제목은 '중소기업기술개발'(공백 없음) — 검색·resolve 시 표기 주의"
+      - "본 행정규칙은 평면 schema — LIVE 검증(2026-06-13): 조문 10·별표 2·별지 1(별지는 BP·검색 미지원)"

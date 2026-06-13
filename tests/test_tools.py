@@ -93,7 +93,7 @@ def mock_client(monkeypatch):
             },
         ],
     }
-    def _resolve_passthrough(title, api_target, manifest_doc_id):
+    def _resolve_passthrough(title, api_target, manifest_doc_id, ministry=None):
         return ResolvedDocId(
             doc_id=manifest_doc_id,
             effective_date="",
@@ -539,9 +539,9 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 
 
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
-    """v0.1.9: note 텍스트 변경만 — 스키마 무변, contract_version 0.3.0 유지."""
+    """suggest 응답에 현행 contract_version(0.6.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.5.0"
+    assert result["contract_version"] == "0.6.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -866,7 +866,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.5.0"
+    assert result["contract_version"] == "0.6.0"
 
 
 # === _build_article_content  ===
@@ -1221,9 +1221,104 @@ def test_resolve_latest_doc_id_cache_hit():
     assert client.search_laws.call_count == 1
 
 
+# === v0.2.6: 소관부처(ministry) resolve 필터 ===
+
+
+def test_ministry_matches_static_helper():
+    """_ministry_matches — 콤마 분리 정확일치, substring 매칭 금지, 빈 want는 통과."""
+    m = LawApiClient._ministry_matches
+    assert m("산업통상부", "산업통상부") is True
+    # 콤마 다부처 행(보안대책 9부처형) — 정확일치 원소 포함
+    assert m("과학기술정보통신부", "과학기술정보통신부,교육부,기후에너지환경부") is True
+    # substring 오탐 차단: "환경부"는 "기후에너지환경부"의 부분문자열이나 별개 부처
+    assert m("환경부", "기후에너지환경부") is False
+    # 빈 want → 필터 미적용(기존 거동)
+    assert m("", "아무부처") is True
+    assert m(None, "아무부처") is True
+
+
+def test_resolve_ministry_filter_rejects_homonym_other_ministry():
+    """동명 2부처 행에서 ministry 지정 시 자부처 행만 채택(타부처가 더 최신이어도). 기술료 통합요령 LIVE 오집 재현."""
+    from korean_rnd_regs_mcp.live_api import SearchResult, DocumentRef
+    sr = SearchResult(total=2, page=1, page_size=5, items=[
+        DocumentRef(doc_type="admrul", doc_id="2100000257278",
+                    title="기술료 징수 및 관리에 관한 통합요령",
+                    extra={"시행일자": "20250407", "소관부처명": "산업통상부"}),
+        DocumentRef(doc_type="admrul", doc_id="2100000274950",
+                    title="기술료 징수 및 관리에 관한 통합요령",
+                    extra={"시행일자": "20260129", "소관부처명": "기후에너지환경부"}),
+    ])
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    client.search_admin_rules = MagicMock(return_value=sr)
+    result = client.resolve_latest_doc_id(
+        "기술료 징수 및 관리에 관한 통합요령", "admrul", "2100000257278", "산업통상부",
+    )
+    assert result.doc_id == "2100000257278"  # 산업부 건 — 기후부가 시행일 최신이어도
+    # 대조: ministry 미지정이면 최신(기후부)으로 오집되는 종전 거동
+    client2 = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    client2.search_admin_rules = MagicMock(return_value=sr)
+    result2 = client2.resolve_latest_doc_id(
+        "기술료 징수 및 관리에 관한 통합요령", "admrul", "2100000257278",
+    )
+    assert result2.doc_id == "2100000274950"
+
+
+def test_resolve_ministry_no_match_falls_back_to_manifest():
+    """ministry 일치 행 0건 → manifest fallback(is_updated=False, 가용성 유지)."""
+    from korean_rnd_regs_mcp.live_api import SearchResult, DocumentRef
+    sr = SearchResult(total=1, page=1, page_size=5, items=[
+        DocumentRef(doc_type="admrul", doc_id="2100000274950",
+                    title="기술료 징수 및 관리에 관한 통합요령",
+                    extra={"시행일자": "20260129", "소관부처명": "기후에너지환경부"}),
+    ])
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    client.search_admin_rules = MagicMock(return_value=sr)
+    result = client.resolve_latest_doc_id(
+        "기술료 징수 및 관리에 관한 통합요령", "admrul", "2100000257278", "산업통상부",
+    )
+    assert result.doc_id == "2100000257278"  # manifest fallback
+    assert result.is_updated is False
+
+
+def test_resolve_ministry_cache_key_separation():
+    """동일 title·상이 ministry는 캐시 키가 분리되어 각각 검색(오집 24h 고착 방지)."""
+    from korean_rnd_regs_mcp.live_api import SearchResult, DocumentRef
+    sr = SearchResult(total=2, page=1, page_size=5, items=[
+        DocumentRef(doc_type="admrul", doc_id="A",
+                    title="기술료 징수 및 관리에 관한 통합요령",
+                    extra={"시행일자": "20250407", "소관부처명": "산업통상부"}),
+        DocumentRef(doc_type="admrul", doc_id="B",
+                    title="기술료 징수 및 관리에 관한 통합요령",
+                    extra={"시행일자": "20260129", "소관부처명": "기후에너지환경부"}),
+    ])
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    client.search_admin_rules = MagicMock(return_value=sr)
+    r_ind = client.resolve_latest_doc_id("기술료 징수 및 관리에 관한 통합요령", "admrul", "A", "산업통상부")
+    r_cli = client.resolve_latest_doc_id("기술료 징수 및 관리에 관한 통합요령", "admrul", "A", "기후에너지환경부")
+    assert r_ind.doc_id == "A"
+    assert r_cli.doc_id == "B"
+    assert client.search_admin_rules.call_count == 2  # 캐시 키 분리 → 각각 검색
+
+
+def test_resolve_ministry_none_preserves_behavior():
+    """ministry=None(기존 다수 규정)은 종전 거동 불변 — 단일 일치 행 채택."""
+    from korean_rnd_regs_mcp.live_api import SearchResult, DocumentRef
+    sr = SearchResult(total=1, page=1, page_size=5, items=[
+        DocumentRef(doc_type="law", doc_id="270435",
+                    title="국가연구개발사업 등의 성과평가 및 성과관리에 관한 법률 시행령",
+                    extra={"시행일자": "20250401", "소관부처명": "과학기술정보통신부"}),
+    ])
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    client.search_laws = MagicMock(return_value=sr)
+    result = client.resolve_latest_doc_id(
+        "국가연구개발사업 등의 성과평가 및 성과관리에 관한 법률 시행령", "law", "270435",
+    )
+    assert result.doc_id == "270435"
+
+
 def test_search_provision_uses_resolved_id(mock_client):
     """search_provision이 resolved doc_id로 detail API를 호출하는지 검증."""
-    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
+    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid, ministry=None: ResolvedDocId(
         doc_id="NEW_ID" if mid == "283849" else mid,
         effective_date="2026-05-06" if mid == "283849" else "",
         is_updated=(mid == "283849"),
@@ -1264,7 +1359,7 @@ def test_search_provision_no_truncation_when_under_limit(mock_client):
 
 def test_get_provision_detail_uses_resolved_id(mock_client):
     """get_provision_detail이 resolved ID로 상세 조회."""
-    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
+    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid, ministry=None: ResolvedDocId(
         doc_id="NEW_MST" if mid == "283849" else mid,
         effective_date="2026-05-06" if mid == "283849" else "",
         is_updated=(mid == "283849"),
@@ -1279,7 +1374,7 @@ def test_get_provision_detail_uses_resolved_id(mock_client):
 
 def test_get_provision_detail_with_resolved_doc_id_in_provision_id(mock_client):
     """회귀: search_provision이 반환한 resolved doc_id로 get_provision_detail 호출 시 정상 동작."""
-    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
+    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid, ministry=None: ResolvedDocId(
         doc_id="NEW_MST" if mid == "283849" else mid,
         effective_date="2026-05-06" if mid == "283849" else "",
         is_updated=(mid == "283849"),
@@ -1336,8 +1431,8 @@ def test_resolve_latest_doc_id_failure_uses_short_ttl_cache():
     assert r1.doc_id == "283849"
     assert r1.is_updated is False
 
-    # failure 캐시에 저장됨 — success 캐시에는 없어야 함
-    cache_key = ("resolve", "law", "국가연구개발혁신법")
+    # failure 캐시에 저장됨 — success 캐시에는 없어야 함 (v0.2.6: 캐시 키 4-tuple, ministry None→"")
+    cache_key = ("resolve", "law", "국가연구개발혁신법", "")
     assert cache_key not in client._id_resolution_cache
     assert cache_key in client._id_resolution_failure_cache
 
@@ -1372,7 +1467,7 @@ def test_resolve_latest_doc_id_middle_dot_normalization():
 
 def test_resolve_no_key_leak(mock_client):
     """resolve 응답에 API key 미포함."""
-    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
+    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid, ministry=None: ResolvedDocId(
         doc_id="UPDATED_ID", effective_date="2026-01-01",
         is_updated=True, manifest_doc_id=mid,
     )
@@ -1383,7 +1478,7 @@ def test_resolve_no_key_leak(mock_client):
 
 def test_suggest_review_sources_works_with_resolved_ids(mock_client):
     """suggest_review_sources가 resolved ID로도 정상 동작 (rule_set_id 기반 lookup)."""
-    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
+    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid, ministry=None: ResolvedDocId(
         doc_id="CHANGED_ID" if mid == "283849" else mid,
         effective_date="2026-05-06" if mid == "283849" else "",
         is_updated=(mid == "283849"),
@@ -1426,7 +1521,7 @@ def test_effective_date_and_revision_notice_helpers():
 def test_search_provision_detects_amendment_on_stable_serial(mock_client):
     """회귀: 일련번호 불변(is_updated=False)이라도 LIVE 시행일이 manifest와 다르면
     개정 감지 → revision_notice + LIVE effective_date 노출 (연구개발비 사용 기준 버그)."""
-    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
+    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid, ministry=None: ResolvedDocId(
         doc_id=mid,                   # 일련번호 불변
         effective_date="2099-12-31",  # 어떤 manifest 시행일과도 다른 LIVE 값
         is_updated=False,             # doc_id 안 바뀜 → 기존 신호로는 개정 미감지
@@ -1442,7 +1537,7 @@ def test_search_provision_detects_amendment_on_stable_serial(mock_client):
 
 def test_get_provision_detail_detects_amendment_on_stable_serial(mock_client):
     """회귀: get_provision_detail도 일련번호 불변 + LIVE 시행일 차이를 개정으로 감지."""
-    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid: ResolvedDocId(
+    mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid, ministry=None: ResolvedDocId(
         doc_id=mid, effective_date="2099-12-31", is_updated=False, manifest_doc_id=mid,
     )
     result = asyncio.run(get_provision_detail("law:283849:JO0015"))
@@ -2199,3 +2294,34 @@ def test_build_annex_detail_oversized_pointer_prefers_official_source_and_warns_
     assert "인용하지 마십시오" in c             # 기존 인용 금지 신호 보존
     ra = resp["required_action"]
     assert ra.index("document_source_url") < ra.index("attached_file_url")
+
+
+# === v0.2.6: search_provision fan-out 응답 예산 가드 (graceful skip) ===
+
+
+def test_search_provision_fanout_budget_graceful_skip(mock_client, monkeypatch):
+    """fan-out 응답 예산 초과 시 느린 규정을 graceful skip(errors code=timeout)하고 완료분으로 응답 — 전체 타임아웃 차단."""
+    import time as _time
+    monkeypatch.setattr(main_module, "_FANOUT_BUDGET_S", 0.05)
+
+    def _slow_detail(doc_id):
+        _time.sleep(0.4)
+        return {"articles": [], "annexes": [], "annex_parse_error": None}
+
+    mock_client.get_law_detail.side_effect = _slow_detail
+    mock_client.get_admin_rule_detail.side_effect = _slow_detail
+
+    # 예산(0.05s) << 지연(0.4s) → 전건 skip되지만 전체 타임아웃 없이 정상 반환
+    result = asyncio.run(main_module.search_provision("기술료"))
+    assert "results" in result and "errors" in result
+    timeout_errs = [e for e in result["errors"] if e["code"] == "timeout"]
+    assert timeout_errs, "예산 초과 규정이 timeout 코드로 errors에 표면화돼야 함"
+    # graceful skip 메시지에 재검색 안내
+    assert "생략" in timeout_errs[0]["message"]
+
+
+def test_search_provision_fanout_budget_no_skip_when_fast(mock_client):
+    """정상(빠른) fetch는 예산 내 전건 완료 — timeout skip 미발생."""
+    result = asyncio.run(main_module.search_provision("간접비"))
+    timeout_errs = [e for e in result.get("errors", []) if e["code"] == "timeout"]
+    assert not timeout_errs, "정상 fetch에서는 timeout skip이 없어야 함"

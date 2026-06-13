@@ -56,7 +56,7 @@ class UnitTypes(str, Enum):
 
 
 class RuleSet(BaseModel):
-    """rule_sets.yaml 한 항목의 schema (총 14 fields).
+    """rule_sets.yaml 한 항목의 schema (총 15 fields — v0.2.6 ministry 추가).
 
     docs/api_contract.md §2와 참조.
     """
@@ -123,6 +123,14 @@ class RuleSet(BaseModel):
     known_limitations: List[str] = Field(
         default_factory=list,
         description="알려진 제약 사항. 예: '별표는 본문 텍스트로 반환되지만 일부 HWP/PDF 첨부 — source_url 별도 확인'",
+    )
+    ministry: Optional[str] = Field(
+        default=None,
+        description=(
+            "소관부처명 (OpenAPI 검색 행의 개편 후 부처명, 예: '산업통상부'). "
+            "동명 규정이 복수 부처에 존재할 때 resolve_latest_doc_id가 자부처 행만 채택하도록 하는 필터값. "
+            "None이면 필터 미적용(기존 거동). v0.2.6 추가."
+        ),
     )
 
 

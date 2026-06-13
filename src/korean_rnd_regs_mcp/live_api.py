@@ -519,14 +519,31 @@ class LawApiClient:
             return f"{raw[:4]}-{raw[4:6]}-{raw[6:8]}"
         return raw
 
+    @staticmethod
+    def _ministry_matches(want: str, got: str) -> bool:
+        """검색 행 소관부처명(콤마로 구분된 다부처 가능)에 want가 정확일치로 포함되는지.
+
+        substring 매칭 금지("환경부" ⊂ "기후에너지환경부" 오탐 차단). want가 빈 값이면 True(필터 미적용).
+        """
+        want = (want or "").strip()
+        if not want:
+            return True
+        candidates = [p.strip() for p in (got or "").split(",")]
+        return want in candidates
+
     def resolve_latest_doc_id(
         self,
         title: str,
         api_target: str,
         manifest_doc_id: str,
+        ministry: str | None = None,
     ) -> ResolvedDocId:
-        """manifest title로 검색하여 최신 문서 ID를 반환. 실패 시 manifest ID fallback."""
-        cache_key = ("resolve", api_target, title)
+        """manifest title로 검색하여 최신 문서 ID를 반환. 실패 시 manifest ID fallback.
+
+        ministry가 지정되면 검색 행의 소관부처명을 ','로 분리한 목록에 ministry가 정확일치로 포함된
+        행만 후보로 삼는다(동명 타부처 규정 오집 방지). 일치 행이 없으면 manifest fallback(가용성 유지).
+        """
+        cache_key = ("resolve", api_target, title, ministry or "")
         cached = self._id_resolution_cache.get(cache_key)
         if cached is not None:
             return cached
@@ -554,6 +571,8 @@ class LawApiClient:
         best: ResolvedDocId | None = None
         for item in sr.items:
             if self._normalize_title(item.title) != norm_title:
+                continue
+            if not self._ministry_matches(ministry, item.extra.get("소관부처명", "")):
                 continue
             raw_date = item.extra.get("시행일자", "")
             resolved = ResolvedDocId(

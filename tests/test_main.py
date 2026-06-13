@@ -73,18 +73,23 @@ def test_review_regulation_prompt_handles_quotes_in_situation():
     assert 'suggest_review_sources(question="' not in body
 
 
-def test_review_regulation_prompt_includes_tier2_and_supplementary_routing():
-    """Tier 2 키워드 routing + Supplementary cross-check 안내 포함."""
+def test_review_regulation_prompt_includes_tier2_routing():
+    """Tier 2 키워드 routing + v0.2.6 공통/사업 행정규칙 cross-check 안내 포함, 제거된 보조 법령 부재."""
     body = review_regulation_prompt("X")
     # Tier 2 routing
     assert "rnd_funding_standard" in body
     assert "simultaneous_research_limit" in body
     assert "facility_equipment_standard" in body
     assert "research_note_guideline" in body
-    # Supplementary routing
-    assert "anti_corruption_act" in body
-    assert "improper_solicitation_act" in body
-    assert "public_interest_whistleblower_act" in body
+    # v0.2.6 공통/사업 행정규칙 cross-check (보조 법령 routing 대체)
+    assert "rnd_info_processing" in body
+    assert "rnd_security_measures" in body
+    assert "performance_eval_act" in body
+    assert "tech_fee_integrated" in body
+    # 제거된 보조 법령 routing은 더 이상 프롬프트에 없어야 함
+    assert "anti_corruption_act" not in body
+    assert "improper_solicitation_act" not in body
+    assert "public_interest_whistleblower_act" not in body
 
 
 def test_review_regulation_prompt_includes_limitation_notice():
@@ -138,35 +143,42 @@ def test_review_prompt_instructs_keyword_array_to_suggest():
 
 
 def test_list_rule_sets_returns_live_api_items():
-    """v0.1.3 범위 17건 + v0.2.5 산업부·중기부 R&D family 8건 = 25건."""
+    """v0.2.6 재편: 보조 법령 6건 제거 + 과기정통부 family 9건 추가 = 28건."""
     result = asyncio.run(list_rule_sets())
     assert "rule_sets" in result
     assert isinstance(result["rule_sets"], list)
-    assert result["total"] == 25
-    assert len(result["rule_sets"]) == 25
+    assert result["total"] == 28
+    assert len(result["rule_sets"]) == 28
     ids = {rs["id"] for rs in result["rule_sets"]}
     expected = {
         # Tier 1 + 기존 Tier 2 (혁신법 family + 연구개발비 사용 기준)
         "innovation_act", "innovation_decree", "innovation_rule", "rnd_funding_standard",
         # Tier 2 신규 (review-regulations SKILL.md Tier 2 완성)
         "simultaneous_research_limit", "facility_equipment_standard", "research_note_guideline",
-        # Supplementary (부패방지·청탁금지·공익신고자보호)
-        "anti_corruption_act", "anti_corruption_decree",
-        "improper_solicitation_act", "improper_solicitation_decree",
-        "public_interest_whistleblower_act", "public_interest_whistleblower_decree",
         # v0.1.3 — 국토교통 R&D family (혁신법과 함께 적용)
         "sector_kt_act", "sector_kt_decree", "sector_kt_rule", "kt_rnd_operations",
         # v0.2.5 — 산업기술 R&D family (산업통상부)
         "industry_tech_act", "industry_tech_decree", "industry_tech_rule", "industry_tech_operating",
         # v0.2.5 — 중소기업 R&D family (중소벤처기업부)
         "sme_tech_act", "sme_tech_decree", "sme_tech_rule", "sme_rnd_operating",
+        # v0.2.6 — 성과평가 family
+        "performance_eval_act", "performance_eval_decree",
+        # v0.2.6 — 공통 행정규칙 (과기정통부)
+        "rnd_info_processing", "rnd_security_measures", "msit_rnd_processing",
+        "ict_rnd_management", "ict_research_ethics",
+        # v0.2.6 — 기술료 family (산업부·중기부, 소관부처 필터)
+        "tech_fee_integrated", "sme_tech_fee",
     }
     assert ids == expected, f"id 불일치: 누락={expected - ids}, 추가={ids - expected}"
-    # 모든 항목이 필수 field. rank 5/6 = Supplementary 법률/시행령 (추가)
+    # 모든 항목이 필수 field + v0.2.6 ministry 필드(additive) 노출
+    by_id = {rs["id"]: rs for rs in result["rule_sets"]}
     for rs in result["rule_sets"]:
         assert rs["api_target"] in ("law", "admrul")
         assert rs["hierarchy_rank"] in (1, 2, 3, 4, 5, 6)
         assert rs["unit_types"] in ("article", "annex", "both")
+        assert "ministry" in rs  # additive 필드 — None 또는 부처명
+    assert by_id["tech_fee_integrated"]["ministry"] == "산업통상부"
+    assert by_id["innovation_act"]["ministry"] is None
 
 
 def test_review_regulation_prompt_includes_annex_discovery_guides():
