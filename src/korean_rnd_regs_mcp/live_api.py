@@ -34,6 +34,19 @@ ERROR_RATE_LIMITED = "rate_limited"
 ERROR_PARSE_FAILED = "parse_failed"
 ERROR_NOT_FOUND = "not_found"
 
+# === 외부 OpenAPI 대기 상한 (v0.2.7: 구동 안정성 강화 — 외부 API 대기 상한 보수화) ===
+# requests timeout을 (connect, read) 튜플로 분리해 read 단계를 보수적으로 bound한다.
+# 종전 정수 30s는 connect·read *각 단계*에 30s를 허용 → 단일 to_thread 호출이 최악 ~30s 점유 +
+# 재시도 폭주로 worst-case 스레드 점유가 과대(186s/task)했다. read 12s로 낮추고 max_retries를
+# 3→2로 줄여 worst-case를 ~82s/task로 보수화(2회 × ~20s wall + backoff 1s).
+# 부등식 정합: _READ_TIMEOUT_S(12) < main._FANOUT_BUDGET_S(20) < 커넥터 타임아웃 — read 단계가
+# 끊겨도 fan-out 예산 안에서 흡수된다. fan-out 예산은 *응답*만 풀고 진행 중인 to_thread blocking은
+# 못 끊으므로, 실제 blocking 상한은 이 timeout만이 보장한다.
+_CONNECT_TIMEOUT_S = 8.0
+_READ_TIMEOUT_S = 12.0
+_REQUEST_TIMEOUT = (_CONNECT_TIMEOUT_S, _READ_TIMEOUT_S)
+_MAX_RETRIES = 2
+
 
 class LawApiError(Exception):
     """Standard error for live API calls (carries `code` per contract §4)."""
@@ -95,8 +108,8 @@ def get_credentials(env_override: Optional[dict] = None) -> dict:
 def _request_with_retry(
     url: str,
     params: dict,
-    max_retries: int = 3,
-    timeout: int = 30,
+    max_retries: int = _MAX_RETRIES,
+    timeout: tuple[float, float] = _REQUEST_TIMEOUT,
 ) -> requests.Response:
     last_err: Optional[Exception] = None
     backoff = 1.0

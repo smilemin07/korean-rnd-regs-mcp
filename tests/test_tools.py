@@ -2316,8 +2316,10 @@ def test_search_provision_fanout_budget_graceful_skip(mock_client, monkeypatch):
     assert "results" in result and "errors" in result
     timeout_errs = [e for e in result["errors"] if e["code"] == "timeout"]
     assert timeout_errs, "예산 초과 규정이 timeout 코드로 errors에 표면화돼야 함"
-    # graceful skip 메시지에 재검색 안내
-    assert "생략" in timeout_errs[0]["message"]
+    # graceful skip 메시지: '부분 결과 + 재검색' 신호 (v0.2.7 ⑨ — '끊김/생략' 뉘앙스 제거)
+    _msg = timeout_errs[0]["message"]
+    assert "제외" in _msg and "부분 결과" in _msg and "다시 검색" in _msg
+    assert "중단" in _msg  # 서비스 중단이 아님을 명시
 
 
 def test_search_provision_fanout_budget_no_skip_when_fast(mock_client):
@@ -2325,3 +2327,47 @@ def test_search_provision_fanout_budget_no_skip_when_fast(mock_client):
     result = asyncio.run(main_module.search_provision("간접비"))
     timeout_errs = [e for e in result.get("errors", []) if e["code"] == "timeout"]
     assert not timeout_errs, "정상 fetch에서는 timeout skip이 없어야 함"
+
+
+# === v0.2.7: 외부 API 대기 상한 보수화 (구동 안정성 강화) 회귀 ===
+
+
+def test_request_defaults_conservative_timeout_and_retries():
+    """v0.2.7 핵심 회귀: _request_with_retry 기본값이 보수화된 신 상수(timeout (8,12)·max_retries 2)와 일치 — 우발적 원복 방지. 네트워크 미발생(inspect만)."""
+    import inspect
+    from korean_rnd_regs_mcp import live_api
+    sig = inspect.signature(live_api._request_with_retry)
+    assert sig.parameters["max_retries"].default == 2
+    assert sig.parameters["timeout"].default == (8.0, 12.0)
+    assert live_api._MAX_RETRIES == 2
+    assert live_api._CONNECT_TIMEOUT_S == 8.0
+    assert live_api._READ_TIMEOUT_S == 12.0
+    assert live_api._REQUEST_TIMEOUT == (8.0, 12.0)
+
+
+def test_read_timeout_below_fanout_budget_invariant():
+    """v0.2.7 부등식 회귀: read timeout(12) < fan-out 예산(20) — read가 끊겨도 예산 안에서 graceful skip으로 흡수됨을 코드로 강제."""
+    from korean_rnd_regs_mcp import live_api
+    from korean_rnd_regs_mcp import main as _m
+    assert live_api._READ_TIMEOUT_S < _m._FANOUT_BUDGET_S, "read timeout이 fan-out 예산보다 작아야 함"
+    assert live_api._CONNECT_TIMEOUT_S <= live_api._READ_TIMEOUT_S
+    assert _m._FANOUT_BUDGET_S == 20.0  # ④ 예산값 유지
+
+
+def test_request_passes_tuple_timeout_to_requests_get(monkeypatch):
+    """v0.2.7: override 없이 호출 시 requests.get에 (8.0, 12.0) 튜플 timeout이 실제 전달됨 — 단일 locus가 신 default를 사용함을 검증(네트워크 미발생)."""
+    import requests as requests_mod
+    from korean_rnd_regs_mcp.live_api import _request_with_retry
+
+    captured = {}
+
+    class _FakeResp:
+        status_code = 200
+
+    def mock_get(url, params=None, timeout=None, **kwargs):
+        captured["timeout"] = timeout
+        return _FakeResp()
+
+    monkeypatch.setattr(requests_mod, "get", mock_get)
+    _request_with_retry("https://test.invalid", {"OC": "x"})
+    assert captured["timeout"] == (8.0, 12.0)

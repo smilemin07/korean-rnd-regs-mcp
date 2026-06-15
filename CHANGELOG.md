@@ -3,6 +3,21 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.2.7] - 2026-06-14
+
+**구동 안정성 강화 — 외부 API 대기 상한 보수화** — 검색 시 28개 규정을 동시에 조회(fan-out)하는 과정에서, 응답이 느린 일부 요청이 백그라운드 작업자(스레드)를 오래 점유해 동시 질의가 쌓이면 전체가 지연될 수 있는 잠재 위험을 보수적으로 차단. 외부 OpenAPI 대기 시간 상한을 `(connect 8s, read 12s)`로 분리하고 재시도를 3→2회로 줄여 단일 규정의 worst-case 스레드 점유를 약 186s → 82s로 단축. fan-out 응답 예산(20s)은 유지(부등식 read 12s < 예산 20s < 커넥터 타임아웃 정합). 검색·랭킹·응답 schema·외부 URL·지원 규정 28개 모두 불변. `contract_version` **0.6.0 유지**(내부 거동 보수화·schema 무변). 변경은 요청 경로 한정으로 서버 부팅·HTTP transport 비의존. ultracode 워크플로 + 외부 2-AI 적대검증(/goal-disc-out, blocking 0).
+
+### Changed
+
+- **외부 API 요청 timeout 분리·단축**: 정수 `30s`(connect·read 공통) → `(connect 8s, read 12s)` 튜플. 정상 규정 조회(detail 평시 0.6~1.3s)에 충분한 여유를 두면서, 응답 지연 요청을 빨리 포기시켜 스레드 점유를 bound. (`_CONNECT_TIMEOUT_S`·`_READ_TIMEOUT_S`·`_REQUEST_TIMEOUT` 상수)
+- **재시도 축소**: `max_retries` 3 → 2 (일시적 5xx 내성은 유지하되 worst-case 점유 절감). (`_MAX_RETRIES` 상수)
+- **graceful skip 안내 문구 정제**: 응답 예산 초과로 제외된 규정 안내를 '끊김/생략'이 아닌 '부분 결과 — 서비스 중단이 아니며 키워드를 좁혀 다시 검색' 신호로 변경(체감 안정성).
+
+### Notes
+
+- fan-out 응답 예산(`_FANOUT_BUDGET_S` = 20s)은 *유지* — 예산은 사용자 응답만 풀고 진행 중인 백그라운드 요청은 못 끊으므로, 실제 대기 상한은 위 timeout 보수화가 보장한다(주석으로 문서화).
+- 연결 풀(Session 재사용)·전용 스레드 풀·소관부처 카탈로그 완성·지원 규정 확대는 본 릴리스 범위 밖(이후 버전에서 단계적).
+
 ## [0.2.6] - 2026-06-13
 
 **지원 규정 재편 2차 — 과기정통부 R&D 연구자 빈출 규정 (25→28개) + 소관부처 resolve 필터** — 과학기술정보통신부 소관 R&D에 참여하는 연구자가 참조하는 핵심 규정 9건을 추가하고, R&D 행정과 거리가 먼 보조 법령 6건(부패방지·청탁금지·공익신고자보호)을 정리. 동명 규정이 복수 부처에 존재할 때(예: 기술료 통합요령) 자부처 현행본만 정확히 조회하는 소관부처 필터를 도입. 전 신규 항목 LIVE 검증(2026-06-13) 식별자·시행일로 등록. 외부 2-AI 적대검증(/disc·/goal-disc-out, blocking 0) 후 단일 release로 통합. `contract_version` 0.5.0 → **0.6.0**(`list_rule_sets` 응답에 `ministry` 필드 additive 추가). 코드는 부팅·HTTP transport 비의존(outage 무위험).

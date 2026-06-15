@@ -44,9 +44,14 @@ _SNIPPET_MAX = 2000
 _SEARCH_RESPONSE_CHAR_BUDGET = 16000  # v0.2.5: search_provision 전체 응답 직렬화 예산 (25k token 한도의 보수 proxy — suggest와 동일 사상)
 _RESULTS_MAX = 30
 # v0.2.6: search_provision 전건 fan-out 응답 시간 예산(초). 한 규정의 detail fetch가 hang/재시도
-# 폭주(최악 max_retries 3 × timeout 30s)로 전체 질의를 커넥터 타임아웃까지 끄는 것을 차단 — 예산 초과
-# 규정은 graceful skip하여 errors로 표면화하고 완료분으로 응답(부분 응답 > 전체 타임아웃). 정상 cold(전건
-# 완료)는 이 예산 한참 아래라 무영향. 대형 규정(ICT 관리규정 139k 등) 확대로 cold tail 증가에 대한 안전 가드.
+# 폭주로 전체 질의를 커넥터 타임아웃까지 끄는 것을 차단 — 예산 초과 규정은 graceful skip하여 errors로
+# 표면화하고 완료분으로 응답(부분 응답 > 전체 타임아웃). 정상 cold(전건 완료)는 이 예산 한참 아래라 무영향.
+# 대형 규정(ICT 관리규정 139k 등) 확대로 cold tail 증가에 대한 안전 가드.
+# v0.2.7(구동 안정성 강화): live_api의 외부 API 대기 상한을 (connect 8s, read 12s) + max_retries 2로
+# 보수화. 부등식 정합: read 12s < _FANOUT_BUDGET_S 20s < 커넥터 타임아웃 — read 단계가 끊겨도 fan-out
+# 예산 안에서 흡수된다. 단일 규정 worst-case 스레드 점유 ≈ 82s(2회 × ~20s wall + backoff 1s, 종전 186s).
+# 주의: fan-out 예산은 *응답*만 풀고 진행 중인 to_thread blocking은 못 끊으므로 실제 blocking 상한은
+# live_api timeout만이 보장 — 예산값(20)은 유지하고 timeout만 보수화한 이유.
 _FANOUT_BUDGET_S = 20.0
 
 
@@ -883,7 +888,8 @@ async def search_provision(query: str) -> dict:
         if isinstance(result, _FanoutSkipped):
             rs = live_items[i]
             errors.append({"rule_set_id": rs.id, "code": "timeout",
-                           "message": "응답 예산 초과로 조회 생략(graceful skip) — 키워드를 좁혀 재검색"})
+                           "message": "이 규정은 응답 시간이 길어 이번 검색에서 제외했습니다(다른 규정 결과는 정상). "
+                                      "서비스 중단이 아니라 부분 결과이며, 키워드를 좁혀 다시 검색하면 포함될 수 있습니다."})
             continue
         if isinstance(result, LawApiError):
             rs = live_items[i]
