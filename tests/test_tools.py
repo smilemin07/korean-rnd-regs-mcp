@@ -21,6 +21,7 @@ from korean_rnd_regs_mcp.main import (
     _extract_keywords,
     _make_snippet,
     _overflow_label,
+    _relevance_sort_key,
     _resolve_effective_date,
     _revision_notice,
     _sanitize_keywords,
@@ -2371,3 +2372,66 @@ def test_request_passes_tuple_timeout_to_requests_get(monkeypatch):
     monkeypatch.setattr(requests_mod, "get", mock_get)
     _request_with_retry("https://test.invalid", {"OC": "x"})
     assert captured["timeout"] == (8.0, 12.0)
+
+
+# === v0.2.8: search_provision 관련도 정렬 (광역 질의 매몰 방지) ===
+def _fake_rank_rs(title, rank):
+    """_relevance_sort_key 단위 테스트용 최소 rule set stub."""
+    return types.SimpleNamespace(title=title, hierarchy_rank=types.SimpleNamespace(value=rank))
+
+
+def test_relevance_sort_key_doc_title_hit_outranks_content_only():
+    """문서 제목 적중이 본문만 적중보다 상위 정렬(키가 더 작다 = 앞)."""
+    tokens = ["연구개발비"]
+    key_doc = _relevance_sort_key(_fake_rank_rs("국가연구개발사업 연구개발비 사용 기준", 4), tokens,
+                                  "기본사업계상기준", "별표 본문", "annex", 5)
+    key_content = _relevance_sort_key(_fake_rank_rs("국가연구개발혁신법", 1), tokens,
+                                      "특별평가", "연구개발비 관련 본문", "article", 0)
+    assert key_doc < key_content, "문서 제목 적중이 위계·ordinal보다 우선해 상위 정렬돼야"
+
+
+def test_relevance_sort_key_hierarchy_is_lower_priority_than_title():
+    """위계(hierarchy_rank)는 하위 tie-break — 상위에 두면 eval 매몰 버그 재현.
+    rank=4지만 제목 적중 규정이, rank=1이지만 제목 미적중 규정보다 앞서야 한다."""
+    tokens = ["연구개발비"]
+    key_rank4_titlehit = _relevance_sort_key(_fake_rank_rs("국가연구개발사업 연구개발비 사용 기준", 4),
+                                             tokens, "계상기준", "별표 본문", "annex", 99)
+    key_rank1_notitle = _relevance_sort_key(_fake_rank_rs("국가연구개발혁신법", 1),
+                                            tokens, "총칙", "연구개발비 본문", "article", 0)
+    assert key_rank4_titlehit < key_rank1_notitle
+
+
+def test_relevance_sort_key_deterministic_tie_uses_ordinal():
+    """전 신호 동률 → ordinal(기존 append 순서)로 결정, 낮은 ordinal이 앞. 정렬 결정성."""
+    tokens = ["특별평가"]
+    rs = _fake_rank_rs("국가연구개발혁신법", 1)
+    k0 = _relevance_sort_key(rs, tokens, "특별평가", "본문", "article", 0)
+    k1 = _relevance_sort_key(rs, tokens, "특별평가", "본문", "article", 1)
+    assert k0 < k1
+    assert k0[:-1] == k1[:-1]  # ordinal 외 전부 동일
+
+
+def test_search_provision_relevance_doc_title_match_first(mock_client):
+    """(eval 회귀) 광역 '연구개발비' — 문서 제목이 직접 일치하는 rnd_funding_standard가
+    manifest 후순위(rank4)임에도 결과 최상위에 옴(매몰 해소). 제목 적중 유일 규정."""
+    result = asyncio.run(search_provision("연구개발비"))
+    assert result["results"], "매칭 결과가 있어야"
+    assert result["results"][0]["rule_set_id"] == "rnd_funding_standard"
+
+
+def test_search_provision_relevance_survives_truncation(mock_client, monkeypatch):
+    """문서 제목 적중 규정이 강한 절단(예산 최소)에서도 생존 — 최상위라 1건만 남아도 포함.
+    v0.2.7 eval에서 매몰됐던 규정이 정렬 후 절단 생존함을 직접 증명."""
+    monkeypatch.setattr(main_module, "_SEARCH_RESPONSE_CHAR_BUDGET", 1)
+    result = asyncio.run(search_provision("연구개발비"))
+    assert result["returned"] >= 1  # 예산 최소여도 최소 1건 보장
+    assert result["results"][0]["rule_set_id"] == "rnd_funding_standard"
+
+
+def test_search_provision_no_relevance_score_leak(mock_client):
+    """정렬키·score가 응답 결과에 누출되지 않음 — 알려진 키만 보유(schema 무변·contract 0.6.0 유지)."""
+    result = asyncio.run(search_provision("특별평가"))
+    allowed = {"provision_id", "rule_set_id", "document_title", "unit_id", "unit_type",
+               "title", "snippet", "warnings", "effective_date", "revision_notice"}
+    for r in result["results"]:
+        assert set(r.keys()) <= allowed, f"예상치 못한 키: {set(r.keys()) - allowed}"

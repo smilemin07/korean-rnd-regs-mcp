@@ -619,6 +619,31 @@ def _build_match(rs, unit_id: str, unit_type: str, title: str, snippet: str,
     return result
 
 
+def _relevance_sort_key(rs, tokens, unit_title, content, unit_type, ordinal):
+    """search_provision match의 결정적 관련도 정렬키 (v0.2.8).
+
+    절단(_RESULTS_MAX·16k 예산) *직전*에 matches를 이 키로 정렬해, 가장 관련 높은
+    결과가 절단에서 생존하게 한다. 오름차순 정렬용 tuple(앞쪽=상위), count는 음수화.
+
+    핵심: 문서 제목(rs.title) 적중을 최상위 신호로 둔다 — 광역 질의에서 manifest
+    후순위지만 제목이 직접 일치하는 규정(예: '연구개발비'→「연구개발비 사용 기준」)이
+    앞순위 규정에 예산을 빼앗겨 매몰되던 결함(v0.2.7 LIVE eval)을 해소한다.
+    hierarchy_rank는 *하위* tie-break — 상위에 두면 법률이 후순위 규정을 다시 매몰시킨다.
+    본문 적중은 '존재하는 distinct 토큰 수'(≤len(tokens))라 대형 문서 반복 편향이 없다.
+    정렬키·점수는 응답에 노출하지 않는다(내부 전용, schema 무변 — contract 0.6.0 유지).
+    """
+    doc_title = rs.title or ""
+    uniq = set(tokens)   # 중복 토큰("협약 변경 협약")이 적중수를 부풀리지 않도록 distinct화
+    return (
+        -sum(1 for t in uniq if t in doc_title),       # 1) 문서 제목 적중 (PRIMARY)
+        -sum(1 for t in uniq if t in unit_title),      # 2) 단위(조문/별표) 제목 적중
+        -sum(1 for t in uniq if t in content),         # 3) 본문 적중 (distinct, 편향 없음)
+        0 if unit_type == "article" else 1,            # 4) 단위유형 minor tie-break (조문 우선)
+        rs.hierarchy_rank.value,                        # 5) 위계 (1=법률…6=Supp) — 하위 tie-break
+        ordinal,                                        # 6) 기존 append 순서 — 최종 결정성·현행 순서 보존
+    )
+
+
 # --- 별표 단위 공유 헬퍼 (v0.2.1: 가지별표·별지 구분·의존조문 단서) ---
 # search emit·detail 매칭·doc-level 목록이 단일 인코딩/판정을 공유해야 id 정합이 유지된다.
 
@@ -849,6 +874,9 @@ async def search_provision(query: str) -> dict:
     client = _get_client()
 
     matches: list[dict] = []
+    # v0.2.8: 절단(_RESULTS_MAX·16k 예산) 전 관련도 정렬용 — (정렬키, match) 수집.
+    _scored: list[tuple] = []
+    _ordinal = 0
     errors: list[dict] = []
 
     async def _fetch_rule_set(rs):
@@ -915,7 +943,10 @@ async def search_provision(query: str) -> dict:
                     art_no = (art.get("조문번호") or "").strip()
                     if art_no.isdigit():
                         snippet = _snippet_for(content)
-                        matches.append(_build_match(rs, f"JO{int(art_no):04d}", "article", title, snippet, resolved))
+                        _scored.append((
+                            _relevance_sort_key(rs, tokens, title, content, "article", _ordinal),
+                            _build_match(rs, f"JO{int(art_no):04d}", "article", title, snippet, resolved)))
+                        _ordinal += 1
 
         # annex 검색 — 별표구분=='별표' 한정 + 가지-aware BP id (v0.2.1: 별지·서식은
         # 번호 독립 채번이라 BP 충돌(오도달)로 제외, 가지별표는 6자리 id로 도달 가능)
@@ -931,8 +962,15 @@ async def search_provision(query: str) -> dict:
                         # v0.2.3: 본문에 존재하는 전 토큰을 전달 — 매칭 줄 합집합 멀티윈도우
                         present = [t for t in tokens if t in content]
                         snippet = _annex_snippet(content, present or [query])
-                        matches.append(_build_match(rs, unit_id, "annex", title, snippet, resolved))
+                        _scored.append((
+                            _relevance_sort_key(rs, tokens, title, content, "annex", _ordinal),
+                            _build_match(rs, unit_id, "annex", title, snippet, resolved)))
+                        _ordinal += 1
 
+    # v0.2.8: 절단 전 관련도 정렬 — 정렬키는 결정적(마지막 요소가 append 순서)이라
+    # 동률 시 현행 순서를 보존한다. 정렬키는 내부 전용(응답 schema·필드 무변).
+    _scored.sort(key=lambda x: x[0])
+    matches = [m for _, m in _scored]
     limited = matches[:_RESULTS_MAX]
     # v0.2.5: 전체 응답 char 예산 — 25개 규정 확대로 광역 질의 응답이 40k+자(25k token
     # 한도 초과 위험)로 실측됨에 따라, suggest(16k)와 동일한 보수 proxy 예산을 적용.

@@ -1,6 +1,6 @@
 [project]
 name = "korean-rnd-regs-mcp"
-version = "0.2.7"
+version = "0.2.8"
 description = "MCP server for Korean national R&D regulation review (국가연구개발 규정 검토용 MCP 서버)"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.11"
