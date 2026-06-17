@@ -189,3 +189,43 @@ def test_review_regulation_prompt_includes_annex_discovery_guides():
     assert "annexes 목록" in body
     assert "1단계까지만" in body
     assert "추측해 호출하지 말 것" in body
+
+
+# === v0.2.9: 도구 호출 유도 메타데이터 가드 (Level A — '문구 탑재'만 결정적 검증) ===
+# 주의: 아래는 짧고 안정적인 핵심 구절만 단언한다(긴 문장 verbatim 단언은 사소한 리워딩에도
+# 깨져 비프로그래머 유지보수에 churn). 실제 '호스트가 도구를 부르는가'(behavior)는 비결정·
+# 호스트 의존(Level B)이라 여기서 검증하지 않으며 배포 후 수동 eval(acceptance LEVEL_B_PROMPTS)의 몫.
+
+def test_server_instructions_nudges_tool_call():
+    """v0.2.9 #1: FastMCP 서버 instructions가 탑재되고 호출 유도/금지 핵심 구절을 포함."""
+    instr = mcp.instructions
+    assert instr, "서버 instructions가 비어 있음 — initialize payload 호출 유도 신호 누락"
+    assert "일반 학습지식으로 답하지 말고" in instr  # WHEN TO USE (호출 유도)
+    assert "호출하지 마십시오" in instr               # WHEN NOT (과호출 차단)
+
+
+def test_tool_docstrings_include_usage_timing_stanza():
+    """v0.2.9 #2: 3개 도구 docstring 첫 문단에 '사용 시점/호출 금지' 스탠자 탑재(도구별 핵심 구절)."""
+    import inspect
+    from korean_rnd_regs_mcp.main import (
+        search_provision,
+        suggest_review_sources,
+        get_provision_detail,
+    )
+    sp = inspect.getdoc(search_provision) or ""
+    assert "사용 시점" in sp
+    assert "일반 학습지식" in sp
+
+    srs = inspect.getdoc(suggest_review_sources) or ""
+    assert "사용 시점" in srs
+    assert "알려줘" in srs  # 광역 '알려줘' 표현도 호출 대상임을 명시
+
+    gpd = inspect.getdoc(get_provision_detail) or ""
+    assert "사용 시점" in gpd
+    assert "추측하지 마십시오" in gpd  # provision_id 없이 추측 금지(삭제 여부·현행 내용은 호출로 확인)
+
+
+def test_contract_version_unchanged_at_0_6_0():
+    """v0.2.9는 메타데이터 텍스트만 변경 — 응답 schema 무변이므로 contract 0.6.0 유지."""
+    from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
+    assert CONTRACT_VERSION == "0.6.0"

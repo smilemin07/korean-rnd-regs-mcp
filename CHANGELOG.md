@@ -3,6 +3,24 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.2.9] - 2026-06-17
+
+**규정 질의 도구 호출 유도 — 메타데이터 가드** — v0.2.8 배포 후 라이브 eval(Sonnet 4.6)에서, 광역 "연구개발비 폭넓게 알려줘" 질의에 호스트가 **MCP 도구를 호출하지 않고 훈련 지식으로 답해** 근거 없는 단정(soft-fabrication)을 내는 것이 확인됨 — 규정 검토 도구의 최악 실패 모드이며, v0.2.0~0.2.8 검색 품질 개선 전체를 무효화하는 상위 변수. 이를 **메타데이터(텍스트)만**으로 억제: 서버 레벨 `instructions` 신설 + 3개 도구 docstring 첫 문단에 "사용 시점/호출 금지" 스탠자 추가. 호스트가 본 서버 범위의 규정 질의에는 일반 지식 대신 도구를 먼저 호출하도록 유도하고, 단순 대화·범위 밖 질의에는 호출하지 않도록(과호출 차단) 안내. 검색·랭킹·fallback·응답 schema·외부 URL·지원 규정 28개 모두 불변. `contract_version` **0.6.0 유지**(응답 schema 무변). 변경의 핵심(서버 instructions)은 MCP initialize 응답 payload에 실리므로 배포 전 로컬·신 이미지 부팅 스모크 필수. 단, 도구 호출은 호스트 하니스가 좌우하는 비결정(Level B) 영역이라 본 변경은 "확정 해결"이 아니라 가장 낮은 outage 위험으로 거는 신호 보강이며, 실효는 배포 후 수동 eval로 측정. ultracode 워크플로 + 외부 2-AI 적대검증(/disc, blocking 0).
+
+### Changed
+
+- **서버 레벨 `instructions` 신설** (`main.py`): `FastMCP(..., instructions=_SERVER_INSTRUCTIONS, version=__version__)`. 호스트가 규정 질의에 일반 학습지식으로 단정하지 말고 `suggest_review_sources`/`search_provision`을 먼저 호출하고 근거는 `get_provision_detail`로 확인하도록 유도. 과호출 방지를 위해 적용 범위를 "본 서버 범위(대한민국 R&D 연구행정 규정)"로 한정하고 WHEN-NOT 절(단순 인사·순수 번역·문장 다듬기·코딩·해외 제도) 명시. 광역 "폭넓게 알려줘" 표현도 규정 사실 확인이면 호출 대상임을 명문화.
+- **3개 도구 docstring 첫 문단에 "사용 시점/호출 금지" 스탠자 추가** (`search_provision`·`suggest_review_sources`·`get_provision_detail`): 서버 `instructions`를 주입하지 않는 호스트 대비 이중화. 기존 docstring 본문은 그대로 보존(스탠자 prepend). `get_provision_detail` 스탠자에 "provision_id의 원문·삭제 여부·현행 내용을 확인" 일반 문구를 둬, 일부 조문(예: 연구개발비 사용 기준 제30조 인력지원비·제31조 연구지원비)이 현행 개정으로 삭제·이동된 사실을 **조문 번호 하드코딩 없이** 호스트가 detail 호출로 직접 확인하도록 유도(특정 조문 상태를 prompt/data에 박지 않음 = stale 위험 회피).
+- **결정적 가드 테스트 3건 추가** (`tests/test_main.py`): 서버 `instructions` 탑재·핵심 구절 포함 / 3개 도구 docstring 도구별 핵심 구절 포함 / `contract_version == "0.6.0"` 유지. 동작(호출 여부)이 아니라 "문구 탑재"만 결정적으로 검증(behavior는 Level B 수동 eval 몫). 긴 문장 verbatim이 아닌 짧고 안정적인 키 구절만 단언(유지보수 churn 회피).
+- **배포 전 LIVE acceptance spec 추가** (`tests/acceptance/v0_2_9.py`): Level A는 메타데이터 변경이 v0.2.8 검색을 회귀시키지 않았는지(광역 '연구개발비' 최상위·대형 규정 도달·recall)만 확인하는 회귀 가드. Level B 프롬프트 세트를 positive(광역 "~알려줘" → 도구 호출 기대) + negative(인사·번역·해외 제도 → 미호출 기대, 과호출 차단 검증)로 확장 — 배포 후 사람이 진짜 호스트에서 수동 eval.
+
+### Unchanged (additive — 회귀 가드)
+
+- 검색 매칭(토큰 AND)·관련도 정렬(v0.2.8)·suggest 랭킹·fallback 추출기·fan-out 응답 예산(20s)·timeout 상한 **불변**.
+- 응답 schema·필드·표준 오류 코드·provision_id 포맷 **불변** → `contract_version` **0.6.0 유지**.
+- 지원 규정 **28개**·외부 접속 URL(`https://mcp.rndmanagers.org/mcp?oc=<KEY>`) **불변**.
+- 테스트 **224**(직전 220 + 가드 3 + acceptance spec 파라미터화 1).
+
 ## [0.2.8] - 2026-06-17
 
 **검색 결과 관련도 정렬 — 광역 질의 매몰 방지** — 자연어로 여러 규정을 한 번에 검색하는 광역 질의에서, 응답 크기 한도(16k char)로 뒤쪽 결과가 잘리는데 종전에는 결과가 규정 목록(manifest) 순서로만 쌓여 **질문과 가장 관련 높은 규정이 앞순위 규정에 자리를 빼앗겨 잘려나가는** 문제가 있었음(v0.2.7 배포 후 라이브 점검: 광역 "연구개발비" 질의 시 정작 핵심인 「국가연구개발사업 연구개발비 사용 기준」이 결과에서 누락). 결과를 **절단 직전에 관련도 순으로 정렬**하여 문서 제목이 질문과 직접 일치하는 규정이 먼저 보이도록 함. 응답 형식·필드·검색 매칭 알고리즘·외부 URL·지원 규정 28개 모두 불변. `contract_version` **0.6.0 유지**(결과 표시 순서는 계약 보장 항목이 아니며 schema 무변 — 선례 v0.1.6·v0.1.7). 변경은 요청 경로 한정으로 서버 부팅·HTTP transport 비의존. ultracode 워크플로 + 외부 2-AI 적대검증(/disc, blocking 0).

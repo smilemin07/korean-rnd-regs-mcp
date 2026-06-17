@@ -37,7 +37,22 @@ if not logger.handlers:
     )
     logger.addHandler(_handler)
 
-mcp = FastMCP("korean-rnd-regs-mcp", version=__version__)
+# v0.2.9: 서버 레벨 instructions — 호스트가 규정 질의에 일반 학습지식으로 단정하지 말고
+# 본 서버 도구를 먼저 호출하도록 유도(MCP initialize 응답 payload에 실림). 과호출은 비싸므로
+# ("본 서버 범위" fan-out cold 5.5~9.7s) 적용 범위를 한정하고 WHEN-NOT 절을 명시.
+# 검색·랭킹·응답 schema·실행 로직 불변(메타데이터 텍스트만 — contract 0.6.0 유지).
+# 주의: FastMCP 2번째 positional 인자가 instructions이므로 version은 반드시 keyword로 전달.
+_SERVER_INSTRUCTIONS = (
+    "본 서버는 대한민국 국가연구개발사업 및 부처별 R&D 연구행정 규정"
+    "(국가연구개발혁신법·시행령·시행규칙, 부처별 R&D 법령, 연구개발비 사용기준·기술료·보안·성과평가 등 행정규칙) "
+    "검토 전용입니다. 사용자가 법령·규정·조문·연구개발비·협약변경·기술료·성과관리·연구보안 등 본 서버 범위의 "
+    "사실 확인이나 검토를 요청하면, '폭넓게 알려줘'처럼 표현이 넓더라도 일반 학습지식으로 답하지 말고 "
+    "먼저 suggest_review_sources 또는 search_provision을 호출하고, 인용할 근거는 get_provision_detail로 "
+    "원문을 확인하십시오. 단순 인사·순수 번역·문장 다듬기·코딩 질문·해외 제도만의 설명 등 "
+    "본 서버 범위 밖 질문에는 호출하지 마십시오."
+)
+
+mcp = FastMCP("korean-rnd-regs-mcp", instructions=_SERVER_INSTRUCTIONS, version=__version__)
 
 _DISCLAIMER = "본 결과는 검토 후보일 뿐 법률 판단이 아닙니다. 출처를 직접 확인하세요."
 _SNIPPET_MAX = 2000
@@ -823,7 +838,9 @@ async def health() -> dict:
 
 @mcp.tool()
 async def search_provision(query: str) -> dict:
-    """규정 조문·별표 본문에서 query 키워드를 찾아 후보 list 반환.
+    """사용 시점: 국가연구개발·R&D 연구행정 규정의 조문·용어·현행 여부를 묻는 질문에는 일반 학습지식 답변 전에 호출하십시오. 본 서버 범위 밖 일반 대화·번역·문장 다듬기에는 호출하지 마십시오.
+
+    규정 조문·별표 본문에서 query 키워드를 찾아 후보 list 반환.
 
     manifest의 live_api 문서들을 대상으로:
       - law(혁신법·시행령·시행규칙): 조문(`조문내용`) + 별표(`별표내용`) 검색 (v0.2: 시행령 별표 지원)
@@ -1031,7 +1048,9 @@ async def suggest_review_sources(
         ),
     ] = None,
 ) -> dict:
-    """본 도구는 법률 판단을 하지 않습니다. 사용자 질문과 핵심 검색 키워드로 검토할 rule set·후보 조문·검토 순서만 반환합니다.
+    """사용 시점: 국가연구개발·부처별 R&D 연구행정 규정의 검토·절차·준수사항·근거 조항을 묻는 경우 먼저 호출하십시오. '알려줘'처럼 넓은 표현도 규정 사실 확인이면 호출 대상입니다. 본 서버 범위 밖 질문에는 호출하지 마십시오.
+
+    본 도구는 법률 판단을 하지 않습니다. 사용자 질문과 핵심 검색 키워드로 검토할 rule set·후보 조문·검토 순서만 반환합니다.
 
     가능하면 keywords 인자에 호스트 LLM이 추출한 핵심 검색어 배열을 함께 전달하십시오(question에는 검토 상황 전체).
     keywords가 제공되면 서버의 단순 규칙 추출보다 우선 사용되며, 생략·무효 시에만 규칙 추출로 대체됩니다.
@@ -1185,7 +1204,9 @@ async def suggest_review_sources(
 
 @mcp.tool()
 async def get_provision_detail(provision_id: str) -> dict:
-    """provision_id로 단일 조문/별표 본문 재조회 — 응답은 법령 원문 verbatim.
+    """사용 시점: search_provision 또는 suggest_review_sources가 반환한 provision_id의 원문·삭제 여부·현행 내용을 확인할 때 호출하십시오. provision_id 없이 조문 내용을 추측하지 마십시오.
+
+    provision_id로 단일 조문/별표 본문 재조회 — 응답은 법령 원문 verbatim.
 
     중요 (LLM 표시 정책): 응답의 `content`와 `article_structure` 는 국가법령정보 OpenAPI의
     법령 원문을 그대로 재구성한 것입니다. 사용자에게 표시할 때 임의 부제 추가·요약·paraphrase
