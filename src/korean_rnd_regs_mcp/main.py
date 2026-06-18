@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import sys
+import time
 from typing import Annotated
 from urllib.parse import urljoin, parse_qs
 
@@ -68,6 +69,12 @@ _RESULTS_MAX = 30
 # 주의: fan-out 예산은 *응답*만 풀고 진행 중인 to_thread blocking은 못 끊으므로 실제 blocking 상한은
 # live_api timeout만이 보장 — 예산값(20)은 유지하고 timeout만 보수화한 이유.
 _FANOUT_BUDGET_S = 20.0
+
+# v0.2.10(관측성): fan-out 개별 규정 지연이 이 값(ms) 이상이면 search_fanout_summary의
+# slow_rule_count로 집계한다 — B2(전용 executor) 풀 크기 N 산정용 tail 휴리스틱.
+# 주의: 예산 초과로 cancel된 규정의 실제 스레드 완료 시간은 미포함(완료 task 기준 집계).
+# 동작·응답 schema 무영향(서버 측 로그 지표일 뿐).
+_SLOW_RULE_MS = 3000.0
 
 
 class _FanoutSkipped:
@@ -895,23 +902,47 @@ async def search_provision(query: str) -> dict:
     _scored: list[tuple] = []
     _ordinal = 0
     errors: list[dict] = []
+    # v0.2.10(관측성): 규정별 fan-out 지연(ms) 수집 — 요약 INFO의 max_rule_ms/slow_rule_count 산출용.
+    # 완료(정상·오류) task만 기록하고, 예산 초과로 cancel된 task는 제외(skipped로 별도 집계).
+    _rule_ms: list[float] = []
 
     async def _fetch_rule_set(rs):
-        resolved = await _resolve_doc_id(rs, client)
-        doc_id = resolved.doc_id
-        if rs.api_target == ApiTarget.LAW:
-            detail = await asyncio.to_thread(client.get_law_detail, doc_id)
-            return (rs, resolved, detail.get("articles", []),
-                    detail.get("annexes", []), detail.get("annex_parse_error"))
-        else:
-            detail = await asyncio.to_thread(client.get_admin_rule_detail, doc_id)
-            return (rs, resolved, detail.get("articles", []),
-                    detail.get("annexes", []), None)
+        _t0 = time.monotonic()
+        _status = "ok"
+        _record = True
+        try:
+            resolved = await _resolve_doc_id(rs, client)
+            doc_id = resolved.doc_id
+            if rs.api_target == ApiTarget.LAW:
+                detail = await asyncio.to_thread(client.get_law_detail, doc_id)
+                return (rs, resolved, detail.get("articles", []),
+                        detail.get("annexes", []), detail.get("annex_parse_error"))
+            else:
+                detail = await asyncio.to_thread(client.get_admin_rule_detail, doc_id)
+                return (rs, resolved, detail.get("articles", []),
+                        detail.get("annexes", []), None)
+        except asyncio.CancelledError:
+            # 예산 초과 skip — timing 미기록(skipped로 요약에 별도 집계). 취소 의미 보존 위해 re-raise.
+            _record = False
+            raise
+        except BaseException as _e:
+            _status = type(_e).__name__  # 클래스명만 — 예외 message·URL·키 미로깅(보안)
+            raise
+        finally:
+            if _record:
+                _el = (time.monotonic() - _t0) * 1000.0
+                _rule_ms.append(_el)
+                logger.debug(
+                    "event=fanout_rule rule_set_id=%s api_target=%s status=%s elapsed_ms=%.0f",
+                    rs.id, rs.api_target.value, _status, _el,
+                )
 
     # v0.2.6: 전건 fan-out을 응답 시간 예산으로 bound — pathological 지연(법령정보 행/재시도 폭주)이
     # 전체 질의를 커넥터 타임아웃까지 끄는 것을 차단. 예산 내 완료분만 사용하고, 미완 규정은 graceful skip.
+    _fanout_start = time.monotonic()
     _tasks = [asyncio.ensure_future(_fetch_rule_set(rs)) for rs in live_items]
     _done, _pending = await asyncio.wait(_tasks, timeout=_FANOUT_BUDGET_S)
+    _fanout_wall_ms = (time.monotonic() - _fanout_start) * 1000.0
     for _t in _pending:
         _t.cancel()
     if _pending:
@@ -983,6 +1014,18 @@ async def search_provision(query: str) -> dict:
                             _relevance_sort_key(rs, tokens, title, content, "annex", _ordinal),
                             _build_match(rs, unit_id, "annex", title, snippet, resolved)))
                         _ordinal += 1
+
+    # v0.2.10(관측성): fan-out 요약 1줄(INFO·key=value) — B2 풀 크기 N 산정용.
+    # wall_ms ≫ max_rule_ms이면 8스레드 풀 큐잉(격리 필요), 근사하면 네트워크 지연 우세.
+    # 시크릿(키·URL·query·keywords·예외 message) 미포함 — rule 식별자·정수 지표만.
+    _max_rule_ms = max(_rule_ms, default=0.0)
+    _slow_rule_count = sum(1 for _m in _rule_ms if _m >= _SLOW_RULE_MS)
+    logger.info(
+        "event=search_fanout_summary live_rules=%d done=%d skipped=%d wall_ms=%.0f "
+        "budget_ms=%.0f max_rule_ms=%.0f slow_rule_count=%d errors_count=%d",
+        len(live_items), len(_done), len(_pending), _fanout_wall_ms,
+        _FANOUT_BUDGET_S * 1000.0, _max_rule_ms, _slow_rule_count, len(errors),
+    )
 
     # v0.2.8: 절단 전 관련도 정렬 — 정렬키는 결정적(마지막 요소가 append 순서)이라
     # 동률 시 현행 순서를 보존한다. 정렬키는 내부 전용(응답 schema·필드 무변).
@@ -1058,6 +1101,8 @@ async def suggest_review_sources(
     [label·provision_id]로 함께 반환되니, 관련 있어 보이면 그 provision_id로 get_provision_detail을 호출해 확인하십시오.
     최종 판단은 사용자의 책임이며, 별표·매뉴얼·기관 운영규정 별도 확인이 필요합니다.
     """
+    _suggest_start = time.monotonic()
+    _search_calls = 0  # v0.2.10(관측성): suggest 1회가 유발한 search_provision 호출 수
     provided = _sanitize_keywords(keywords)
     if provided:
         used = provided
@@ -1091,11 +1136,13 @@ async def suggest_review_sources(
           기록 → 관련도(distinct 매칭 수)가 변형 개수가 아니라 사용자 의도 단위로 계산됨.
         - search 실패는 "후보 없음"으로 위장하지 말 것: errors에 origin 키워드를 달아 전파.
         """
+        nonlocal _search_calls
         matches: dict[str, dict] = {}
         errors: list[dict] = []
         term_cache: dict[str, dict] = {}
         for term, origin in _build_search_terms(kw_list):
             if term not in term_cache:
+                _search_calls += 1
                 term_cache[term] = await search_provision(term)
             res = term_cache[term]
             for err in res.get("errors", []):
@@ -1199,6 +1246,14 @@ async def suggest_review_sources(
 
     # v0.1.8: overflow_candidates — cap(15)에 밀린 조문을 label+provision_id로 노출(호스트 drill-down 용).
     _append_overflow_candidates(response, candidates, capped, _rank_of)
+    # v0.2.10(관측성): suggest 요약 1줄(INFO) — 1회가 유발한 내부 search 호출 수·소요·후보 수.
+    # 시크릿 미포함(keyword_source는 client/fallback 범주 문자열). early-return(무키워드)에는 미기록.
+    logger.info(
+        "event=suggest_search_summary keyword_source=%s search_calls=%d wall_ms=%.0f "
+        "errors_count=%d candidates_count=%d",
+        keyword_source, _search_calls, (time.monotonic() - _suggest_start) * 1000.0,
+        len(all_errors), len(candidates),
+    )
     return response
 
 

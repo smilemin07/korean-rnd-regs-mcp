@@ -3,6 +3,30 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.2.10] - 2026-06-18
+
+**검색 fan-out 지연 관측성 (B1 — 스태빌리티 트랙 1단계)** — v0.2.9로 "도구 호출 유도"가 완료되어, Andy의 최우선 가치(서비스 끊김 회피)에 따라 스태빌리티 트랙으로 회귀. 진짜 outage 위험은 NAS 4코어 = 전역 8스레드 풀(`asyncio.to_thread` 기본 executor) 고갈이나, 이를 고치려면(B2 전용 executor) 풀 크기 N을 알아야 하는데 현재 그 데이터(규정별·전체 fan-out 소요 시간)가 측정되지 않는다. 추정 N으로 풀을 도입하면 정상 요청까지 끊는 self-outage가 되므로 **"측정 먼저, 고치기 나중"**이 끊김 회피 원칙에 부합. 본 버전은 **서버 측 로그(stderr)만 추가**한다 — 코드 동작·네트워크 호출 방식·응답 schema를 전혀 바꾸지 않으며(응답 신규 필드 0), `contract_version` **0.6.0 유지**. 단일 의도 = 관측성. 3-AI 적대검증 2라운드(범위 결정 + 구체 구현안, 각 blocking 0).
+
+### Added
+
+- **fan-out 요약 로그** (`search_provision`, INFO·key=value): fan-out 1회당 `event=search_fanout_summary` 한 줄로 `live_rules`·`done`·`skipped`·`wall_ms`·`budget_ms`·`max_rule_ms`·`slow_rule_count`·`errors_count` 기록. 진단: `wall_ms ≫ max_rule_ms`이면 8스레드 풀 큐잉(B2 격리 필요), 근사하면 네트워크 지연 우세(B2는 속도보다 격리 목적).
+- **규정별 지연 로그** (`search_provision`, **DEBUG**): 규정마다 `event=fanout_rule rule_set_id=… api_target=… status=… elapsed_ms=…`. 반드시 DEBUG — `suggest_review_sources` 1회가 최대 ~16 검색 × 28 규정을 유발하므로 INFO면 운영 로그가 폭주(가용성 위협). 기본 `LOG_LEVEL=INFO`에서는 출력되지 않음.
+- **suggest 요약 로그** (`suggest_review_sources`, INFO): `event=suggest_search_summary keyword_source=… search_calls=… wall_ms=… errors_count=… candidates_count=…`. suggest 1회가 유발한 내부 `search_provision` 호출 수(숨은 부하 증폭)를 가시화.
+- **상수 `_SLOW_RULE_MS=3000.0`**: 개별 규정 지연이 이 값(ms) 이상이면 `slow_rule_count`로 집계(B2 N 산정용 tail 휴리스틱). 예산 초과로 skip된 규정의 실제 스레드 완료 시간은 미포함(완료 task 기준 집계).
+- **관측성 가드 테스트 2건** (`tests/test_tools.py`): 요약 로그(INFO)·per-rule 로그(DEBUG)가 출력되고 레벨이 정확한지 + 신규 로그에 OC 키·요청 URL이 미포함됨(시크릿 안전)을 결정적으로 검증.
+- **배포 전 LIVE acceptance spec** (`tests/acceptance/v0_2_10.py`): Level A는 로그 추가가 v0.2.9 검색을 회귀시키지 않았는지(광역 '연구개발비' 최상위·대형 규정 도달·recall·지연)만 확인하는 순수 회귀 가드. Level B는 배포 후 사람이 NAS 컨테이너 로그를 grep해 fan-out 지표를 확인하고 B2 착수 신호(`skipped>0`·`wall_ms>=15000`)를 판독하는 절차.
+
+### Security
+
+- 신규 로그 3종은 OC 키·요청 URL·`query`·`keywords`·예외 message를 포함하지 않음(rule_set_id 식별자·정수 지표·예외 클래스명만). `live_api`의 "예외는 type 이름만 로깅" 원칙과 동일. 회귀 테스트로 강제.
+
+### Unchanged (additive — 회귀 가드)
+
+- 검색 매칭·관련도 정렬(v0.2.8)·suggest 랭킹·fallback 추출기·fan-out 응답 예산(20s)·timeout 상한·동시성 모델(`asyncio.to_thread` 기본 executor) **불변**.
+- 응답 schema·필드·표준 오류 코드·provision_id 포맷 **불변** → `contract_version` **0.6.0 유지**(신규 로그는 서버 측 stderr만이며 도구 응답에 미노출).
+- 지원 규정 **28개**·외부 접속 URL(`https://mcp.rndmanagers.org/mcp?oc=<KEY>`) **불변**.
+- 테스트 **227**(직전 224 + 관측성 가드 2 + acceptance spec 파라미터화 1).
+
 ## [0.2.9] - 2026-06-17
 
 **규정 질의 도구 호출 유도 — 메타데이터 가드** — v0.2.8 배포 후 라이브 eval(Sonnet 4.6)에서, 광역 "연구개발비 폭넓게 알려줘" 질의에 호스트가 **MCP 도구를 호출하지 않고 훈련 지식으로 답해** 근거 없는 단정(soft-fabrication)을 내는 것이 확인됨 — 규정 검토 도구의 최악 실패 모드이며, v0.2.0~0.2.8 검색 품질 개선 전체를 무효화하는 상위 변수. 이를 **메타데이터(텍스트)만**으로 억제: 서버 레벨 `instructions` 신설 + 3개 도구 docstring 첫 문단에 "사용 시점/호출 금지" 스탠자 추가. 호스트가 본 서버 범위의 규정 질의에는 일반 지식 대신 도구를 먼저 호출하도록 유도하고, 단순 대화·범위 밖 질의에는 호출하지 않도록(과호출 차단) 안내. 검색·랭킹·fallback·응답 schema·외부 URL·지원 규정 28개 모두 불변. `contract_version` **0.6.0 유지**(응답 schema 무변). 변경의 핵심(서버 instructions)은 MCP initialize 응답 payload에 실리므로 배포 전 로컬·신 이미지 부팅 스모크 필수. 단, 도구 호출은 호스트 하니스가 좌우하는 비결정(Level B) 영역이라 본 변경은 "확정 해결"이 아니라 가장 낮은 outage 위험으로 거는 신호 보강이며, 실효는 배포 후 수동 eval로 측정. ultracode 워크플로 + 외부 2-AI 적대검증(/disc, blocking 0).

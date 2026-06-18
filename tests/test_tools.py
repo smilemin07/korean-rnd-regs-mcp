@@ -2435,3 +2435,48 @@ def test_search_provision_no_relevance_score_leak(mock_client):
                "title", "snippet", "warnings", "effective_date", "revision_notice"}
     for r in result["results"]:
         assert set(r.keys()) <= allowed, f"예상치 못한 키: {set(r.keys()) - allowed}"
+
+
+# === v0.2.10 관측성(B1): fan-out 지연 로그 가드 (요약 INFO + per-rule DEBUG + 시크릿 미포함) ===
+def test_search_fanout_observability_logs_present_and_secret_free(mock_client, monkeypatch, caplog):
+    """search fan-out 요약(INFO)+per-rule(DEBUG) 로그가 출력되고, OC 키·URL이 미포함됨을 단정."""
+    import logging
+    monkeypatch.setenv("LAW_API_KEY", _FAKE_KEY)  # 부재 단정에 의미 부여
+    with caplog.at_level(logging.DEBUG, logger="rnd-regs-mcp"):
+        asyncio.run(search_provision("특별평가"))
+    recs = [r for r in caplog.records if r.name.startswith("rnd-regs-mcp")]
+    summary = [r for r in recs if "event=search_fanout_summary" in r.getMessage()]
+    assert summary, "search_fanout_summary 요약 로그 누락"
+    assert summary[0].levelno == logging.INFO, "요약은 INFO여야 함"
+    msg = summary[0].getMessage()
+    for field in ("live_rules=", "done=", "skipped=", "wall_ms=",
+                  "max_rule_ms=", "slow_rule_count=", "errors_count="):
+        assert field in msg, f"요약 필드 누락: {field}"
+    per_rule = [r for r in recs if "event=fanout_rule" in r.getMessage()]
+    assert per_rule, "per-rule fanout_rule DEBUG 로그 누락"
+    assert all(r.levelno == logging.DEBUG for r in per_rule), "per-rule은 DEBUG여야 함(INFO 폭주 방지)"
+    blob = " ".join(r.getMessage() for r in recs)
+    assert _FAKE_KEY not in blob, "로그에 OC 키 누설"
+    assert _FAKE_KEY[:6] not in blob, "로그에 OC 키 앞자리 누설"
+    assert "?oc=" not in blob, "로그에 oc= URL 파라미터 누설"
+    assert "OC=" not in blob, "로그에 OC= 파라미터 누설"
+    assert "law.go.kr" not in blob, "로그에 요청 URL 누설"
+
+
+def test_suggest_search_summary_log_present(mock_client, caplog):
+    """suggest_review_sources가 1회 유발한 내부 search 호출 수를 요약 INFO로 기록."""
+    import logging
+    import re as _re
+    with caplog.at_level(logging.INFO, logger="rnd-regs-mcp"):
+        asyncio.run(suggest_review_sources(
+            "연구개발비 협약 변경 절차", keywords=["협약 변경", "연구개발비"]))
+    recs = [r for r in caplog.records if r.name.startswith("rnd-regs-mcp")]
+    summary = [r for r in recs if "event=suggest_search_summary" in r.getMessage()]
+    assert summary, "suggest_search_summary 요약 로그 누락"
+    assert summary[0].levelno == logging.INFO
+    msg = summary[0].getMessage()
+    for field in ("keyword_source=", "search_calls=", "wall_ms=",
+                  "errors_count=", "candidates_count="):
+        assert field in msg, f"suggest 요약 필드 누락: {field}"
+    m = _re.search(r"search_calls=(\d+)", msg)
+    assert m and int(m.group(1)) >= 1, "search_calls가 1 이상으로 기록되지 않음(fan-out 미발생)"
