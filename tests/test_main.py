@@ -226,6 +226,30 @@ def test_tool_docstrings_include_usage_timing_stanza():
 
 
 def test_contract_version_unchanged_at_0_6_0():
-    """v0.2.9는 메타데이터 텍스트만 변경 — 응답 schema 무변이므로 contract 0.6.0 유지."""
+    """v0.2.9~0.2.11은 응답 schema 무변(메타데이터·오류경로 강화만) — contract 0.6.0 유지."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
     assert CONTRACT_VERSION == "0.6.0"
+
+
+# === v0.2.11: MCP Registry 등록 마커 + server.json ===
+def test_readme_has_mcp_name_marker():
+    """README에 MCP Registry 소유권 마커 1줄 존재(PyPI description 검증용)."""
+    from pathlib import Path
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
+    assert "<!-- mcp-name: io.github.smilemin07/korean-rnd-regs-mcp -->" in readme
+
+
+def test_server_json_valid_for_registry():
+    """repo 루트 server.json — name·버전(릴리스 일치)·remotes 제외·description ≤100자."""
+    import json
+    from pathlib import Path
+    from korean_rnd_regs_mcp import __version__
+    sj = json.loads(
+        (Path(__file__).resolve().parent.parent / "server.json").read_text(encoding="utf-8")
+    )
+    assert sj["name"] == "io.github.smilemin07/korean-rnd-regs-mcp"
+    assert sj["version"] == __version__                       # server.json = 릴리스 버전
+    assert sj["packages"][0]["version"] == __version__         # 3자 일치(등록 소유권 검증)
+    assert sj["packages"][0]["identifier"] == "korean-rnd-regs-mcp"
+    assert "remotes" not in sj                                 # 호스팅 endpoint 미노출(키 안전)
+    assert len(sj["description"]) <= 100                       # 스키마 maxLength

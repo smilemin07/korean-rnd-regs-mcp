@@ -3,6 +3,23 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.2.11] - 2026-06-19
+
+**HTTP 멀티테넌트 키 보호 + 공식 MCP Registry 등록 마커** — 첫 공식 홍보(MCP Registry 등록) 준비. 단일 실질 의도 = HTTP 멀티테넌트 키 보호. 원격(HTTP) 커넥터 호출에 `?oc=` 키가 없으면 이전에는 서버 env 키(운영자 키)로 silent fallback하여 과금·감사가 누출될 수 있었다 — 이를 **HTTP 한정**으로 차단하고 표준 오류 `auth_failed`를 반환한다. stdio(Claude Desktop·uvx)는 env 키가 정상 경로이므로 `_is_http_request` 기본 False로 **거동 불변(무회귀)**. 응답 schema·필드·shape·검색/랭킹/fallback 알고리즘·외부 접속 URL 불변, `contract_version` **0.6.0 유지**(신규 필드·오류코드 없음 — 기존 `auth_failed` 오류경로 강화). 마커·`server.json`은 런타임 무관 additive. 3-AI 적대검증(구현안) blocking 0.
+
+### Security
+
+- **HTTP no-oc 키 보호**: `?oc=` 없는 HTTP 요청을 server env 키로 처리하지 않고 `auth_failed`(원격 호출에는 `?oc=` 필요 안내)로 차단. `_is_http_request` contextvar로 transport를 구분하여 stdio(env 키 정상 경로)에는 영향 없음. `_get_client`에서 raise하지 않고(호출부가 try/except 밖이라 uncaught crash 방지) 3개 도구(`search_provision`·`get_provision_detail`·`suggest_review_sources`) 진입부에서 구조화된 오류를 early-return.
+- **access log 키 차단(근본 수정)**: `--http` 서버의 uvicorn access log가 요청 라인에 `?oc=` 키를 기록하던 것을 `uvicorn_config={"access_log": False}`로 코드 레벨에서 차단(기존 compose `FASTMCP_LOG_LEVEL=WARNING` 억제는 유지 — 이중 방어).
+
+### Added
+
+- **공식 MCP Registry 등록 마커**: `README.md` 최상단에 `<!-- mcp-name: io.github.smilemin07/korean-rnd-regs-mcp -->`(PyPI description 소유권 검증용) + repo 루트 `server.json`(PyPI 패키지 등록용·`remotes` 제외=호스팅 endpoint 미노출로 키 안전). 런타임·응답 동작과 무관.
+
+### Unchanged
+
+- 지원 규정 28개·검색/랭킹/fallback·응답 schema·외부 접속 URL(`https://mcp.rndmanagers.org/mcp?oc=<KEY>`)·`contract_version` 0.6.0.
+
 ## [0.2.10] - 2026-06-18
 
 **검색 fan-out 지연 관측성 (B1 — 스태빌리티 트랙 1단계)** — v0.2.9로 "도구 호출 유도"가 완료되어, Andy의 최우선 가치(서비스 끊김 회피)에 따라 스태빌리티 트랙으로 회귀. 진짜 outage 위험은 NAS 4코어 = 전역 8스레드 풀(`asyncio.to_thread` 기본 executor) 고갈이나, 이를 고치려면(B2 전용 executor) 풀 크기 N을 알아야 하는데 현재 그 데이터(규정별·전체 fan-out 소요 시간)가 측정되지 않는다. 추정 N으로 풀을 도입하면 정상 요청까지 끊는 self-outage가 되므로 **"측정 먼저, 고치기 나중"**이 끊김 회피 원칙에 부합. 본 버전은 **서버 측 로그(stderr)만 추가**한다 — 코드 동작·네트워크 호출 방식·응답 schema를 전혀 바꾸지 않으며(응답 신규 필드 0), `contract_version` **0.6.0 유지**. 단일 의도 = 관측성. 3-AI 적대검증 2라운드(범위 결정 + 구체 구현안, 각 blocking 0).

@@ -575,6 +575,36 @@ def _get_client() -> LawApiClient:
     return _client_instance
 
 
+# v0.2.11: HTTP 멀티테넌트 키 보호 — ?oc= 없는 HTTP 요청이 server env 키로 silent fallback하여
+# Andy 키로 과금/감사 누출되는 것을 차단. stdio(Claude Desktop/uvx)는 env 키가 정상 경로이므로
+# _is_http_request 기본 False(미들웨어 미실행)로 영향 없음(구조적 무회귀). _get_client에서 raise하면
+# 호출부(search_provision·get_provision_detail)가 try 밖이라 uncaught crash가 되므로, 도구
+# 진입부에서 구조화된 auth_failed를 early-return한다.
+_is_http_request: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "_is_http_request", default=False
+)
+
+_HTTP_NO_KEY_MESSAGE = (
+    "원격(HTTP) 호출에는 커넥터 URL에 ?oc=<발급키>가 필요합니다. "
+    "키 없이는 법령 조회를 수행하지 않습니다."
+)
+
+
+def _http_no_key_error() -> dict | None:
+    """HTTP 요청인데 ?oc= 키가 비면 표준 auth_failed envelope를 반환(아니면 None).
+
+    stdio(=_is_http_request False)는 env 키가 정상 경로이므로 항상 None → 무회귀.
+    메시지는 정적(키·동적값 미포함)이라 _sanitize_error_message 불요.
+    """
+    if _is_http_request.get(False) and not _request_api_key.get(""):
+        return {
+            "errors": [{"code": "auth_failed", "message": _HTTP_NO_KEY_MESSAGE}],
+            "contract_version": CONTRACT_VERSION,
+            "disclaimer": _DISCLAIMER,
+        }
+    return None
+
+
 async def _resolve_doc_id(rs, client: LawApiClient) -> ResolvedDocId:
     return await asyncio.to_thread(
         client.resolve_latest_doc_id,
@@ -863,6 +893,9 @@ async def search_provision(query: str) -> dict:
     제목 또는 본문에 존재하면 매칭(토큰 AND). 단일 토큰 query는 종전과 동일한 부분문자열 매칭.
     원문이 "협약의 변경/협약을 변경"으로 써서 "협약 변경"이 안 잡히던 띄어쓰기 불일치를 해소.
     """
+    _e = _http_no_key_error()
+    if _e is not None:
+        return {**_e, "results": []}
     # empty/공백/1글자 query 무차별 매칭 방어
     query = (query or "").strip()
     if len(query) < 2:
@@ -1101,6 +1134,9 @@ async def suggest_review_sources(
     [label·provision_id]로 함께 반환되니, 관련 있어 보이면 그 provision_id로 get_provision_detail을 호출해 확인하십시오.
     최종 판단은 사용자의 책임이며, 별표·매뉴얼·기관 운영규정 별도 확인이 필요합니다.
     """
+    _e = _http_no_key_error()
+    if _e is not None:
+        return _e
     _suggest_start = time.monotonic()
     _search_calls = 0  # v0.2.10(관측성): suggest 1회가 유발한 search_provision 호출 수
     provided = _sanitize_keywords(keywords)
@@ -1276,6 +1312,9 @@ async def get_provision_detail(provision_id: str) -> dict:
       v0.2; size-tiered). BP는 4자리(본별표, 예: BP0001=별표 1) 또는 6자리(가지별표 번호4+가지2,
       예: BP000102=별표 1의2, v0.2.1). 별지·서식은 별표가 아니므로 BP로 조회 불가.
     """
+    _e = _http_no_key_error()
+    if _e is not None:
+        return _e
     try:
         pid = parse_provision_id(provision_id)
     except InvalidProvisionId as e:
@@ -1684,9 +1723,11 @@ class _OCKeyMiddleware:
             params = parse_qs(qs)
             oc = params.get("oc", [""])[0]
             token = _request_api_key.set(oc)
+            token_http = _is_http_request.set(True)  # v0.2.11: HTTP transport 신호(no-oc 차단용)
             try:
                 await self.app(scope, receive, send)
             finally:
+                _is_http_request.reset(token_http)
                 _request_api_key.reset(token)
         else:
             await self.app(scope, receive, send)
@@ -1700,6 +1741,7 @@ async def _run_http(host: str, port: int) -> None:
         host=host,
         port=port,
         middleware=[Middleware(_OCKeyMiddleware)],
+        uvicorn_config={"access_log": False},  # v0.2.11: ?oc= 키가 uvicorn access log에 기록되는 것 차단
     )
 
 

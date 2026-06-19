@@ -1,0 +1,29 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.smilemin07/korean-rnd-regs-mcp",
+  "description": "Search South Korea's national R&D regulations in natural language with cited provisions.",
+  "repository": {
+    "url": "https://github.com/smilemin07/korean-rnd-regs-mcp",
+    "source": "github"
+  },
+  "version": "0.2.11",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "korean-rnd-regs-mcp",
+      "version": "0.2.11",
+      "transport": { "type": "stdio" },
+      "runtimeHint": "uvx",
+      "environmentVariables": [
+        {
+          "name": "LAW_API_KEY",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string",
+          "description": "National Law Information Center OpenAPI key (free)"
+        }
+      ]
+    }
+  ]
+}

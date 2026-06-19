@@ -2480,3 +2480,99 @@ def test_suggest_search_summary_log_present(mock_client, caplog):
         assert field in msg, f"suggest 요약 필드 누락: {field}"
     m = _re.search(r"search_calls=(\d+)", msg)
     assert m and int(m.group(1)) >= 1, "search_calls가 1 이상으로 기록되지 않음(fan-out 미발생)"
+
+
+# === v0.2.11: HTTP 멀티테넌트 키 보호 (no-oc 가드) ===
+def test_http_no_key_helper_states():
+    """가드 헬퍼: stdio·http+oc → None / http+no-oc → auth_failed envelope."""
+    from korean_rnd_regs_mcp.main import (
+        _http_no_key_error, _is_http_request, _request_api_key,
+    )
+    # stdio (http 플래그 없음·기본 False) → 가드 미발화
+    assert _http_no_key_error() is None
+    # http + oc 있음 → 미발화(per-key 클라이언트 정상 경로)
+    t1 = _is_http_request.set(True); t2 = _request_api_key.set("OC_FAKE")
+    try:
+        assert _http_no_key_error() is None
+    finally:
+        _request_api_key.reset(t2); _is_http_request.reset(t1)
+    # http + oc 없음 → auth_failed
+    t1 = _is_http_request.set(True); t2 = _request_api_key.set("")
+    try:
+        err = _http_no_key_error()
+        assert err is not None
+        assert err["errors"][0]["code"] == "auth_failed"
+        assert "contract_version" in err and "disclaimer" in err
+    finally:
+        _request_api_key.reset(t2); _is_http_request.reset(t1)
+
+
+def test_http_no_key_message_secret_free():
+    """가드 메시지: 키 미포함 + 소문자 ?oc=만(대문자 OC= 신규 금지)."""
+    from korean_rnd_regs_mcp.main import _HTTP_NO_KEY_MESSAGE
+    assert "?oc=" in _HTTP_NO_KEY_MESSAGE
+    assert "OC=" not in _HTTP_NO_KEY_MESSAGE
+    assert _FAKE_KEY not in _HTTP_NO_KEY_MESSAGE
+
+
+def test_http_no_oc_blocks_all_three_tools_without_api_call(mock_client):
+    """HTTP no-oc 시 3개 도구가 auth_failed early-return + API/resolve 미호출(env 키 미과금)."""
+    from korean_rnd_regs_mcp.main import _is_http_request, _request_api_key
+    t1 = _is_http_request.set(True); t2 = _request_api_key.set("")
+    try:
+        r_s = asyncio.run(search_provision("간접비 기준"))
+        r_d = asyncio.run(get_provision_detail("law:283849:JO0015"))
+        r_g = asyncio.run(suggest_review_sources("간접비 검토", None))
+    finally:
+        _request_api_key.reset(t2); _is_http_request.reset(t1)
+    for r in (r_s, r_d, r_g):
+        assert r["errors"][0]["code"] == "auth_failed"
+    # search_provision 가드 envelope shape 일관성(엄격 클라이언트 대비)
+    assert r_s["results"] == []
+    # 가드가 API 경로를 차단 — mock 클라이언트 미호출(조회/과금 0)
+    mock_client.resolve_latest_doc_id.assert_not_called()
+    mock_client.get_law_detail.assert_not_called()
+    mock_client.get_admin_rule_detail.assert_not_called()
+
+
+def test_stdio_no_oc_is_regression_free(mock_client):
+    """stdio(=_is_http_request 기본 False)는 env 키 정상 경로 — 가드 미발화·검색 정상 수행(무회귀)."""
+    from korean_rnd_regs_mcp.main import _is_http_request
+    assert _is_http_request.get() is False
+    res = asyncio.run(search_provision("간접비"))
+    codes = [e.get("code") for e in res.get("errors", [])]
+    assert "auth_failed" not in codes          # 가드에 막히지 않음(정상 경로)
+    assert mock_client.resolve_latest_doc_id.called   # fan-out이 mock 클라이언트로 진행됨
+
+
+def test_oc_key_middleware_sets_and_resets_http_flag():
+    """미들웨어가 http scope에서 앱 실행 중 _is_http_request=True·요청 후 reset(누수 0)."""
+    from korean_rnd_regs_mcp.main import _OCKeyMiddleware, _is_http_request
+    seen = []
+    async def _app(scope, receive, send):
+        seen.append(_is_http_request.get())
+    mw = _OCKeyMiddleware(_app)
+    asyncio.run(mw({"type": "http", "query_string": b""}, None, None))
+    assert seen == [True]
+    assert _is_http_request.get() is False
+
+
+def test_oc_key_middleware_resets_flag_on_exception():
+    """미들웨어: 앱이 예외를 던져도 finally에서 _is_http_request reset(누수 0)."""
+    from korean_rnd_regs_mcp.main import _OCKeyMiddleware, _is_http_request
+    async def _boom(scope, receive, send):
+        raise RuntimeError("boom")
+    mw = _OCKeyMiddleware(_boom)
+    with pytest.raises(RuntimeError):
+        asyncio.run(mw({"type": "http", "query_string": b""}, None, None))
+    assert _is_http_request.get() is False
+
+
+def test_run_http_disables_uvicorn_access_log(monkeypatch):
+    """_run_http가 run_http_async에 uvicorn_config={'access_log': False} 전달(?oc= 키 로그 차단)."""
+    captured = {}
+    async def _fake_run_http_async(**kwargs):
+        captured.update(kwargs)
+    monkeypatch.setattr(main_module.mcp, "run_http_async", _fake_run_http_async)
+    asyncio.run(main_module._run_http("0.0.0.0", 18080))
+    assert captured.get("uvicorn_config") == {"access_log": False}

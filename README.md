@@ -1,5 +1,7 @@
 # korean-rnd-regs-mcp
 
+<!-- mcp-name: io.github.smilemin07/korean-rnd-regs-mcp -->
+
 [![PyPI version](https://img.shields.io/pypi/v/korean-rnd-regs-mcp.svg)](https://pypi.org/project/korean-rnd-regs-mcp/)
 [![Python](https://img.shields.io/pypi/pyversions/korean-rnd-regs-mcp.svg)](https://pypi.org/project/korean-rnd-regs-mcp/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
@@ -626,7 +628,7 @@ korean-rnd-regs-mcp 서버의 health 테스트를 진행해줘.
 
 ---
 
-## 지원 규정 (v0.2.10, 총 28개)
+## 지원 규정 (v0.2.11, 총 28개)
 
 Tier 1 — 핵심 법률·시행령·시행규칙[범부처(과기부 등) R&D 적용] (3개):
 
@@ -820,6 +822,13 @@ LAW_API_KEY는 국가법령정보센터 OpenAPI에서 무료로 발급받는 공
 이슈·PR 환영합니다: https://github.com/smilemin07/korean-rnd-regs-mcp/issues
 
 ## Changelog
+
+### 2026. 6. 19. : v0.2.11
+
+- 보안 강화 — 원격(HTTP) 호출 시 인증 키 보호: 원격 커넥터로 접속할 때 주소에 본인 인증 키(`?oc=`)를 넣지 않으면 이전에는 서버 운영자의 키로 조회가 진행될 수 있었습니다. 이를 막아, 키 없는 원격 호출에는 "인증 키가 필요합니다" 안내를 돌려줍니다. (로컬 설치(Claude Desktop·uvx)는 기존처럼 동작 — 영향 없음)
+  - 아울러 요청 주소에 담긴 키가 서버 접속 로그에 남지 않도록 차단했습니다.
+  - 검색 방식·응답 형식·지원 규정 28개는 그대로입니다.
+- 공식 MCP Registry 등록 준비: 패키지 설명에 등록용 식별 표시를 추가했습니다(기능 변화 없음).
 
 ### 2026. 6. 18. : v0.2.10
 
