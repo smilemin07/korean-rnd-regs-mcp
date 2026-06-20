@@ -102,6 +102,9 @@
      - OpenAPI로부터 입수한 조문의 원문을 임의로 수정(요약, paraphrase 등)하지 말 것.
      - OpenAPI로부터 입수한 조문의 항·호·목 번호를 유지할 것.
      - 단, content_format이 plain_text_verbatim이 아닌 경우(예: oversized_pointer, external_file_only)에는 그 content가 규정 원문이 아니라 안내 텍스트이므로 근거로 인용하지 말고, attached_file_url·document_source_url의 공식 원문을 확인할 것.
+   - 규정의 조문·별표 본문은 임의 웹검색 결과나 law.go.kr 직접 열람 등 외부 웹에서 가져와 대체·보충하지 말고 get_provision_detail이 반환한 content로 확인할 것. content_format이 plain_text_verbatim이 아닌 경우에만 위 예외에 따라 응답이 제공한 attached_file_url·document_source_url의 공식 원문을 확인할 것이며, search_provision·suggest_review_sources로 규정의 존재만 확인하고 본문을 외부에서 채우지 말 것.
+   - 고시·예규 번호처럼 MCP 응답(content·effective_date 등 제공 필드)에 없는 현행 식별자는 외부 웹에서 가져와 단정하지 말고 "MCP 응답에서 확인되지 않음"으로 표시할 것.
+   - 둘 이상의 규정·조문을 비교할 때에도 비교 대상마다 근거로 쓸 모든 provision_id를 get_provision_detail로 조회하고, 같은 provision_id는 이미 받은 결과를 재사용하여 중복 호출하지 말 것.
 
 5. 참조 조항 추적
    - 조문이 "제X조에 따라", "시행령 제X조", "별표", "고시로 정하는" 등을 참조하면 해당 조항도 조회할 것.

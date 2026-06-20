@@ -3,6 +3,16 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.4.1] - 2026-06-21
+
+**외부 웹 본문 폴백 차단 — 규정 본문은 도구(get_provision_detail)로만** — v0.4.0 라이브 eval 프롬프트 4(비교 질의)에서 호스트가 등록된 규정을 '존재 확인용'으로만 쓰고 규정 본문은 외부 law.go.kr에서 가져와 구버전(stale) 고시번호·시행일을 인용한 결함(컴플라이언스 위험)이 확정됐다. 원인은 데이터 부재가 아니라 호스트 행동 — 현 프롬프트가 'get_provision_detail content를 verbatim 사용'은 지시하나 '외부 웹 본문 폴백 금지'는 명시하지 않은 빈칸이었다. 프롬프트/docstring 텍스트만(코드 로직·검색/랭킹/fallback·응답 schema·transport·외부 접속 URL·규정 수 불변), `contract_version` **0.6.0 유지**, 패키지 **PATCH** bump. ★Level-B(호스트 의존) 완화이며 결정적 fix가 아니다 — 효능은 배포 후 수동 eval로 확인한다.
+
+### Changed
+
+- `review_regulation` 템플릿(`_REVIEW_PROMPT_TEMPLATE`) 4단계(상세 조회)에 지시 3개 추가(README 임베드 사본 byte-sync): (1) 규정 조문·별표 본문은 임의 웹검색·law.go.kr 직접 열람 등 외부 웹에서 대체·보충하지 말고 `get_provision_detail` content로 확인 — 단 `content_format`이 `plain_text_verbatim`이 아닌 경우 응답이 제공한 공식 원문 링크 확인 예외 보존, (2) 고시·예규 번호 등 MCP 응답(content·effective_date 등 제공 필드)에 없는 현행 식별자는 외부 웹에서 단정하지 말고 "MCP 응답에서 확인되지 않음" 표시, (3) 둘 이상 규정·조문 비교 시 근거 `provision_id`를 전부 조회하고 같은 id는 결과 재사용(중복 호출 금지).
+- `get_provision_detail` docstring 첫 문단에 content가 본문 권위 출처·외부 웹 본문 폴백 금지·non-verbatim 공식 원문 예외·미제공 식별자 외부 단정 금지 1문장 append(기존 '사용 시점'·'추측하지 마십시오' 보존).
+- 서버 `_SERVER_INSTRUCTIONS`(initialize 메타데이터)에 지원 범위 내 규정 본문의 외부 웹 폴백 금지 1문장 append — `review_regulation`을 호출하지 않는 비교/자유서술 질의(프롬프트 4 유형) 경로 커버. 기존 도구 호출 유도·fail-closed·범위 외 정직성 가드 구절 전부 보존(append-only).
+
 ## [0.4.0] - 2026-06-20
 
 **질병관리청 R&D 규정 지원 확대 (32 → 36)** — v0.3.0 라이브 eval에서 질병관리청 연구개발 관리 규정이 미지원이라 일반 학습지식(구버전 고시 2100000222940/2023-05-03)을 현행처럼 단정한 stale 패턴이 재실증됐다. 미지원 규정의 현행성 갭은 프롬프트 가드로 완화는 되나 근본 해소는 도구 등록뿐 — 질병관리청 R&D family 4건을 manifest에 등록한다. 단일 의도(질병관리청 지원 확대), 데이터+캐시 상수+텍스트+테스트만(서버 request 메커니즘·응답 schema·검색/랭킹/fallback·transport·외부 접속 URL 불변), `contract_version` **0.6.0 유지**. 지원 규정 **32 → 36개**.

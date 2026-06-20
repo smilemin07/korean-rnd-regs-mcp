@@ -353,3 +353,33 @@ def test_version_consistency_across_manifests():
     sj = json.loads((root / "server.json").read_text(encoding="utf-8"))
     assert sj["version"] == __version__, "server.json version 불일치"
     assert sj["packages"][0]["version"] == __version__, "server.json packages version 불일치"
+
+
+# === v0.4.1: 외부 웹 본문 폴백 차단 (규정 본문은 도구로) ===
+def test_review_prompt_forbids_external_body_fallback_v041():
+    """v0.4.1: review 템플릿 4단계에 외부 웹 본문 폴백 금지·미제공 식별자 정직 처리·비교 조회 종료조건 + oversized 예외 보존."""
+    body = review_regulation_prompt("테스트 상황")
+    assert "본문을 외부에서 채우지 말 것" in body                                    # 외부 웹 본문 폴백 금지
+    assert "MCP 응답에서 확인되지 않음" in body                                     # 미제공 식별자(고시번호) 정직 처리
+    assert "같은 provision_id는 이미 받은 결과를 재사용하여 중복 호출하지 말 것" in body  # 비교 조회 종료조건(B3)
+    assert "공식 원문을 확인할 것" in body                                          # plain_text_verbatim 아닌 경우 공식 원문 예외 보존(과억제 회귀 방지)
+
+
+def test_server_instructions_external_fallback_guard_v041():
+    """v0.4.1: instructions에 지원 범위 내 본문 외부 폴백 금지 1문장 append + 기존 가드 구절 전부 보존."""
+    instr = mcp.instructions
+    assert "지원 범위 내 규정의 조문·별표 본문은" in instr                  # in-scope 외부 폴백 금지(신규)
+    assert "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오" in instr
+    # append-only 회귀: 기존 도구 호출 유도·범위 외 정직성 가드 보존
+    assert "일반 학습지식으로 답하지 말고" in instr
+    assert "지원 36개 규정 밖이면" in instr
+
+
+def test_get_provision_detail_docstring_external_fallback_v041():
+    """v0.4.1: get_provision_detail docstring에 content=본문 권위 출처·외부 폴백 금지 + 기존 구절 보존."""
+    import inspect
+    from korean_rnd_regs_mcp.main import get_provision_detail
+    doc = inspect.getdoc(get_provision_detail) or ""
+    assert "규정 조문·별표 본문의 권위 출처" in doc       # content=본문 권위(B1 — 현행 식별자 overclaim 회피 framing)
+    assert "외부 웹" in doc                                # 외부 본문 폴백 금지 언급
+    assert "추측하지 마십시오" in doc                      # v0.2.9 기존 구절 보존(회귀)
