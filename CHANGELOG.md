@@ -3,6 +3,23 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.2.12] - 2026-06-20
+
+**도구 미가용 시 fail-closed 안내 + 범위 외 정직성** — v0.2.11 배포 후 라이브 eval(claude.ai 웹)에서, 한 대화의 세 번째 규정 질문에 호스트가 도구를 불러오지 못하고(host-side·다중 커넥터+컨텍스트 압박) 일반 학습지식으로 규정 수치·결론을 단정하는 컴플라이언스 위험을 확인. 서버 코드로 호스트의 도구 로딩을 강제할 수는 없으므로(MCP 한계), 도구가 빠졌을 때 잘못된 단정을 줄이는 안전장치와 안정적 사용 안내를 추가한다. 단일 의도, **텍스트/문서만**(코드 로직·응답 schema·검색·transport·외부 URL 불변), `contract_version` **0.6.0 유지**. ★이 릴리스는 호스트의 도구 로딩을 "고치는" 것이 아니라 도구가 빠졌을 때의 피해를 줄이는 안내임.
+
+### Changed
+
+- **서버 instructions에 fail-closed 분기 추가**: 규정 도구가 보이지 않거나 호출에 실패하면, 일반 학습지식으로 규정 수치·요건·결론을 단정하지 말고 도구 미가용을 알린 뒤 새 대화/Claude Desktop·Claude Code(stdio)로 재시도하도록 안내(기존 "도구 우선 호출" 신호는 그대로 유지).
+- **범위 외 정직성**: 도구 호출 결과 질문 대상이 지원 28개 규정 밖이면, 본 서버 근거로 확인되지 않았음을 밝히고 일반 학습지식임을 명시하며 1차 출처 확인을 권하도록 안내(`도구 호출 결과` 기준 — 호출 전 추측으로 미지원 단정 방지).
+
+### Added
+
+- **README "안정적으로 사용하기" 안내**: claude.ai 웹에서 사용하지 않는 커넥터 끄기·인용(provision_id) 없는 답은 새 대화에서 재질의·중요한 검토는 Claude Desktop/Code(stdio)·지원 28규정 범위 명시.
+
+### Unchanged
+
+- `review_regulation` 프롬프트·검색/랭킹/fallback·응답 schema·외부 접속 URL(`https://mcp.rndmanagers.org/mcp?oc=<KEY>`)·`contract_version` 0.6.0.
+
 ## [0.2.11] - 2026-06-19
 
 **HTTP 멀티테넌트 키 보호 + 공식 MCP Registry 등록 마커** — 첫 공식 홍보(MCP Registry 등록) 준비. 단일 실질 의도 = HTTP 멀티테넌트 키 보호. 원격(HTTP) 커넥터 호출에 `?oc=` 키가 없으면 이전에는 서버 env 키(운영자 키)로 silent fallback하여 과금·감사가 누출될 수 있었다 — 이를 **HTTP 한정**으로 차단하고 표준 오류 `auth_failed`를 반환한다. stdio(Claude Desktop·uvx)는 env 키가 정상 경로이므로 `_is_http_request` 기본 False로 **거동 불변(무회귀)**. 응답 schema·필드·shape·검색/랭킹/fallback 알고리즘·외부 접속 URL 불변, `contract_version` **0.6.0 유지**(신규 필드·오류코드 없음 — 기존 `auth_failed` 오류경로 강화). 마커·`server.json`은 런타임 무관 additive. 3-AI 적대검증(구현안) blocking 0.

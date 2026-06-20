@@ -253,3 +253,51 @@ def test_server_json_valid_for_registry():
     assert sj["packages"][0]["identifier"] == "korean-rnd-regs-mcp"
     assert "remotes" not in sj                                 # 호스팅 endpoint 미노출(키 안전)
     assert len(sj["description"]) <= 100                       # 스키마 maxLength
+
+
+# === v0.2.12: 도구 미가용 시 fail-closed 안내 + 범위 외 정직성 ===
+def test_server_instructions_fail_closed_and_scope_honesty():
+    """v0.2.12: instructions에 fail-closed(도구 미가용 시 단정 금지) + 범위 외 정직성('도구 호출 결과' 기준) 탑재."""
+    instr = mcp.instructions
+    # fail-closed: 도구를 못 부르면 훈련지식 단정 금지·stdio 재시도 안내
+    assert "도구가 보이지 않거나 호출에 실패" in instr
+    assert "단정하지" in instr
+    assert "stdio 클라이언트" in instr
+    # 범위 외 정직성: '도구 호출 결과' 기준(호출 전 추측으로 미지원 단정 방지 — Codex blocking 반영)
+    assert "도구 호출 결과" in instr
+    assert "1차 출처" in instr
+    # 기존 도구 호출 유도 구절 보존(회귀 — append-only)
+    assert "일반 학습지식으로 답하지 말고" in instr
+
+
+def test_readme_has_stable_usage_guidance():
+    """v0.2.12: README '안정적으로 사용하기' 섹션 — 섹션 범위로 가드(다른 섹션/Changelog 우연 통과 방지)."""
+    import re
+    from pathlib import Path
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
+    m = re.search(r"## 안정적으로 사용하기\n(.*?)(?=\n## )", readme, re.DOTALL)
+    assert m, "README '안정적으로 사용하기' 섹션을 찾지 못함"
+    section = m.group(1)
+    assert "사용하지 않는 커넥터" in section
+    assert "provision_id" in section
+    assert "새 대화" in section
+    assert "stdio" in section
+
+
+def test_version_consistency_across_manifests():
+    """v0.2.12(Codex 권고): 버전 5개소(__version__·pyproject·plugin·marketplace·server.json 2필드) 일치."""
+    import json
+    import re
+    from pathlib import Path
+    from korean_rnd_regs_mcp import __version__
+    root = Path(__file__).resolve().parent.parent
+    pyproject = (root / "pyproject.toml").read_text(encoding="utf-8")
+    m = re.search(r'^version\s*=\s*"([^"]+)"', pyproject, re.MULTILINE)
+    assert m and m.group(1) == __version__, "pyproject.toml version 불일치"
+    plugin = json.loads((root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    assert plugin["version"] == __version__, "plugin.json version 불일치"
+    mkt = json.loads((root / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
+    assert mkt["plugins"][0]["version"] == __version__, "marketplace.json version 불일치"
+    sj = json.loads((root / "server.json").read_text(encoding="utf-8"))
+    assert sj["version"] == __version__, "server.json version 불일치"
+    assert sj["packages"][0]["version"] == __version__, "server.json packages version 불일치"
