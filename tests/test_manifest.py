@@ -9,9 +9,9 @@ from korean_rnd_regs_mcp.manifest import (
 
 
 def test_load_manifest_returns_at_least_mvp_items():
-    """publish 범위 하한. v0.2.6 재편(보조 법령 6건 제거 + 과기정통부 family 9건 추가) → 28건."""
+    """publish 범위 하한. v0.3.0: 보건복지부 보건의료기술 R&D family 4건 추가 → 32건."""
     items = load_manifest()
-    assert len(items) >= 28
+    assert len(items) >= 32
 
 
 def test_all_required_fields_populated():

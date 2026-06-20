@@ -3,8 +3,8 @@
 # schema: src/korean_rnd_regs_mcp/manifest.py (Pydantic RuleSet model, 13 fields)
 # 단계: (schema 정의) + (MVP 4개 항목 입력)
 #
-# 본 28개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.2.5: 산업부·중기부 R&D family 8건 확대)
-# 추가 항목 (기관별 운영규정, 매뉴얼 등)은 v0.3 이후 prebuilt_index로 확장 예정.
+# 본 32개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.3.0: 보건복지부 보건의료기술 R&D family 4건 확대)
+# 추가 항목 (질병관리청 R&D, 기관별 매뉴얼 등)은 차기 확장 후보.
 
 rule_sets:
   # === Tier 1: 핵심 법률·시행령·시행규칙 (혁신법 family) ===
@@ -576,3 +576,83 @@ rule_sets:
     known_limitations:
       - "정식 제목은 '중소기업기술개발'(공백 없음) — 검색·resolve 시 표기 주의"
       - "본 행정규칙은 평면 schema — LIVE 검증(2026-06-13): 조문 10·별표 2·별지 1(별지는 BP·검색 미지원)"
+
+  # === 보건복지부 보건의료기술 R&D family (v0.3.0 — LIVE 검증 2026-06-20) ===
+
+  - id: health_tech_act
+    title: 보건의료기술 진흥법
+    tier: "Tier 1"
+    hierarchy_rank: 1
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "279703"
+    unit_types: article  # LIVE(2026-06-20): 조문 30·별표 0
+    query:
+      - 보건의료기술 진흥법
+      - 보건의료기술진흥법
+    license_status: public_data
+    effective_date: "2026-02-12"
+    source_url: https://www.law.go.kr/법령/보건의료기술진흥법
+    ministry: 보건복지부
+    known_limitations:
+      - "제14조 기술료 징수·사용 등 R&D 핵심 조항 보유. 별표 0(본문 조문만). 가지조문 누락 가능"
+
+  - id: health_tech_decree
+    title: 보건의료기술 진흥법 시행령
+    tier: "Tier 1"
+    hierarchy_rank: 2
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "282961"
+    unit_types: both  # LIVE(2026-06-20): 조문 46·별표 3(최대 ~4,814자, oversized 없음)
+    query:
+      - 보건의료기술 진흥법 시행령
+      - 보건의료기술진흥법 시행령
+    license_status: public_data
+    effective_date: "2026-02-01"
+    source_url: https://www.law.go.kr/법령/보건의료기술진흥법시행령
+    ministry: 보건복지부
+    known_limitations:
+      - "별표 3건 검색·상세 지원(소형, 본문 전문 제공). 가지조문 누락 가능"
+
+  - id: health_tech_rule
+    title: 보건의료기술 진흥법 시행규칙
+    tier: "Tier 1"
+    hierarchy_rank: 3
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "264101"
+    unit_types: both  # LIVE(2026-06-20): 조문 17·실 별표 2(BP 노출)+서식 19(BP 미노출)
+    query:
+      - 보건의료기술 진흥법 시행규칙
+      - 보건의료기술진흥법 시행규칙
+    license_status: public_data
+    effective_date: "2024-07-17"
+    source_url: https://www.law.go.kr/법령/보건의료기술진흥법시행규칙
+    ministry: 보건복지부
+    known_limitations:
+      - "별표구분 혼재 — 실 별표 2건만 BP 노출(별표2 연구중심병원 인증기준). 서식 19종(서식2 16,117자 포함)은 별표구분=='서식'이라 BP·검색 미지원"
+
+  - id: health_rnd_operating
+    title: 보건의료기술 연구개발사업 운영·관리규정
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000233560"
+    unit_types: both  # LIVE(2026-06-20): 조문 28·별표 2(BP0001 12,481자·BP0002 2,580자, 모두 본문 전문 tier)
+    query:
+      - 보건의료기술 연구개발사업 운영·관리규정
+      - 보건의료기술 연구개발사업 운영관리규정
+      - 보건의료기술 연구개발사업 운영규정
+    license_status: public_data
+    effective_date: "2023-12-26"
+    source_url: https://www.law.go.kr/행정규칙/보건의료기술연구개발사업운영·관리규정
+    ministry: 보건복지부
+    known_limitations:
+      - "표준협약서(별지 1, 23,082자)는 별표구분=='별지'라 BP·검색 미노출 — 본문은 source_url 공식 첨부 확인. BP 노출 별표는 BP0001(선정 우대·감점 기준)·BP0002(협약 변경 절차) 2건(모두 16k 미만 본문 전문)"
+      - "표준 중첩 schema(평면 fallback 아님). 가지조문 누락 가능"

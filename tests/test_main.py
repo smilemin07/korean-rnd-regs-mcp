@@ -143,12 +143,12 @@ def test_review_prompt_instructs_keyword_array_to_suggest():
 
 
 def test_list_rule_sets_returns_live_api_items():
-    """v0.2.6 재편: 보조 법령 6건 제거 + 과기정통부 family 9건 추가 = 28건."""
+    """v0.3.0: 보건복지부 보건의료기술 R&D family 4건 추가 = 32건."""
     result = asyncio.run(list_rule_sets())
     assert "rule_sets" in result
     assert isinstance(result["rule_sets"], list)
-    assert result["total"] == 28
-    assert len(result["rule_sets"]) == 28
+    assert result["total"] == 32
+    assert len(result["rule_sets"]) == 32
     ids = {rs["id"] for rs in result["rule_sets"]}
     expected = {
         # Tier 1 + 기존 Tier 2 (혁신법 family + 연구개발비 사용 기준)
@@ -168,6 +168,8 @@ def test_list_rule_sets_returns_live_api_items():
         "ict_rnd_management", "ict_research_ethics",
         # v0.2.6 — 기술료 family (산업부·중기부, 소관부처 필터)
         "tech_fee_integrated", "sme_tech_fee",
+        # v0.3.0 — 보건복지부 보건의료기술 R&D family
+        "health_tech_act", "health_tech_decree", "health_tech_rule", "health_rnd_operating",
     }
     assert ids == expected, f"id 불일치: 누락={expected - ids}, 추가={ids - expected}"
     # 모든 항목이 필수 field + v0.2.6 ministry 필드(additive) 노출
@@ -179,6 +181,9 @@ def test_list_rule_sets_returns_live_api_items():
         assert "ministry" in rs  # additive 필드 — None 또는 부처명
     assert by_id["tech_fee_integrated"]["ministry"] == "산업통상부"
     assert by_id["innovation_act"]["ministry"] is None
+    # v0.3.0 — 보건복지부 family ministry 노출
+    assert by_id["health_tech_act"]["ministry"] == "보건복지부"
+    assert by_id["health_rnd_operating"]["ministry"] == "보건복지부"
 
 
 def test_review_regulation_prompt_includes_annex_discovery_guides():
@@ -268,6 +273,26 @@ def test_server_instructions_fail_closed_and_scope_honesty():
     assert "1차 출처" in instr
     # 기존 도구 호출 유도 구절 보존(회귀 — append-only)
     assert "일반 학습지식으로 답하지 말고" in instr
+
+
+# === v0.3.0: 보건복지부 확대 + 미지원 규정 현행성 정직 가드 ===
+def test_server_instructions_stale_guard_v030():
+    """v0.3.0: 범위 외 정직성 절이 미지원 규정의 변동 구체값 현행 단정 자제 + 32 카운트 동기화."""
+    instr = mcp.instructions
+    assert "지원 32개 규정 밖이면" in instr               # 미지원 한정(in-scope 인용 비억제) + 카운트
+    assert "변동 가능한 구체값을 현행 사실로 단정하지" in instr  # stale 식별자 단정 자제
+    assert "1차 출처" in instr                            # 1차 출처 안내 보존
+    # 미지원 한정 조건이 유지돼 in-scope 인용을 억제하지 않음(과억제 방지 회귀)
+    assert "단정하지 말며" in instr
+
+
+def test_review_prompt_mentions_health_family_and_count():
+    """v0.3.0: review 템플릿에 보건의료 R&D family 행 + 32 카운트(host가 범위 밖 오분류 방지)."""
+    body = review_regulation_prompt("테스트 상황")
+    assert "보건의료 R&D family" in body                  # Tier 1 family 행
+    assert "보건의료기술 진흥법" in body                  # family 규정명
+    assert "(32개 규정)" in body                          # 카운트 동기화
+    assert "health_tech_act" in body                      # cross-check 라우팅
 
 
 def test_readme_has_stable_usage_guidance():
