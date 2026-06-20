@@ -298,9 +298,9 @@ class LawApiClient:
             logger.warning("LAW_API_KEY empty — calls will raise auth_failed")
         # caches: 24h for success, 5min for failure (avoid hammering)
         self._search_cache: TTLCache = TTLCache(maxsize=100, ttl=86400)
-        self._detail_cache: TTLCache = TTLCache(maxsize=50, ttl=86400)
+        self._detail_cache: TTLCache = TTLCache(maxsize=64, ttl=86400)  # v0.4.0: 50→64 — 규정 확대(N=36) 선제 마진. N=36은 50 미초과이나 차기 확대·warm-hit 무력화(N>50) 대비
         self._failure_cache: TTLCache = TTLCache(maxsize=200, ttl=300)
-        self._id_resolution_cache: TTLCache = TTLCache(maxsize=50, ttl=86400)
+        self._id_resolution_cache: TTLCache = TTLCache(maxsize=64, ttl=86400)  # v0.4.0: 50→64 (detail cache와 동상 — 단일 fan-out이 규정당 1엔트리 생성)
         self._id_resolution_failure_cache: TTLCache = TTLCache(maxsize=50, ttl=300)
 
     def _require_key(self) -> None:

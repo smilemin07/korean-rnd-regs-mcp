@@ -3,8 +3,8 @@
 # schema: src/korean_rnd_regs_mcp/manifest.py (Pydantic RuleSet model, 13 fields)
 # 단계: (schema 정의) + (MVP 4개 항목 입력)
 #
-# 본 32개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.3.0: 보건복지부 보건의료기술 R&D family 4건 확대)
-# 추가 항목 (질병관리청 R&D, 기관별 매뉴얼 등)은 차기 확장 후보.
+# 본 36개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.4.0: 질병관리청 R&D family 4건 확대)
+# 추가 항목 (교육 학술진흥법, 기관별 매뉴얼 등)은 차기 확장 후보.
 
 rule_sets:
   # === Tier 1: 핵심 법률·시행령·시행규칙 (혁신법 family) ===
@@ -656,3 +656,89 @@ rule_sets:
     known_limitations:
       - "표준협약서(별지 1, 23,082자)는 별표구분=='별지'라 BP·검색 미노출 — 본문은 source_url 공식 첨부 확인. BP 노출 별표는 BP0001(선정 우대·감점 기준)·BP0002(협약 변경 절차) 2건(모두 16k 미만 본문 전문)"
       - "표준 중첩 schema(평면 fallback 아님). 가지조문 누락 가능"
+
+  # === 질병관리청 R&D family (질병관리청 소관 — 혁신법과 함께 적용, v0.4.0 — LIVE 검증 2026-06-20) ===
+  # 질병관리청(KDCA) 소관 R&D 행정규칙 4건. 상위 법령(law)은 보건의료기술 진흥법 등으로 보건복지부 family에 이미 수록.
+  # 4건 전부 admrul·평면 schema·별표 0. 이어달리기 지침은 19개 부처별 사본 중 질병관리청 사본(부처 접두 제목으로 resolve).
+
+  - id: kdca_rnd_management
+    title: 질병관리청 연구개발 관리 규정
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000279440"
+    unit_types: article  # LIVE(2026-06-20): 조문 50·별표 0
+    query:
+      - 질병관리청 연구개발 관리 규정
+      - 질병관리청 연구개발관리규정
+      - 질병관리청 R&D 관리
+    license_status: public_data
+    effective_date: "2026-05-18"
+    source_url: https://www.law.go.kr/행정규칙/질병관리청연구개발관리규정
+    ministry: 질병관리청
+    known_limitations:
+      - "본 행정규칙은 평면 schema(<조문내용> root 직속) — get_admin_rule_detail의 fallback으로 조문 50개 검색. 별표 0(본문 조문만)"
+      - "질병관리청 소관 감염병·보건의료 R&D의 기획·선정·협약·평가·관리 절차. 혁신법·시행령이 상위 일반 규범 — 함께 적용. 가지조문 누락 가능"
+
+  - id: kdca_agency_designation
+    title: 질병관리청 연구개발사업 전문기관 지정 고시
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000277984"
+    unit_types: article  # LIVE(2026-06-20): 조문 5·별표 0
+    query:
+      - 질병관리청 연구개발사업 전문기관 지정 고시
+      - 질병관리청 전문기관 지정
+      - 질병관리청 전문기관
+    license_status: public_data
+    effective_date: "2026-04-15"
+    source_url: https://www.law.go.kr/행정규칙/질병관리청연구개발사업전문기관지정고시
+    ministry: 질병관리청
+    known_limitations:
+      - "본 행정규칙은 평면 schema — LIVE(2026-06-20): 조문 5·별표 0. 질병관리청 R&D 전문기관 지정 근거(소수 조문)"
+
+  - id: kdca_facility_equipment
+    title: 질병관리청 국가연구개발 시설·장비 관리 규정
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000214227"
+    unit_types: article  # LIVE(2026-06-20): 조문 17·별표 0
+    query:
+      - 질병관리청 국가연구개발 시설·장비 관리 규정
+      - 질병관리청 시설 장비 관리
+      - 질병관리청 연구시설 장비
+    license_status: public_data
+    effective_date: "2022-08-31"
+    source_url: https://www.law.go.kr/행정규칙/질병관리청국가연구개발시설ㆍ장비관리규정
+    ministry: 질병관리청
+    known_limitations:
+      - "본 행정규칙은 평면 schema — LIVE(2026-06-20): 조문 17·별표 0. 질병관리청 소관 연구시설·장비 관리 — 과기정통부 '시설·장비 표준지침'(facility_equipment_standard)과 부처·적용범위가 다른 병존 규정"
+
+  - id: kdca_relay_operating
+    title: (질병관리청)국가연구개발성과 범부처 이어달리기 프로젝트 공통운영 지침
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000197858"
+    unit_types: article  # LIVE(2026-06-20): 조문 21·별표 0
+    query:
+      - 국가연구개발성과 범부처 이어달리기 프로젝트 공통운영 지침
+      - 범부처 이어달리기 공통운영 지침
+      - 이어달리기 프로젝트
+    license_status: public_data
+    effective_date: "2021-02-02"
+    source_url: https://www.law.go.kr/행정규칙/(질병관리청)국가연구개발성과범부처이어달리기프로젝트공통운영지침
+    ministry: 질병관리청
+    known_limitations:
+      - "★범부처 공통 지침의 질병관리청 사본 — OpenAPI에 19개 부처별 사본이 '(부처명)…' 접두 제목으로 각각 존재(범부처 통합 원문 아님). manifest title은 부처 접두 포함 정식명으로 등록해야 resolve가 질병관리청 행 1건을 정확히 집음(접두 없는 제목은 정확일치 0→manifest fallback으로 현행성 추적 死). ministry='질병관리청' 필터는 안전망"
+      - "본 행정규칙은 평면 schema — LIVE(2026-06-20): 조문 21·별표 0"

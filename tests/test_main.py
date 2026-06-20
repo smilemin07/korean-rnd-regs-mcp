@@ -143,12 +143,12 @@ def test_review_prompt_instructs_keyword_array_to_suggest():
 
 
 def test_list_rule_sets_returns_live_api_items():
-    """v0.3.0: 보건복지부 보건의료기술 R&D family 4건 추가 = 32건."""
+    """v0.4.0: 질병관리청 R&D family 4건 추가 = 36건."""
     result = asyncio.run(list_rule_sets())
     assert "rule_sets" in result
     assert isinstance(result["rule_sets"], list)
-    assert result["total"] == 32
-    assert len(result["rule_sets"]) == 32
+    assert result["total"] == 36
+    assert len(result["rule_sets"]) == 36
     ids = {rs["id"] for rs in result["rule_sets"]}
     expected = {
         # Tier 1 + 기존 Tier 2 (혁신법 family + 연구개발비 사용 기준)
@@ -170,6 +170,8 @@ def test_list_rule_sets_returns_live_api_items():
         "tech_fee_integrated", "sme_tech_fee",
         # v0.3.0 — 보건복지부 보건의료기술 R&D family
         "health_tech_act", "health_tech_decree", "health_tech_rule", "health_rnd_operating",
+        # v0.4.0 — 질병관리청 R&D family
+        "kdca_rnd_management", "kdca_agency_designation", "kdca_facility_equipment", "kdca_relay_operating",
     }
     assert ids == expected, f"id 불일치: 누락={expected - ids}, 추가={ids - expected}"
     # 모든 항목이 필수 field + v0.2.6 ministry 필드(additive) 노출
@@ -184,6 +186,9 @@ def test_list_rule_sets_returns_live_api_items():
     # v0.3.0 — 보건복지부 family ministry 노출
     assert by_id["health_tech_act"]["ministry"] == "보건복지부"
     assert by_id["health_rnd_operating"]["ministry"] == "보건복지부"
+    # v0.4.0 — 질병관리청 family ministry 노출
+    assert by_id["kdca_rnd_management"]["ministry"] == "질병관리청"
+    assert by_id["kdca_relay_operating"]["ministry"] == "질병관리청"
 
 
 def test_review_regulation_prompt_includes_annex_discovery_guides():
@@ -277,9 +282,9 @@ def test_server_instructions_fail_closed_and_scope_honesty():
 
 # === v0.3.0: 보건복지부 확대 + 미지원 규정 현행성 정직 가드 ===
 def test_server_instructions_stale_guard_v030():
-    """v0.3.0: 범위 외 정직성 절이 미지원 규정의 변동 구체값 현행 단정 자제 + 32 카운트 동기화."""
+    """v0.3.0: 범위 외 정직성 절이 미지원 규정의 변동 구체값 현행 단정 자제 + 36 카운트 동기화."""
     instr = mcp.instructions
-    assert "지원 32개 규정 밖이면" in instr               # 미지원 한정(in-scope 인용 비억제) + 카운트
+    assert "지원 36개 규정 밖이면" in instr               # 미지원 한정(in-scope 인용 비억제) + 카운트
     assert "변동 가능한 구체값을 현행 사실로 단정하지" in instr  # stale 식별자 단정 자제
     assert "1차 출처" in instr                            # 1차 출처 안내 보존
     # 미지원 한정 조건이 유지돼 in-scope 인용을 억제하지 않음(과억제 방지 회귀)
@@ -287,12 +292,34 @@ def test_server_instructions_stale_guard_v030():
 
 
 def test_review_prompt_mentions_health_family_and_count():
-    """v0.3.0: review 템플릿에 보건의료 R&D family 행 + 32 카운트(host가 범위 밖 오분류 방지)."""
+    """v0.3.0: review 템플릿에 보건의료 R&D family 행 + 36 카운트(host가 범위 밖 오분류 방지)."""
     body = review_regulation_prompt("테스트 상황")
     assert "보건의료 R&D family" in body                  # Tier 1 family 행
     assert "보건의료기술 진흥법" in body                  # family 규정명
-    assert "(32개 규정)" in body                          # 카운트 동기화
+    assert "(36개 규정)" in body                          # 카운트 동기화
     assert "health_tech_act" in body                      # cross-check 라우팅
+
+
+# === v0.4.0: 질병관리청 R&D 확대 ===
+def test_kdca_family_registered_and_relay_prefixed():
+    """v0.4.0: 질병관리청 4건 등록(ministry·admrul) + 이어달리기는 부처 접두 제목(resolve 정확성 불변식)."""
+    from korean_rnd_regs_mcp.manifest import load_manifest
+    items = {rs.id: rs for rs in load_manifest()}
+    for rid in ("kdca_rnd_management", "kdca_agency_designation",
+                "kdca_facility_equipment", "kdca_relay_operating"):
+        assert rid in items, f"질병관리청 규정 누락: {rid}"
+        assert items[rid].ministry == "질병관리청"
+        assert items[rid].api_target == "admrul"
+    # 이어달리기: 부처 접두 포함 정식 제목 — 접두 없으면 resolve 정확일치 0 → manifest fallback(현행성 추적 死)
+    assert items["kdca_relay_operating"].title.startswith("(질병관리청)")
+
+
+def test_review_prompt_mentions_kdca_family_and_count():
+    """v0.4.0: review 템플릿에 질병관리청 R&D family 행 + cross-check 라우팅 + 36 카운트."""
+    body = review_regulation_prompt("테스트 상황")
+    assert "질병관리청 R&D 행정규칙" in body              # Tier 2 family 행
+    assert "(36개 규정)" in body                          # 카운트 동기화
+    assert "kdca_rnd_management" in body                   # cross-check 라우팅
 
 
 def test_readme_has_stable_usage_guidance():
