@@ -541,9 +541,9 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 
 
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
-    """suggest 응답에 현행 contract_version(0.8.0) 포함."""
+    """suggest 응답에 현행 contract_version(0.9.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.8.0"
+    assert result["contract_version"] == "0.9.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -868,7 +868,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.8.0"
+    assert result["contract_version"] == "0.9.0"
 
 
 # === _build_article_content  ===
@@ -1959,6 +1959,171 @@ def test_doc_level_annexes_listing(mock_client):
     assert all("content" not in a and "별표내용" not in a for a in listed)  # 본문 미포함
 
 
+def test_doc_level_articles_listing_v070(mock_client):
+    """v0.7.0: document-level — articles 목록(조문 한정·본문 미포함)·JO provision_id·label·title."""
+    result = asyncio.run(get_provision_detail("law:283849"))
+    assert result["articles_count"] == 2
+    listed = result["articles"]
+    assert [a["provision_id"] for a in listed] == ["law:283849:JO0015", "law:283849:JO0021"]
+    assert listed[0]["label"] == "제15조"
+    assert listed[0]["title"] == "특별평가"
+    assert listed[1]["label"] == "제21조"
+    # 본문·머신뷰 미포함(제목만)
+    assert all(
+        "content" not in a and "조문내용" not in a and "structured" not in a for a in listed
+    )
+    assert "articles_truncated" not in result  # 소형이라 절단 없음
+    # 노출된 모든 provision_id는 JO 조회 가능해야 함(죽은 id 방지)
+    from korean_rnd_regs_mcp.provision_id import parse as parse_pid
+    for a in listed:
+        parse_pid(a["provision_id"])
+
+
+def test_doc_level_articles_skips_nondigit_and_dedups_v070(mock_client):
+    """v0.7.0: articles 목록은 숫자 조문번호만(가지조문 등 비숫자 제외) + 중복 조문번호 1개(JO first-match 정합)."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "articles": [
+            {"조문번호": "2", "조문제목": "정의", "조문내용": "본문",
+             "structured": {"title": "제2조", "paragraphs": []}},
+            {"조문번호": "2의2", "조문제목": "가지조문", "조문내용": "본문",
+             "structured": {"title": "", "paragraphs": []}},   # 비숫자 → 제외
+            {"조문번호": "2", "조문제목": "정의 중복", "조문내용": "본문",
+             "structured": {"title": "", "paragraphs": []}},     # 중복 → 1개만(첫 등장 유지)
+            {"조문번호": "5", "조문제목": "적용범위", "조문내용": "본문",
+             "structured": {"title": "", "paragraphs": []}},
+        ],
+    }
+    result = asyncio.run(get_provision_detail("law:283849"))
+    ids = [a["provision_id"] for a in result["articles"]]
+    assert ids == ["law:283849:JO0002", "law:283849:JO0005"]  # 비숫자 제외 + dedup
+    assert result["articles"][0]["title"] == "정의"  # 중복 중 첫 등장 유지
+
+
+def test_doc_level_articles_truncation_backstop_v070(mock_client):
+    """v0.7.0 size 백스톱: 다수의 짧은 조문(빈 제목 400건 — 적대검증 BLOCKING1 재현 케이스)으로 예산
+    초과 시 절단 + articles_truncated + ★최종 직렬화(플래그·경고 포함)가 hard 한도(16,000) 이내.
+    종전 추정 산식은 separator(', ')·절단 메타데이터 누적 오차로 16,040자까지 초과했음 → 실제 측정으로 회귀 방지."""
+    import json as _json
+    base = mock_client.get_law_detail.return_value
+    many = [
+        {"조문번호": str(i), "조문제목": "", "조문내용": "본문",
+         "structured": {"title": "", "paragraphs": []}}
+        for i in range(1, 401)
+    ]
+    mock_client.get_law_detail.return_value = {**base, "articles": many}
+    result = asyncio.run(get_provision_detail("law:283849"))
+    assert result["articles_truncated"] is True
+    assert 0 < len(result["articles"]) < 400  # 일부만 수록
+    assert any("articles_truncated" in w for w in result["warnings"])
+    # ★최종 직렬화가 hard 한도(16,000) 이내 — 절단 플래그·경고까지 포함해 측정(언더카운트 회귀 방지)
+    assert len(_json.dumps(result, ensure_ascii=False)) <= main_module._ANNEX_DETAIL_CHAR_BUDGET
+    # 수록된 항목은 전부 JO 조회 가능
+    from korean_rnd_regs_mcp.provision_id import parse as parse_pid
+    for a in result["articles"]:
+        parse_pid(a["provision_id"])
+
+
+def test_doc_level_articles_skips_unicode_digit_no_crash_v070(mock_client):
+    """v0.7.0: 비ASCII 숫자(상위첨자 '²' 등 — isdigit True·int() ValueError) 조문번호는 isascii 가드로
+    skip — 비정상 번호 1건이 문서 레벨 전체 조회를 깨뜨리지 않음(적대검증 BLOCKING2 회귀 방지)."""
+    assert "²".isdigit() and not "²".isascii()  # 전제: isdigit만으로는 int() 안전 미보장
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "articles": [
+            {"조문번호": "²", "조문제목": "비ASCII", "조문내용": "본문",
+             "structured": {"title": "", "paragraphs": []}},   # isdigit True·int() ValueError → skip
+            {"조문번호": "3", "조문제목": "정상", "조문내용": "본문",
+             "structured": {"title": "", "paragraphs": []}},
+        ],
+    }
+    result = asyncio.run(get_provision_detail("law:283849"))   # 예외 없이 완료
+    ids = [a["provision_id"] for a in result["articles"]]
+    assert ids == ["law:283849:JO0003"]   # 비ASCII 제외, 정상만 수록
+
+
+def test_doc_level_articles_skips_overlong_digit_no_crash_v070(mock_client):
+    """v0.7.0: 4,300자리 초과 ASCII 숫자 조문번호(CPython int 변환 상한 → ValueError)도 try/except로
+    skip — 문서 레벨 조회 crash 없음(적대검증 R2 BLOCKING2 완결: isascii+isdigit만으로는 int() 미보장)."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "articles": [
+            {"조문번호": "9" * 4301, "조문제목": "장문숫자", "조문내용": "본문",
+             "structured": {"title": "", "paragraphs": []}},   # isascii+isdigit True·int() ValueError → skip
+            {"조문번호": "7", "조문제목": "정상", "조문내용": "본문",
+             "structured": {"title": "", "paragraphs": []}},
+        ],
+    }
+    result = asyncio.run(get_provision_detail("law:283849"))   # crash 없음
+    assert [a["provision_id"] for a in result["articles"]] == ["law:283849:JO0007"]
+
+
+def test_get_provision_detail_jo_resolves_past_bad_article_number_v070(mock_client):
+    """v0.7.0: JO 상세 조회 시 목표 조문 앞에 비ASCII 숫자('²') 조문번호가 있어도 int() crash 없이
+    목표 조문에 도달(적대검증 R2 BLOCKING3 — doc-level이 노출한 정상 JO id가 실제로 조회 가능함을 보장)."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "articles": [
+            {"조문번호": "²", "조문제목": "비ASCII", "조문내용": "제²조 본문",
+             "structured": {"title": "", "paragraphs": []}},   # 앞선 비정상 — 종전엔 int() crash로 도달 불가
+            {"조문번호": "3", "조문제목": "정상", "조문내용": "제3조(정상) 본문",
+             "structured": {"title": "제3조(정상)", "paragraphs": []}},
+        ],
+    }
+    result = asyncio.run(get_provision_detail("law:283849:JO0003"))   # 예외 없이 제3조 도달
+    assert "errors" not in result
+    assert result["provision_id"] == "law:283849:JO0003"
+    assert result["content_format"] == "plain_text_verbatim"
+
+
+def test_doc_level_articles_base_over_budget_reverts_truncation_flag_v070(mock_client):
+    """v0.7.0 size 백스톱: base(비-본문 필드 — 거대 annexes)만으로 이미 예산 초과(pre-existing R5)면,
+    목록을 전부 비운 뒤에도 초과가 남으므로 본 feature가 추가한 articles_truncated·경고를 되돌려
+    base를 더 키우지 않음(적대검증 R2 BLOCKING1: near-/over-limit base에 절단 메타데이터를 더하지 않음)."""
+    base = mock_client.get_law_detail.return_value
+    big_annexes = [
+        {"별표번호": str(i), "별표가지번호": "00", "별표구분": "별표",
+         "별표제목": "매우 긴 별표 제목 예시 " * 12, "별표내용": "본문", "별표서식파일링크": ""}
+        for i in range(1, 201)
+    ]
+    mock_client.get_law_detail.return_value = {
+        **base, "annexes": big_annexes, "annex_parse_error": None,
+        "articles": [
+            {"조문번호": "1", "조문제목": "목적", "조문내용": "본문", "structured": {"title": "", "paragraphs": []}},
+            {"조문번호": "2", "조문제목": "정의", "조문내용": "본문", "structured": {"title": "", "paragraphs": []}},
+        ],
+    }
+    result = asyncio.run(get_provision_detail("law:285767"))
+    assert len(result["annexes"]) == 200             # 거대 base 구성(pre-existing R5 경로)
+    assert result["articles"] == []                  # 목록 전부 제거
+    assert "articles_truncated" not in result        # 플래그 원복(base를 더 키우지 않음)
+    assert not any("articles_truncated" in w for w in result["warnings"])  # 경고 원복
+
+
+def test_doc_level_articles_listing_admrul_flat_v070(mock_client):
+    """v0.7.0: admrul 평면 schema 문서도 articles 목록 노출 — eval 발견성 갭의 직접 대상."""
+    mock_client.get_admin_rule_detail.return_value = {
+        "행정규칙ID": "abc", "행정규칙일련번호": "2100000278740",
+        "행정규칙명": "연구개발비 사용 기준",
+        "articles": [
+            {"조문번호": "2", "조문제목": "정의", "조문내용": "제2조(정의) 본문",
+             "structured": {"title": "제2조(정의)", "paragraphs": []}},
+            {"조문번호": "5", "조문제목": "계상기준", "조문내용": "제5조 본문",
+             "structured": {"title": "", "paragraphs": []}},
+        ],
+        "annexes": [],
+    }
+    result = asyncio.run(get_provision_detail("admrul:2100000278740"))
+    ids = [a["provision_id"] for a in result["articles"]]
+    assert ids == ["admrul:2100000278740:JO0002", "admrul:2100000278740:JO0005"]
+    assert result["articles"][0]["label"] == "제2조"
+    assert result["articles"][0]["title"] == "정의"
+
+
 def test_doc_level_annex_parse_error_honesty(mock_client):
     """G: law 별표 파싱 실패 시 doc-level이 annexes_count=0으로 '별표 없음' 위장하지 않음."""
     base = mock_client.get_law_detail.return_value
@@ -2836,7 +3001,7 @@ def test_get_provision_detail_small_article_unchanged_v060(mock_client):
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None
     assert "content_available" not in result
-    assert result["contract_version"] == "0.8.0"
+    assert result["contract_version"] == "0.9.0"
 
 
 def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):

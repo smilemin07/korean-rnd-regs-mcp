@@ -3,6 +3,20 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.7.0] - 2026-06-22
+
+**조문(JO) 발견성 갭 해소 — 문서 레벨 조문 목록** — v0.6.0 배포 후 라이브 eval에서, 호스트가 행정규칙(admrul) 평면 schema의 특정 조문(예: 제2조)을 찾을 때 (a) 문서 레벨 `get_provision_detail` 응답이 `annexes`(별표) 목록은 주면서 `articles`(조문) 목록은 주지 않고 `articles_count`(숫자)만 노출해 JO provision_id를 알 수 없고, (b) 조문 번호("제2조")로는 키워드 검색도 안 맞아, 결국 외부 law.go.kr로 우회하는 갭이 실관측됐다(도구가 정답을 줄 수 있는데도 호스트가 식별자 발견에 비용 지출). 이미 검증된 v0.2.1 `annexes` 목록 패턴을 조문(JO)으로 그대로 재현해, 문서 레벨 응답에 `articles` 목록을 additive로 추가한다. fan-out 부하 0·doc-level 응답 직렬화 1점·검증된 패턴 재사용 = "안정적 제공 + 최소 변경" 정합. **배포 전 36규정 전수 LIVE 실측: 조문 수 최대 규정(rnd_funding_standard 117조문)도 목록 직렬화 ~12.9k자(16k 예산의 80.6%)로 예산 내** — size 백스톱은 데이터 증가·schema 변화 대비 방어망이며 현행 데이터에서는 미발동. `contract_version` **0.8.0 → 0.9.0**(응답 schema additive), 패키지 **minor** bump. 검색/랭킹/fallback/fan-out/transport/bootstrap/캐시 메커니즘·외부 접속 URL·규정 수(36) 불변. (3-AI /disc 3/3 수렴: 후보 #2 선정·#1[R5 비-본문 필드 길이 가드 — 현행 막을 대상 0건의 예방]은 거대 필드 노출 변경과 짝지을 때로 보류.)
+
+### Added
+
+- **document-level `articles` 목록**(additive): `get_provision_detail`(unit_id 생략) 응답에 조문 목록 `articles: [{provision_id, label, title}]` 추가(본문 미포함) — 별표 `annexes` 목록의 조문(JO) 대응. 호스트가 특정 조문의 JO provision_id를 추측/외부 우회 없이 제목으로 선택. **ASCII 숫자 조문번호만**: `live_api` 파서가 가지조문(제N조의M)·장절 wrapper를 이미 제외하므로 본 조문만 노출하고, 상위첨자 '²'(`isdigit` True·`int()` ValueError)·4,300자리 초과 장문 숫자(CPython int 변환 상한)는 `isascii`+`isdigit`+`try/except` 가드로 skip. document-level 목록과 `get_provision_detail`(JO) 분기가 **동일 int 가드**를 써서, 앞선 비정상 조문번호 1건이 목표 조문 도달을 깨뜨리지 않음(노출 provision_id가 전부 JO 조회 가능·죽은 id 0). dedup은 방어적(가지조문 제외로 정상 데이터엔 중복 없음·첫 등장=JO first-match 정합). `articles_count`(파싱된 실제 조문 수 — 가지·wrapper 제외)와 목록 길이는 정상 데이터에서 동일(다른 경우는 백스톱 절단 또는 비정상 번호 skip뿐).
+- **size 백스톱**(신규 `articles_truncated` 플래그): `articles` 목록 추가 후 **최종 응답을 실제 `json.dumps`로 측정**해 16,000자 초과 시 `articles_truncated=true` + 경고를 표시하고 목록 뒤에서 항목을 제거(추정 산식이 아니라 완성 응답 자체 측정 — 직렬화 separator·메타데이터 누적 오차에 안전). 보장: **`articles` 목록 항목(volume)이 응답을 예산 너머로 키우지 않음**(목록은 절단으로 bound). ★base(annexes 목록·revision_notice 등 무한 비-본문 필드)만으로 이미 예산 한계 근처/초과면 pre-existing R5 system-wide 사안(단일 의도 밖)이라 목록을 비우고 본 feature가 추가한 플래그·경고를 되돌려 base를 더 키우지 않음(graceful degrade). 이 R5 극단에서 빈 additive `articles` 키(~16자)가 base를 미세 초과시킬 수 있으나 모든 additive 필드(v0.5.0 version 메타 ~106자 등)가 공유하는 base-bloat이며 v0.7.0의 16자는 기존 R5 주원인을 실질적으로 확대하지 않음(106자보다 작음). 16,000은 25,000 TOKEN의 보수 proxy(char≠token)라 실한도 여유. build는 `_DOC_ARTICLES_MAX`(600)로 bound(비정상 대량 입력 O(n²)·메모리 방어). 현행 36규정 실측상 미발동(최악 117조문 ~12.9k자).
+
+### Changed
+
+- `get_provision_detail` docstring·`review_regulation` 프롬프트(`_REVIEW_PROMPT_TEMPLATE`) 5단계에 "특정 조문 provision_id가 불확실하면 추측 말고 문서 레벨 `articles` 목록에서 선택" 안내 1문장 미러링(기존 `annexes` 안내와 동형). README 임베드 사본 byte-sync. `_SERVER_INSTRUCTIONS`(서버 전역)는 불변(표면 최소화).
+- `contract_version` 0.8.0 → **0.9.0** (`provision_id.py`, `docs/api_contract.md` §5.10 신설·§6 이력).
+
 ## [0.6.0] - 2026-06-21
 
 **get_provision_detail 조문(JO) 응답 크기 계층화 — 무한 입력 경계 폐쇄** — v0.5.0 적대검증(R5)이 식별한 "OpenAPI 공급 필드가 비정상적으로 길면 응답 총량이 16k char 예산을 넘겨 호스트에서 truncation/거부될 수 있다"는 경계 중, 유일하게 무가드로 남아 있던 `get_provision_detail` **조문(JO)** 경로(content + 중복 article_structure)에 기존 검증된 별표 size-tier 패턴을 확장한다. fan-out 부하 0·응답 직렬화 1점·검증된 패턴 재사용 = "안정적 제공 + 최소 변경"에 최적 정합. **배포 전 36개 규정 1,125개 조문 전수 LIVE 실측 결과 어떤 조문도 임계(15,700자)를 넘지 않아(최대 직렬화 12,180자) 현행 36규정은 전건 기존 거동(tier-1) 그대로** — 본 변경은 현재 overflow 버그픽스가 아니라 미래 대형 조문·schema 변화 대비 예방이다. `contract_version` **0.7.0 → 0.8.0**(degraded tier 신규 필드 + 거동), 패키지 **minor** bump. 검색/랭킹/fallback/fan-out/transport/bootstrap/캐시 메커니즘·외부 접속 URL·규정 수(36) 불변.
