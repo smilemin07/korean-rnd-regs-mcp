@@ -3,6 +3,21 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.5.0] - 2026-06-21
+
+**행정규칙 version 메타데이터 내재화 — 발령번호·종류 노출** — v0.4.1 라이브 eval에서 호스트가 「고시·예규 발령번호」를 MCP에서 얻지 못해 외부 웹으로 나가 구버전(stale) 번호·시행일을 단정하고, 심지어 등록된 규정을 "존재하지 않음"으로 false-negative 단정한 결함(프롬프트 3 SEVERE FAIL·프롬프트 4 FAIL)이 확정됐다. 도구가 발령번호를 직접 제공하면 외부-first 트리거 자체가 제거된다(데이터/schema 변경·호스트 무관 결정론). 행정규칙(admrul) 상세에서 발령번호·종류를 파싱해 `get_provision_detail` 응답에 additive 노출 + 동일 eval 사고의 false-negative 텍스트 가드 1문장. **admrul 한정**(law은 공포번호로 의미가 다르고 C12 합본 분리시행 함정 동반 — 별도·후순위). `contract_version` **0.6.0 → 0.7.0**(응답 schema additive), 패키지 **minor** bump. 검색/랭킹/fallback/fan-out/transport/bootstrap/캐시 메커니즘·외부 접속 URL·규정 수(36) 불변.
+
+### Added
+
+- **`get_provision_detail` 응답에 admrul version 식별자 3필드**(additive, doc-level·조문·별표 4-tier 전 성공 반환점 공통 helper `_admrul_version_meta`): `issuance_number`(raw 발령번호 "179"/"2026-25")·`regulation_kind`("예규"/"고시"/"훈령")·`version_label`(엄격 합성 "예규 제179호" — 종류가 허용값이고 번호가 검증 패턴일 때만, 부처명 prepend 금지·omit 규칙). 기존 `effective_date`(검색행 resolve)는 별도 필드 유지. `pid.doc_type=="admrul"`만 — law·오류 응답 미주입. LIVE 19건 전건 검증: 검색행 시행일 = 상세 시행일(C12-like split 0건)·발령번호·종류 누락 0건.
+- `live_api.get_admin_rule_detail`이 상세 XML `<행정규칙기본정보>`의 `발령번호`·`행정규칙종류`를 파싱(nested/flat schema 공통). fault-isolated(`findtext`+`strip`+누락 시 "") — 본 파서는 검색 fan-out도 공유하므로 예외를 던지지 않는다.
+
+### Changed
+
+- 서버 `_SERVER_INSTRUCTIONS`(initialize 메타데이터)에 (a) 행정규칙 현행 발령번호·종류는 응답의 `issuance_number`·`regulation_kind`·`version_label`로 확인, (b) **MCP에 등록·검색된 규정을 외부 검색에서 찾지 못했다는 이유만으로 존재하지 않는다고 단정하지 말 것**(false-negative 가드 — 프롬프트 3 직접 겨냥) 2개 취지 append. 기존 가드 구절 전부 보존(append-only).
+- `get_provision_detail` docstring에 admrul 응답의 version 필드 안내 1문장(기존 구절 보존).
+- `contract_version` 0.6.0 → **0.7.0** (응답 additive 필드 — `provision_id.py`, `docs/api_contract.md` §5.8 신설·§6 이력).
+
 ## [0.4.1] - 2026-06-21
 
 **외부 웹 본문 폴백 차단 — 규정 본문은 도구(get_provision_detail)로만** — v0.4.0 라이브 eval 프롬프트 4(비교 질의)에서 호스트가 등록된 규정을 '존재 확인용'으로만 쓰고 규정 본문은 외부 law.go.kr에서 가져와 구버전(stale) 고시번호·시행일을 인용한 결함(컴플라이언스 위험)이 확정됐다. 원인은 데이터 부재가 아니라 호스트 행동 — 현 프롬프트가 'get_provision_detail content를 verbatim 사용'은 지시하나 '외부 웹 본문 폴백 금지'는 명시하지 않은 빈칸이었다. 프롬프트/docstring 텍스트만(코드 로직·검색/랭킹/fallback·응답 schema·transport·외부 접속 URL·규정 수 불변), `contract_version` **0.6.0 유지**, 패키지 **PATCH** bump. ★Level-B(호스트 의존) 완화이며 결정적 fix가 아니다 — 효능은 배포 후 수동 eval로 확인한다.

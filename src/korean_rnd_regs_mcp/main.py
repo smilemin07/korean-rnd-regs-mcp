@@ -59,7 +59,12 @@ _SERVER_INSTRUCTIONS = (
     "변동 가능한 구체값을 현행 사실로 단정하지 말며, 현행 식별자와 원문은 1차 출처(국가법령정보센터 등)에서 확인하도록 안내하십시오. "
     "한편 지원 범위 내 규정의 조문·별표 본문은 임의의 외부 웹검색이나 law.go.kr 직접 열람으로 대체하지 말고 "
     "get_provision_detail의 content로 확인하되(content_format이 plain_text_verbatim이 아니면 응답이 제공한 공식 원문 링크를 확인), "
-    "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오."
+    "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오. "
+    "행정규칙(고시·예규·훈령)의 발령번호·종류는 get_provision_detail 응답의 "
+    "issuance_number·regulation_kind·version_label 필드로 확인하되, 이 값은 조회된 규정의 것이며 현행임을 보증하지 않습니다"
+    "(검색 실패 시 등록(manifest) 버전일 수 있고 개정 안내가 없어도 현행이라는 뜻은 아니므로, 현행 여부 단정이 필요하면 1차 출처에서 확인). "
+    "MCP에 등록되었거나 list_rule_sets·search_provision으로 검색·조회된 규정을 외부 검색에서 찾지 못했다는 이유만으로 "
+    "존재하지 않는다고 단정하지 말고 get_provision_detail 결과와 응답이 제공한 공식 URL로 확인하십시오."
 )
 
 mcp = FastMCP("korean-rnd-regs-mcp", instructions=_SERVER_INSTRUCTIONS, version=__version__)
@@ -769,12 +774,17 @@ def _dependent_article_hints(title: str) -> list[str]:
 # MCP 응답 token 한도(Claude Code 25,000 token)의 보수 proxy (v0.1.8 overflow와 동일 사상; 서버에 tokenizer 없음).
 # 4경로 최저선 보수 적용 — LIVE 4경로 실측 통과 후 별도 최적화로 상향 가능(별표2·7 17.5k+자는 현재 포인터).
 _ANNEX_DETAIL_CHAR_BUDGET = 16000
-# 전문 verbatim 판정 시 호출부가 사후 추가하는 필드(revision_notice 등, ~100자)용 헤드룸을 예산에서 차감(보수적).
+# 전문 verbatim 판정 시 호출부가 사후 추가하는 필드용 헤드룸을 예산에서 차감(보수적).
+# 사후주입: revision_notice(~100자) + v0.5.0 admrul version 메타(issuance_number·regulation_kind·version_label ~80자)
+# → 합 ~200자 < 300 헤드룸이라 verbatim/oversized 경계 불변(B2: 최종 직렬화 ≤ _ANNEX_DETAIL_CHAR_BUDGET 보장).
 _ANNEX_DETAIL_HEADROOM = 300
 
 
-def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date: str) -> dict:
+def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date: str, force_oversized: bool = False) -> dict:
     """별표 단위 상세 응답 (v0.2, size-tiered + verbatim 정확성 가드).
+
+    force_oversized=True면 전문 분기를 건너뛰고 oversized_pointer로 강등(v0.5.0 — 호출부가 사후주입(version 메타·
+    revision_notice) 포함 최종 직렬화가 예산을 넘겼을 때의 airtight 백스톱).
 
     분기:
       1) 빈 별표내용 + 서식파일만 → content_format=external_file_only (본문 텍스트 없음, 인용 금지).
@@ -844,8 +854,9 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
         "verbatim_quote_allowed": True,
         "format_instructions": _VERBATIM_INSTRUCTIONS,
     })
-    # 호출부가 사후 추가하는 revision_notice 등을 고려해 헤드룸만큼 차감한 보수 예산으로 판정
-    if len(json.dumps(full, ensure_ascii=False)) <= _ANNEX_DETAIL_CHAR_BUDGET - _ANNEX_DETAIL_HEADROOM:
+    # 호출부가 사후 추가하는 revision_notice·version 메타 등을 고려해 헤드룸만큼 차감한 보수 예산으로 판정.
+    # force_oversized면(사후주입 포함 최종이 예산 초과한 백스톱 재호출) 전문 분기를 건너뛴다.
+    if not force_oversized and len(json.dumps(full, ensure_ascii=False)) <= _ANNEX_DETAIL_CHAR_BUDGET - _ANNEX_DETAIL_HEADROOM:
         return full
     # 4) 초과 → 본문 미수록 포인터
     base.update({
@@ -869,6 +880,44 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
         "warnings": base["warnings"] + ["대용량 별표 — 본문 미수록. 표시된 안내 텍스트를 규정 원문으로 인용 금지."],
     })
     return base
+
+
+# v0.5.0: 행정규칙(admrul) version 식별자 — 발령번호·종류를 응답에 노출(번호先 stale·false-negative 해소).
+# 발령번호·행정규칙종류는 get_admin_rule_detail이 OpenAPI 상세 <행정규칙기본정보>에서 파싱(없으면 "").
+# effective_date(검색행 resolve)는 별도 필드 — 여기 미포함(라벨에 시행일을 넣어 cross-source 불일치 만들지 않음).
+_REGULATION_KINDS = frozenset({"예규", "고시", "훈령"})
+# 발령번호 형식: 순번형 "179"(예규·훈령) / 연도형 "2026-25"(고시) — LIVE 19건 실측. ASCII 숫자만([0-9], \d의 유니코드 숫자 배제).
+_ISSUANCE_NUMBER_PATTERN = re.compile(r"^[0-9]+(?:-[0-9]+)?$")
+# 비정상 장문(파싱 오염·악성 응답) 방어 상한 — 실측 발령번호 ≤8자·종류 ≤2자. 사후주입 size를 _ANNEX_DETAIL_HEADROOM 내로 보장(B2).
+_ISSUANCE_MAX_LEN = 16
+_KIND_MAX_LEN = 8
+
+
+def _admrul_version_meta(pid, detail: dict) -> dict:
+    """admrul 발령번호·종류 version 메타데이터 (v0.5.0, additive).
+
+    admrul만 — pid.doc_type != 'admrul'이면 빈 dict(law·오류 경로 미주입).
+    issuance_number(raw "179"/"2026-25")·regulation_kind("예규/고시/훈령") 노출,
+    version_label("예규 제179호")은 종류가 허용값이고 번호가 검증 패턴일 때만 엄격 합성(omit 규칙·부처 prepend 금지).
+    값은 resolve된 문서의 발령번호·종류이며 resolve-fail 시 manifest fallback일 수 있어 '현행 보증'이 아님(docstring·instructions에서 현행 단정 안 함).
+    비정상 장문(_ISSUANCE_MAX_LEN/_KIND_MAX_LEN 초과)은 omit — 별표 사후주입 size를 헤드룸 내로 결정론적 보장(B2).
+    """
+    if pid.doc_type != "admrul":
+        return {}
+    issuance = (detail.get("발령번호") or "").strip()
+    kind = (detail.get("행정규칙종류") or "").strip()
+    if len(issuance) > _ISSUANCE_MAX_LEN:   # 비정상 장문 → raw·label 모두 미노출(주입 size 상한)
+        issuance = ""
+    if len(kind) > _KIND_MAX_LEN:
+        kind = ""
+    meta: dict = {}
+    if issuance:
+        meta["issuance_number"] = issuance
+    if kind:
+        meta["regulation_kind"] = kind
+    if kind in _REGULATION_KINDS and _ISSUANCE_NUMBER_PATTERN.match(issuance):
+        meta["version_label"] = f"{kind} 제{issuance}호"
+    return meta
 
 
 @mcp.tool()
@@ -1304,7 +1353,7 @@ async def suggest_review_sources(
 
 @mcp.tool()
 async def get_provision_detail(provision_id: str) -> dict:
-    """사용 시점: search_provision 또는 suggest_review_sources가 반환한 provision_id의 원문·삭제 여부·현행 내용을 확인할 때 호출하십시오. provision_id 없이 조문 내용을 추측하지 마십시오. 이 도구의 content가 규정 조문·별표 본문의 권위 출처이므로, 본문은 외부 웹(law.go.kr 직접 열람·웹검색 결과)에서 가져오지 말고 이 도구로 확인하십시오. content_format이 plain_text_verbatim이 아니면 응답이 제공한 attached_file_url·document_source_url의 공식 원문을 확인하고, 응답에 없는 고시·예규 번호 등은 외부 값으로 단정하지 마십시오.
+    """사용 시점: search_provision 또는 suggest_review_sources가 반환한 provision_id의 원문·삭제 여부·현행 내용을 확인할 때 호출하십시오. provision_id 없이 조문 내용을 추측하지 마십시오. 이 도구의 content가 규정 조문·별표 본문의 권위 출처이므로, 본문은 외부 웹(law.go.kr 직접 열람·웹검색 결과)에서 가져오지 말고 이 도구로 확인하십시오. content_format이 plain_text_verbatim이 아니면 응답이 제공한 attached_file_url·document_source_url의 공식 원문을 확인하십시오. 행정규칙(admrul) 응답에는 발령번호·종류가 issuance_number·regulation_kind·version_label 필드로 포함되니 이를 사용하되, 이 값은 조회된 규정의 것이며 현행임을 보증하지 않으므로(검색 실패 시 등록 버전일 수 있음) 현행 여부 단정이 필요하면 1차 출처에서 확인하고, 응답에 없는 고시·예규 번호 등은 외부 값으로 단정하지 마십시오.
 
     provision_id로 단일 조문/별표 본문 재조회 — 응답은 법령 원문 verbatim.
 
@@ -1383,6 +1432,9 @@ async def get_provision_detail(provision_id: str) -> dict:
 
     eff_date = _resolve_effective_date(rs, resolved)
     _revision = _revision_notice(rs, resolved)
+    # v0.5.0: admrul 발령번호·종류 version 메타 1회 계산 — 3 반환점(문서·조문·별표)에 균일 주입.
+    # law·오류 경로는 {} (helper의 doc_type 가드) → update no-op. effective_date는 별도 필드 유지.
+    _version_meta = _admrul_version_meta(pid, detail)
 
     # document-level (unit_id 없음)
     if pid.unit_id is None:
@@ -1397,6 +1449,7 @@ async def get_provision_detail(provision_id: str) -> dict:
             "disclaimer": _DISCLAIMER,
             "warnings": list(rs.known_limitations),
         }
+        result.update(_version_meta)  # v0.5.0: admrul issuance_number·regulation_kind·version_label
         result["annexes_count"] = len(annexes)  # 별표단위 전건 집계(별표·별지·서식 포함) — 하위호환 유지
         # v0.2.1 (A): 별표(구분=='별표')만 제목·provision_id 목록으로 노출 — 호스트가 추측 대신
         # 제목을 보고 BP를 선택(첫 실사용의 '별표 guess' 경로 폐쇄). 본문 미포함(제목만).
@@ -1470,6 +1523,7 @@ async def get_provision_detail(provision_id: str) -> dict:
                     "disclaimer": _DISCLAIMER,
                     "warnings": list(rs.known_limitations),
                 }
+                resp.update(_version_meta)  # v0.5.0: admrul version 식별자(조문+번호 동반 질의 시 외부행 차단)
                 if _revision:
                     resp["revision_notice"] = _revision
                 return resp
@@ -1504,8 +1558,20 @@ async def get_provision_detail(provision_id: str) -> dict:
             if _annex_branch_no(ann) != target_branch:
                 continue
             resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date)
+            resp.update(_version_meta)  # v0.5.0: oversized 별표도 version은 도구에서(프롬프트4 외부행 차단)
             if _revision:
                 resp["revision_notice"] = _revision
+            # v0.5.0 B2 백스톱: 전문 별표에 사후주입(version 메타·revision_notice) 후 최종 직렬화가 예산을 넘으면
+            # oversized로 강등(비정상 장문 사후주입 대비 airtight; version 메타는 상한 bounded라 정상 입력선 미발동).
+            if (
+                resp.get("content_format") == "plain_text_verbatim"
+                and "annex_status" not in resp
+                and len(json.dumps(resp, ensure_ascii=False)) > _ANNEX_DETAIL_CHAR_BUDGET
+            ):
+                resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date, force_oversized=True)
+                resp.update(_version_meta)
+                if _revision:
+                    resp["revision_notice"] = _revision
             return resp
 
     _msg = f"{provision_id}의 unit을 detail 응답에서 찾지 못함"

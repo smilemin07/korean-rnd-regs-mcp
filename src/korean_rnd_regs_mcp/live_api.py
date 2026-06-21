@@ -507,6 +507,10 @@ class LawApiClient:
                 "행정규칙명": root.findtext(".//행정규칙명", ""),
                 "소관부처명": root.findtext(".//소관부처명", ""),
                 "시행일자": root.findtext(".//시행일자", ""),
+                # v0.5.0: 발령번호·행정규칙종류 — <행정규칙기본정보> 안에 nested/flat 무관 항상 존재
+                # (LIVE 19건 실측). findtext+strip만 — 누락 시 "" (예외 없음·검색 fan-out 공유 안전).
+                "발령번호": (root.findtext(".//발령번호") or "").strip(),
+                "행정규칙종류": (root.findtext(".//행정규칙종류") or "").strip(),
                 "articles": articles,
                 "annexes": annexes,
             }

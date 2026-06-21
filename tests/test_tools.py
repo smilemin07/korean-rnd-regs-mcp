@@ -17,6 +17,7 @@ from korean_rnd_regs_mcp.main import (
     _DEGRADED_NOTE_EMPTY,
     _DEGRADED_NOTE_FALLBACK,
     _RECALL_DIRECTIVE,
+    _admrul_version_meta,
     _append_overflow_candidates,
     _extract_keywords,
     _make_snippet,
@@ -540,9 +541,9 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 
 
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
-    """suggest 응답에 현행 contract_version(0.6.0) 포함."""
+    """suggest 응답에 현행 contract_version(0.7.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.6.0"
+    assert result["contract_version"] == "0.7.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -867,7 +868,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.6.0"
+    assert result["contract_version"] == "0.7.0"
 
 
 # === _build_article_content  ===
@@ -2576,3 +2577,179 @@ def test_run_http_disables_uvicorn_access_log(monkeypatch):
     monkeypatch.setattr(main_module.mcp, "run_http_async", _fake_run_http_async)
     asyncio.run(main_module._run_http("0.0.0.0", 18080))
     assert captured.get("uvicorn_config") == {"access_log": False}
+
+
+# === v0.5.0: 행정규칙(admrul) version 메타데이터 내재화 ===
+def test_get_admin_rule_detail_parses_issuance_and_kind_v050(monkeypatch):
+    """v0.5.0: admrul 상세 파싱이 <행정규칙기본정보>의 발령번호·행정규칙종류를 result에 담는다."""
+    import requests as requests_mod
+    from korean_rnd_regs_mcp.live_api import LawApiClient
+
+    fake_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<AdmRulService>
+  <행정규칙기본정보>
+    <행정규칙ID>v050_test</행정규칙ID>
+    <행정규칙명>질병관리청 연구개발 관리 규정</행정규칙명>
+    <소관부처명>질병관리청</소관부처명>
+    <시행일자>20260518</시행일자>
+    <발령번호>179</발령번호>
+    <행정규칙종류>예규</행정규칙종류>
+  </행정규칙기본정보>
+  <조문내용>제1조(목적) 이 규정은 ...</조문내용>
+</AdmRulService>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_xml
+        headers = {"Content-Type": "application/xml"}
+
+    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    result = client.get_admin_rule_detail("2100000279440")
+    assert result["발령번호"] == "179"
+    assert result["행정규칙종류"] == "예규"
+
+
+def test_get_admin_rule_detail_missing_meta_omits_safely_v050(monkeypatch):
+    """v0.5.0: 발령번호·종류 element 누락 시 빈 문자열(예외 없음 — 검색 fan-out 공유 파서 안전)."""
+    import requests as requests_mod
+    from korean_rnd_regs_mcp.live_api import LawApiClient
+
+    fake_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<AdmRulService>
+  <행정규칙기본정보>
+    <행정규칙ID>no_meta</행정규칙ID>
+    <행정규칙명>테스트 규정</행정규칙명>
+    <시행일자>20210101</시행일자>
+  </행정규칙기본정보>
+  <조문내용>제1조(목적) ...</조문내용>
+</AdmRulService>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_xml
+        headers = {"Content-Type": "application/xml"}
+
+    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    result = client.get_admin_rule_detail("123")
+    assert result["발령번호"] == ""
+    assert result["행정규칙종류"] == ""
+
+
+def test_admrul_version_meta_synthesizes_label_all_kinds_v050():
+    """v0.5.0: 종류+번호 정상이면 version_label 합성 — 예규/훈령 순번형·고시 연도형 모두 '{종류} 제{번호}호'."""
+    from korean_rnd_regs_mcp.provision_id import parse
+    pid = parse("admrul:2100000279440")
+    m = _admrul_version_meta(pid, {"발령번호": "179", "행정규칙종류": "예규"})
+    assert m == {"issuance_number": "179", "regulation_kind": "예규", "version_label": "예규 제179호"}
+    assert _admrul_version_meta(pid, {"발령번호": "2026-25", "행정규칙종류": "고시"})["version_label"] == "고시 제2026-25호"
+    assert _admrul_version_meta(pid, {"발령번호": "242", "행정규칙종류": "훈령"})["version_label"] == "훈령 제242호"
+
+
+def test_admrul_version_meta_law_returns_empty_v050():
+    """v0.5.0: law는 발령번호 의미 다름(공포번호)+C12 함정 → version_meta 미주입(빈 dict)."""
+    from korean_rnd_regs_mcp.provision_id import parse
+    assert _admrul_version_meta(parse("law:283849"), {"발령번호": "179", "행정규칙종류": "예규"}) == {}
+
+
+def test_admrul_version_meta_omits_label_on_bad_kind_or_number_v050():
+    """v0.5.0: 종류가 허용값 아니거나 번호가 검증 패턴 아니면 version_label omit(raw 필드는 노출)."""
+    from korean_rnd_regs_mcp.provision_id import parse
+    pid = parse("admrul:123")
+    m = _admrul_version_meta(pid, {"발령번호": "179", "행정규칙종류": "기타"})
+    assert "version_label" not in m and m["issuance_number"] == "179" and m["regulation_kind"] == "기타"
+    m = _admrul_version_meta(pid, {"발령번호": "제179호", "행정규칙종류": "예규"})
+    assert "version_label" not in m and m["issuance_number"] == "제179호"  # '제179호'는 \d+(-\d+)? 미매칭
+    assert _admrul_version_meta(pid, {"발령번호": "", "행정규칙종류": "예규"}) == {"regulation_kind": "예규"}
+
+
+def test_doc_level_admrul_includes_version_meta_v050(mock_client):
+    """v0.5.0: admrul document-level 응답에 issuance_number·regulation_kind·version_label 포함."""
+    mock_client.get_admin_rule_detail.return_value["발령번호"] = "2026-38"
+    mock_client.get_admin_rule_detail.return_value["행정규칙종류"] = "고시"
+    result = asyncio.run(get_provision_detail("admrul:2100000278740"))
+    assert result["issuance_number"] == "2026-38"
+    assert result["regulation_kind"] == "고시"
+    assert result["version_label"] == "고시 제2026-38호"
+
+
+def test_article_admrul_includes_version_meta_v050(mock_client):
+    """v0.5.0: admrul 조문 응답에도 version 메타(조문+번호 동반 질의 시 외부행 차단)."""
+    mock_client.get_admin_rule_detail.return_value["발령번호"] = "179"
+    mock_client.get_admin_rule_detail.return_value["행정규칙종류"] = "예규"
+    mock_client.get_admin_rule_detail.return_value["articles"] = [
+        {"조문번호": "7", "조문제목": "목적", "조문내용": "제7조 본문", "structured": {"title": "제7조(목적)", "paragraphs": []}},
+    ]
+    result = asyncio.run(get_provision_detail("admrul:2100000278740:JO0007"))
+    assert result["unit_type"] == "article"
+    assert result["version_label"] == "예규 제179호"
+
+
+def test_annex_admrul_includes_version_meta_v050(mock_client):
+    """v0.5.0: admrul 별표 응답(전 tier 공통)에도 version 메타 — oversized여도 version은 도구에서(프롬프트4)."""
+    mock_client.get_admin_rule_detail.return_value["발령번호"] = "2026-25"
+    mock_client.get_admin_rule_detail.return_value["행정규칙종류"] = "고시"
+    result = asyncio.run(get_provision_detail("admrul:2100000278740:BP0001"))
+    assert result["unit_type"] == "annex"
+    assert result["version_label"] == "고시 제2026-25호"
+
+
+def test_law_doc_level_has_no_version_meta_v050(mock_client):
+    """v0.5.0: law 응답에는 admrul 전용 version 필드 미주입(공포번호 의미 다름·C12 함정)."""
+    result = asyncio.run(get_provision_detail("law:283849"))
+    assert "issuance_number" not in result
+    assert "regulation_kind" not in result
+    assert "version_label" not in result
+
+
+def test_version_meta_omits_abnormal_long_issuance_v050():
+    """v0.5.0 B2: 비정상 장문 발령번호·종류(파싱 오염·악성)는 상한(_ISSUANCE_MAX_LEN/_KIND_MAX_LEN)으로 omit."""
+    from korean_rnd_regs_mcp.provision_id import parse
+    pid = parse("admrul:123")
+    m = _admrul_version_meta(pid, {"발령번호": "9" * 160, "행정규칙종류": "예" * 40})
+    assert "issuance_number" not in m and "version_label" not in m and "regulation_kind" not in m
+
+
+def test_version_meta_bounded_within_annex_headroom_v050():
+    """v0.5.0 B2(상한 증명): helper가 낼 수 있는 최대 version_meta + 정상 템플릿 revision_notice 사후주입이
+    _ANNEX_DETAIL_HEADROOM 이내임을 입력 상한 기반으로 증명(임의 표본 아님) → 전문 tier 경계 불변.
+    (응답 총량의 예산 초과는 OpenAPI 무한 공급 필드[title·effective_date] 의존·pre-existing — 별도 backlog.)"""
+    from korean_rnd_regs_mcp.main import _ANNEX_DETAIL_HEADROOM, _ISSUANCE_MAX_LEN
+    from korean_rnd_regs_mcp.provision_id import parse
+    pid = parse("admrul:123")
+    # 허용 경계 입력(이 이상은 omit) — helper가 낼 수 있는 최대 version_meta
+    m_max = _admrul_version_meta(pid, {"발령번호": "9" * _ISSUANCE_MAX_LEN, "행정규칙종류": "훈령"})
+    assert m_max["version_label"] == "훈령 제" + "9" * _ISSUANCE_MAX_LEN + "호"
+    # _revision_notice 실제 최대(고정 템플릿 + 8자리 날짜 2개 + 13자리 ID)보다 보수적으로 긴 안내문
+    worst_notice = "개정 반영: 시행일 20240101 → 20260506 (LIVE 검색 기준 현행 시행일과 manifest 시행일이 달라 자동으로 현행본을 조회했으며 별도 조치는 불필요합니다 추가 여유분)"
+    injected = {**m_max, "revision_notice": worst_notice}
+    assert len(json.dumps(injected, ensure_ascii=False)) <= _ANNEX_DETAIL_HEADROOM
+
+
+def test_build_annex_detail_force_oversized_v050():
+    """v0.5.0 B2 백스톱: force_oversized=True면 소형 전문 별표도 oversized_pointer로 강등(재호출용)."""
+    ann = {"별표번호": "1", "별표제목": "소형", "별표내용": "짧은 별표 본문입니다", "별표서식파일링크": ""}
+    resp = main_module._build_annex_detail(
+        "admrul:2100000278740:BP0001", "BP0001", _fake_rs(), ann, "20260506", force_oversized=True)
+    assert resp["content_format"] == "oversized_pointer"
+
+
+def test_annex_demotes_to_oversized_when_injection_exceeds_budget_v050(mock_client):
+    """v0.5.0 B2 백스톱(airtight): 전문 별표에 비정상 장문 사후주입(거대 revision_notice) 후 최종이 예산 초과면
+    oversized로 강등 → 최종 직렬화 ≤ _ANNEX_DETAIL_CHAR_BUDGET. version 메타는 강등 후에도 유지."""
+    from korean_rnd_regs_mcp.main import _ANNEX_DETAIL_CHAR_BUDGET
+    # 경계 직전 전문 별표(사후주입 전엔 verbatim) + version 메타
+    mock_client.get_admin_rule_detail.return_value["발령번호"] = "179"
+    mock_client.get_admin_rule_detail.return_value["행정규칙종류"] = "예규"
+    mock_client.get_admin_rule_detail.return_value["annexes"] = [
+        {"별표번호": "1", "별표제목": "대형 별표", "별표내용": "가" * 14000, "별표서식파일링크": ""},
+    ]
+    # 비정상 장문 revision_notice 유발 — resolve가 거대 doc_id로 is_updated revision 생성
+    def _huge_resolve(title, api_target, manifest_doc_id, ministry=None):
+        return ResolvedDocId(doc_id="9" * 2000, effective_date="20260506", is_updated=True, manifest_doc_id=manifest_doc_id)
+    mock_client.resolve_latest_doc_id.side_effect = _huge_resolve
+    result = asyncio.run(get_provision_detail("admrul:2100000278740:BP0001"))
+    assert result["content_format"] == "oversized_pointer"                       # 강등됨
+    assert len(json.dumps(result, ensure_ascii=False)) <= _ANNEX_DETAIL_CHAR_BUDGET  # airtight
+    assert result["version_label"] == "예규 제179호"                              # version 유지

@@ -235,10 +235,10 @@ def test_tool_docstrings_include_usage_timing_stanza():
     assert "추측하지 마십시오" in gpd  # provision_id 없이 추측 금지(삭제 여부·현행 내용은 호출로 확인)
 
 
-def test_contract_version_unchanged_at_0_6_0():
-    """v0.2.9~0.2.11은 응답 schema 무변(메타데이터·오류경로 강화만) — contract 0.6.0 유지."""
+def test_contract_version_is_0_7_0():
+    """v0.5.0: get_provision_detail 응답에 admrul version 메타 additive 노출 → contract 0.6.0→0.7.0."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.6.0"
+    assert CONTRACT_VERSION == "0.7.0"
 
 
 # === v0.2.11: MCP Registry 등록 마커 + server.json ===
@@ -383,3 +383,25 @@ def test_get_provision_detail_docstring_external_fallback_v041():
     assert "규정 조문·별표 본문의 권위 출처" in doc       # content=본문 권위(B1 — 현행 식별자 overclaim 회피 framing)
     assert "외부 웹" in doc                                # 외부 본문 폴백 금지 언급
     assert "추측하지 마십시오" in doc                      # v0.2.9 기존 구절 보존(회귀)
+
+
+def test_server_instructions_false_negative_guard_v050():
+    """v0.5.0: instructions에 false-negative 가드(등록 규정 외부 미발견≠존재 안 함, B3) + version 필드 안내 append + 기존 구절 보존."""
+    instr = mcp.instructions
+    assert "존재하지 않는다고 단정하지 말고" in instr                       # B3 false-negative 가드(프롬프트3 직접 겨냥)
+    assert "issuance_number·regulation_kind·version_label" in instr        # version 필드 안내
+    # append-only 회귀: v0.4.1·이전 가드 구절 전부 보존
+    assert "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오" in instr
+    assert "지원 범위 내 규정의 조문·별표 본문은" in instr
+    assert "일반 학습지식으로 답하지 말고" in instr
+    assert "지원 36개 규정 밖이면" in instr
+
+
+def test_get_provision_detail_docstring_mentions_version_fields_v050():
+    """v0.5.0: get_provision_detail docstring에 admrul version 필드 안내(issuance_number 등) + 기존 구절 보존."""
+    import inspect
+    from korean_rnd_regs_mcp.main import get_provision_detail
+    doc = inspect.getdoc(get_provision_detail) or ""
+    assert "issuance_number" in doc and "version_label" in doc   # 신규 version 필드 안내
+    assert "규정 조문·별표 본문의 권위 출처" in doc                # v0.4.1 구절 보존(회귀)
+    assert "추측하지 마십시오" in doc                             # v0.2.9 구절 보존(회귀)

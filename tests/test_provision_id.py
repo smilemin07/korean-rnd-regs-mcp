@@ -23,7 +23,9 @@ def test_contract_version_pinned():
     #         dependent_article_hints additive + BP 6자리 가지별표 인코딩(4/6자리 한정으로 협소화)·
     #         별지/서식 BP 노출 제외(오도달 버그 수정)·(번호,가지) 엄격 매칭 → minor bump.
     # 0.6.0 = 소관부처(ministry) resolve 필터 + list_rule_sets ministry 필드(v0.2.6) → minor bump.
-    assert CONTRACT_VERSION == "0.6.0"
+    # 0.7.0 = 행정규칙 version 메타(issuance_number·regulation_kind·version_label) get_provision_detail
+    #         응답에 additive 노출(v0.5.0 — admrul 한정) → minor bump.
+    assert CONTRACT_VERSION == "0.7.0"
 
 
 # === unit_label (v0.1.8 — overflow_candidates label용) ===

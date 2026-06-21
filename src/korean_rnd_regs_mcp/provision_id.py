@@ -22,7 +22,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-CONTRACT_VERSION = "0.6.0"
+CONTRACT_VERSION = "0.7.0"
 VALID_DOC_TYPES = frozenset({"law", "admrul"})
 # JO = 조문(article): 4자리 이상. BP = 별표(annex): 4자리(본별표) 또는 6자리(가지별표, 번호4+가지2).
 # BP 5자리 등은 디코드 의미가 정의되지 않아 reject (v0.2.1 — 서버 emit 이력은 4자리뿐이라 실영향 0).
