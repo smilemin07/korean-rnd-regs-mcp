@@ -3,6 +3,21 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.6.0] - 2026-06-21
+
+**get_provision_detail 조문(JO) 응답 크기 계층화 — 무한 입력 경계 폐쇄** — v0.5.0 적대검증(R5)이 식별한 "OpenAPI 공급 필드가 비정상적으로 길면 응답 총량이 16k char 예산을 넘겨 호스트에서 truncation/거부될 수 있다"는 경계 중, 유일하게 무가드로 남아 있던 `get_provision_detail` **조문(JO)** 경로(content + 중복 article_structure)에 기존 검증된 별표 size-tier 패턴을 확장한다. fan-out 부하 0·응답 직렬화 1점·검증된 패턴 재사용 = "안정적 제공 + 최소 변경"에 최적 정합. **배포 전 36개 규정 1,125개 조문 전수 LIVE 실측 결과 어떤 조문도 임계(15,700자)를 넘지 않아(최대 직렬화 12,180자) 현행 36규정은 전건 기존 거동(tier-1) 그대로** — 본 변경은 현재 overflow 버그픽스가 아니라 미래 대형 조문·schema 변화 대비 예방이다. `contract_version` **0.7.0 → 0.8.0**(degraded tier 신규 필드 + 거동), 패키지 **minor** bump. 검색/랭킹/fallback/fan-out/transport/bootstrap/캐시 메커니즘·외부 접속 URL·규정 수(36) 불변.
+
+### Added
+
+- **조문(JO) detail size-tier 공통 helper `_build_article_detail`**(별표 `_build_annex_detail` 패턴 확장). 3-tier: ① `content + article_structure ≤ 예산` → 전문 verbatim + structure(**종전과 동일 — 공통 경로 무변경·degraded 전용 필드 미출현**) / ② `content ≤ 예산 < content+structure` → 중복 머신뷰 `article_structure`를 `null`로 생략(신규 `structure_omitted=true` + 구조 미참조 `format_instructions` 변형 + 경고 1줄), **content는 전문(plain_text_verbatim) 유지**(중대형 조문도 본문 인용 가능) / ③ `content > 예산` → 본문 미수록 `content_format=oversized_pointer`(+`content_available=false`·`verbatim_quote_allowed=false`·`is_complete=false`·`omitted_reason`·`omitted_char_count`·`required_action`·`document_source_url` 1순위 + search_provision 안내). 예산 = `_ANNEX_DETAIL_CHAR_BUDGET`(16,000) − `_ANNEX_DETAIL_HEADROOM`(300).
+- 전문/구조생략 tier에 **사후주입(version 메타·revision_notice) 후 size 백스톱** — 최종 직렬화가 16,000을 넘으면 `_build_article_detail(force_oversized=True)`로 oversized 강등(별표 BP 백스톱과 동일). 본문(content)이 size 주범인 경우를 해소하며, 본문 외 무한 공급 필드(revision_notice·title 등)가 단독 초과하는 경우는 pre-existing system-wide 사안(R5 backlog·단일 의도 밖). 정상 데이터에서는 헤드룸이 사후주입을 흡수해 미발동.
+
+### Changed
+
+- `get_provision_detail` 조문(JO) 분기를 인라인 dict 조립에서 `_build_article_detail` 호출 + 백스톱으로 교체. 응답 길이 정책(§5 L144) "조문은 길이 제한 없음" → size-tiered로 갱신.
+- `get_provision_detail` docstring에 JO size-tier 안내(대용량 조문은 article_structure 생략 또는 oversized_pointer). 신규 상수 `_VERBATIM_INSTRUCTIONS_NO_STRUCTURE`(구조 생략 tier용 정확성 안내).
+- `contract_version` 0.7.0 → **0.8.0** (`provision_id.py`, `docs/api_contract.md` §5·§5.9 신설·§6 이력).
+
 ## [0.5.0] - 2026-06-21
 
 **행정규칙 version 메타데이터 내재화 — 발령번호·종류 노출** — v0.4.1 라이브 eval에서 호스트가 「고시·예규 발령번호」를 MCP에서 얻지 못해 외부 웹으로 나가 구버전(stale) 번호·시행일을 단정하고, 심지어 등록된 규정을 "존재하지 않음"으로 false-negative 단정한 결함(프롬프트 3 SEVERE FAIL·프롬프트 4 FAIL)이 확정됐다. 도구가 발령번호를 직접 제공하면 외부-first 트리거 자체가 제거된다(데이터/schema 변경·호스트 무관 결정론). 행정규칙(admrul) 상세에서 발령번호·종류를 파싱해 `get_provision_detail` 응답에 additive 노출 + 동일 eval 사고의 false-negative 텍스트 가드 1문장. **admrul 한정**(law은 공포번호로 의미가 다르고 C12 합본 분리시행 함정 동반 — 별도·후순위). `contract_version` **0.6.0 → 0.7.0**(응답 schema additive), 패키지 **minor** bump. 검색/랭킹/fallback/fan-out/transport/bootstrap/캐시 메커니즘·외부 접속 URL·규정 수(36) 불변.

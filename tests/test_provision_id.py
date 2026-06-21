@@ -25,7 +25,9 @@ def test_contract_version_pinned():
     # 0.6.0 = 소관부처(ministry) resolve 필터 + list_rule_sets ministry 필드(v0.2.6) → minor bump.
     # 0.7.0 = 행정규칙 version 메타(issuance_number·regulation_kind·version_label) get_provision_detail
     #         응답에 additive 노출(v0.5.0 — admrul 한정) → minor bump.
-    assert CONTRACT_VERSION == "0.7.0"
+    # 0.8.0 = get_provision_detail 조문(JO) 응답 size-tiered(v0.6.0 — 대용량 조문 article_structure 생략
+    #         또는 oversized_pointer, 별표 패턴 확장) → minor bump.
+    assert CONTRACT_VERSION == "0.8.0"
 
 
 # === unit_label (v0.1.8 — overflow_candidates label용) ===

@@ -136,6 +136,13 @@ _VERBATIM_INSTRUCTIONS = (
     "(3) 줄바꿈·들여쓰기를 유지. (4) 항·호 hierarchy는 article_structure 필드로 machine-readable "
     "제공되므로 LLM이 직접 reformat할 필요 없음. 법령 검토의 정확성 훼손 방지를 위해 verbatim 인용."
 )
+# v0.6.0: 대용량 조문에서 article_structure가 응답 예산을 넘겨 생략될 때의 정확성 안내(구조 미참조 변형).
+_VERBATIM_INSTRUCTIONS_NO_STRUCTURE = (
+    "본 응답의 content는 국가법령정보 OpenAPI에서 직접 받은 법령 원문입니다 (plain text verbatim). "
+    "사용자에게 표시할 때 다음 정책을 엄격히 준수: (1) 임의 부제·요약·paraphrase 추가 금지. "
+    "(2) 항(①②③) 번호와 호(1./2./3.) 번호 prefix를 stripping 금지. (3) 줄바꿈·들여쓰기를 유지. "
+    "(article_structure는 응답 한도 때문에 생략됐으나 content 본문이 전문이므로 그대로 인용하면 됩니다.)"
+)
 _RANK_NAMES = {
     1: "법률",
     2: "시행령",
@@ -882,6 +889,91 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
     return base
 
 
+def _build_article_detail(provision_id: str, unit_id: str, rs, art: dict, eff_date: str, force_oversized: bool = False) -> dict:
+    """조문(JO) 단위 상세 응답 (v0.6.0, size-tiered — 별표 _build_annex_detail와 동일 사상).
+
+    force_oversized=True면 전문 분기를 건너뛰고 oversized_pointer로 강등(호출부가 사후주입(version 메타·
+    revision_notice) 포함 최종 직렬화가 예산을 넘겼을 때의 airtight 백스톱).
+
+    분기 (예산 = _ANNEX_DETAIL_CHAR_BUDGET - _ANNEX_DETAIL_HEADROOM):
+      1) content + article_structure ≤ 예산 → 전문 verbatim + structure (종전 동일 — 공통 경로 무변경).
+      2) content ≤ 예산 < content+structure → 중복 머신뷰 article_structure 생략, content는 전문 유지
+         (중대형 조문도 본문 인용 가능 — oversized로 본문을 버리지 않음).
+      3) content > 예산(또는 force_oversized) → 본문 미수록 oversized_pointer (인용 금지·공식 링크·search 안내).
+    content_format != plain_text_verbatim 이면 verbatim_quote_allowed=False — 호스트는 그 content를
+    규정 원문으로 인용하지 말고 공식 원문을 확인해야 한다 (별표 정책과 동일).
+    """
+    title = (art.get("조문제목") or "").strip()
+    content = (art.get("조문내용") or "").strip()
+    budget = _ANNEX_DETAIL_CHAR_BUDGET - _ANNEX_DETAIL_HEADROOM
+    head = {
+        "provision_id": provision_id,
+        "document_title": rs.title,
+        "document_source_url": rs.source_url,
+        "unit_type": "article",
+        "unit_id": unit_id,
+        "title": title,
+    }
+    tail = {
+        "effective_date": eff_date,
+        "contract_version": CONTRACT_VERSION,
+        "disclaimer": _DISCLAIMER,
+        "warnings": list(rs.known_limitations),
+    }
+    if not force_oversized:
+        # 1) 전문 + structure (종전 조문 응답과 동일 필드·순서)
+        full = dict(head)
+        full.update({
+            "content": content,
+            "content_format": "plain_text_verbatim",
+            "article_structure": art.get("structured"),
+            "format_instructions": _VERBATIM_INSTRUCTIONS,
+        })
+        full.update(tail)
+        if len(json.dumps(full, ensure_ascii=False)) <= budget:
+            return full
+        # 2) 중복 article_structure 생략, content 전문 유지
+        no_struct = dict(head)
+        no_struct.update({
+            "content": content,
+            "content_format": "plain_text_verbatim",
+            "article_structure": None,
+            "structure_omitted": True,
+            "format_instructions": _VERBATIM_INSTRUCTIONS_NO_STRUCTURE,
+        })
+        no_struct.update(tail)
+        no_struct["warnings"] = no_struct["warnings"] + [
+            "조문 구조(article_structure)가 응답 한도로 생략됨 — content 본문은 전문(verbatim)이며 정확합니다."
+        ]
+        if len(json.dumps(no_struct, ensure_ascii=False)) <= budget:
+            return no_struct
+    # 3) content 단독 초과(또는 백스톱) → oversized_pointer
+    over = dict(head)
+    over.update({
+        "content": (
+            f"[본문 생략: 조문 분량이 응답 한도를 초과합니다(약 {len(content):,}자). "
+            "이 안내 텍스트를 규정 원문으로 인용하지 마십시오. 전문은 document_source_url"
+            "(법제처 공식 원문)을 확인하고, 특정 부분이 필요하면 search_provision으로 키워드를 좁혀 "
+            "매칭 행 발췌를 조회하십시오.]"
+        ),
+        "content_available": False,
+        "content_format": "oversized_pointer",
+        "article_structure": None,
+        "verbatim_quote_allowed": False,
+        "is_complete": False,
+        "omitted_reason": "oversized_tool_response",
+        "omitted_char_count": len(content),
+        "required_action": (
+            "1순위: document_source_url(법제처 공식 원문) 확인, 2순위: search_provision으로 부분 검색."
+        ),
+    })
+    over.update(tail)
+    over["warnings"] = over["warnings"] + [
+        "대용량 조문 — 본문 미수록. 표시된 안내 텍스트를 규정 원문으로 인용 금지."
+    ]
+    return over
+
+
 # v0.5.0: 행정규칙(admrul) version 식별자 — 발령번호·종류를 응답에 노출(번호先 stale·false-negative 해소).
 # 발령번호·행정규칙종류는 get_admin_rule_detail이 OpenAPI 상세 <행정규칙기본정보>에서 파싱(없으면 "").
 # effective_date(검색행 resolve)는 별도 필드 — 여기 미포함(라벨에 시행일을 넣어 cross-source 불일치 만들지 않음).
@@ -1366,9 +1458,10 @@ async def get_provision_detail(provision_id: str) -> dict:
     provision_id 포맷: {doc_type}:{doc_id}[:{unit_id}]
     - unit_id 생략 시 document-level 요약 반환 — annexes 목록(별표 제목·provision_id·deleted 표시,
       v0.2.1)이 포함되므로, 별표 번호가 불확실하면 추측하지 말고 이 목록에서 선택할 것.
-    - unit_id가 JO… 면 조문 본문 + article_structure, BP… 면 별표 본문 (행정규칙·법령 시행령 모두,
-      v0.2; size-tiered). BP는 4자리(본별표, 예: BP0001=별표 1) 또는 6자리(가지별표 번호4+가지2,
-      예: BP000102=별표 1의2, v0.2.1). 별지·서식은 별표가 아니므로 BP로 조회 불가.
+    - unit_id가 JO… 면 조문 본문 + article_structure (v0.6.0 size-tiered — 대용량 조문은
+      article_structure 생략 또는 본문 미수록 oversized_pointer), BP… 면 별표 본문 (행정규칙·법령
+      시행령 모두, v0.2; size-tiered). BP는 4자리(본별표, 예: BP0001=별표 1) 또는 6자리(가지별표
+      번호4+가지2, 예: BP000102=별표 1의2, v0.2.1). 별지·서식은 별표가 아니므로 BP로 조회 불가.
     """
     _e = _http_no_key_error()
     if _e is not None:
@@ -1507,25 +1600,21 @@ async def get_provision_detail(provision_id: str) -> dict:
         for art in articles:
             no = (art.get("조문번호") or "").strip()
             if no.isdigit() and int(no) == target_no:
-                resp = {
-                    "provision_id": provision_id,
-                    "document_title": rs.title,
-                    "document_source_url": rs.source_url,
-                    "unit_type": "article",
-                    "unit_id": pid.unit_id,
-                    "title": (art.get("조문제목") or "").strip(),
-                    "content": (art.get("조문내용") or "").strip(),
-                    "content_format": "plain_text_verbatim",
-                    "article_structure": art.get("structured"),
-                    "format_instructions": _VERBATIM_INSTRUCTIONS,
-                    "effective_date": eff_date,
-                    "contract_version": CONTRACT_VERSION,
-                    "disclaimer": _DISCLAIMER,
-                    "warnings": list(rs.known_limitations),
-                }
+                resp = _build_article_detail(provision_id, pid.unit_id, rs, art, eff_date)
                 resp.update(_version_meta)  # v0.5.0: admrul version 식별자(조문+번호 동반 질의 시 외부행 차단)
                 if _revision:
                     resp["revision_notice"] = _revision
+                # v0.6.0 백스톱: 사후주입(version 메타·revision_notice) 후 최종 직렬화가 예산을 넘으면
+                # oversized 강등(별표 BP와 동일). 본문(content)이 size 주범인 경우를 해소 — 본문 외 무한
+                # 공급 필드(revision_notice·title 등)가 단독 초과하는 경우는 pre-existing R5 backlog(단일 의도 밖).
+                if (
+                    resp.get("content_format") == "plain_text_verbatim"
+                    and len(json.dumps(resp, ensure_ascii=False)) > _ANNEX_DETAIL_CHAR_BUDGET
+                ):
+                    resp = _build_article_detail(provision_id, pid.unit_id, rs, art, eff_date, force_oversized=True)
+                    resp.update(_version_meta)
+                    if _revision:
+                        resp["revision_notice"] = _revision
                 return resp
 
     # annex (BP)

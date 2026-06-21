@@ -541,9 +541,9 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 
 
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
-    """suggest 응답에 현행 contract_version(0.7.0) 포함."""
+    """suggest 응답에 현행 contract_version(0.8.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.7.0"
+    assert result["contract_version"] == "0.8.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -868,7 +868,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.7.0"
+    assert result["contract_version"] == "0.8.0"
 
 
 # === _build_article_content  ===
@@ -2750,6 +2750,108 @@ def test_annex_demotes_to_oversized_when_injection_exceeds_budget_v050(mock_clie
         return ResolvedDocId(doc_id="9" * 2000, effective_date="20260506", is_updated=True, manifest_doc_id=manifest_doc_id)
     mock_client.resolve_latest_doc_id.side_effect = _huge_resolve
     result = asyncio.run(get_provision_detail("admrul:2100000278740:BP0001"))
+    assert result["content_format"] == "oversized_pointer"                       # 강등됨
+    assert len(json.dumps(result, ensure_ascii=False)) <= _ANNEX_DETAIL_CHAR_BUDGET  # airtight
+    assert result["version_label"] == "예규 제179호"                              # version 유지
+
+
+# === v0.6.0: get_provision_detail 조문(JO) size-tiered (별표 _build_annex_detail 패턴 확장) ===
+def test_build_article_detail_small_returns_full_verbatim_v060():
+    """소형 조문 → 전문 verbatim + article_structure 유지 (종전 공통 경로 무변경 — degraded 전용 필드 미출현)."""
+    art = {"조문번호": "15", "조문제목": "특별평가", "조문내용": "제15조(특별평가) 본문...",
+           "structured": {"title": "제15조(특별평가)", "paragraphs": []}}
+    resp = main_module._build_article_detail("law:283849:JO0015", "JO0015", _fake_rs(), art, "20260611")
+    assert resp["unit_type"] == "article"
+    assert resp["content_format"] == "plain_text_verbatim"
+    assert resp["article_structure"] == {"title": "제15조(특별평가)", "paragraphs": []}
+    assert resp["format_instructions"] == main_module._VERBATIM_INSTRUCTIONS
+    assert "특별평가" in resp["content"]
+    # 공통 경로엔 oversized/structure-omitted 전용 필드가 붙지 않음(회귀 가드)
+    assert "content_available" not in resp
+    assert "structure_omitted" not in resp
+    assert "omitted_char_count" not in resp
+
+
+def test_build_article_detail_drops_structure_when_combined_oversized_v060():
+    """content ≤ 예산 < content+structure → 중복 article_structure 생략, content는 전문 유지(본문 인용 가능)."""
+    content = "조문내용 " * 2600          # ~13,000자 < 15,700
+    big_structured = {"paragraphs": [{"number": "①", "text": "가" * 200, "source_text": "가" * 200}
+                                     for _ in range(15)]}
+    art = {"조문번호": "57", "조문제목": "권한의 위임", "조문내용": content, "structured": big_structured}
+    resp = main_module._build_article_detail("law:285891:JO0057", "JO0057", _fake_rs(), art, "20260603")
+    assert resp["content_format"] == "plain_text_verbatim"      # content는 여전히 전문
+    assert resp["content"] == content.strip()                    # 본문 미손실
+    assert resp["article_structure"] is None                     # 중복 머신뷰만 생략
+    assert resp["structure_omitted"] is True
+    assert resp["format_instructions"] == main_module._VERBATIM_INSTRUCTIONS_NO_STRUCTURE
+    assert any("article_structure" in w for w in resp["warnings"])
+
+
+def test_build_article_detail_oversized_content_returns_pointer_v060():
+    """content 단독 초과 → 본문 미수록 oversized_pointer, 인용 금지, 원문 미포함."""
+    big = "가" * 16000
+    art = {"조문번호": "2", "조문제목": "용어의 정의", "조문내용": big, "structured": None}
+    resp = main_module._build_article_detail("admrul:2100000251982:JO0002", "JO0002", _fake_rs(), art, "20241230")
+    assert resp["content_format"] == "oversized_pointer"
+    assert resp["content_available"] is False
+    assert resp["verbatim_quote_allowed"] is False
+    assert resp["is_complete"] is False
+    assert resp["omitted_char_count"] == 16000
+    assert resp["article_structure"] is None
+    assert big[:50] not in resp["content"]          # 본문(원문) 미수록
+    assert "인용" in resp["content"]                  # 안내 텍스트 + 인용 금지
+
+
+def test_build_article_detail_oversized_response_within_budget_v060():
+    """대용량 조문이라도 최종 직렬화 응답이 예산(16k char)을 넘지 않음 (truncation 방지)."""
+    big = "조문 본문 데이터 " * 4000
+    art = {"조문번호": "2", "조문제목": "용어의 정의", "조문내용": big, "structured": None}
+    resp = main_module._build_article_detail("admrul:2100000251982:JO0002", "JO0002", _fake_rs(), art, "20241230")
+    assert len(json.dumps(resp, ensure_ascii=False)) <= main_module._ANNEX_DETAIL_CHAR_BUDGET
+
+
+def test_build_article_detail_force_oversized_v060():
+    """백스톱: force_oversized=True면 소형 전문 조문도 oversized_pointer로 강등(재호출용)."""
+    art = {"조문번호": "15", "조문제목": "특별평가", "조문내용": "짧은 조문 본문입니다", "structured": None}
+    resp = main_module._build_article_detail(
+        "law:283849:JO0015", "JO0015", _fake_rs(), art, "20260611", force_oversized=True)
+    assert resp["content_format"] == "oversized_pointer"
+
+
+def test_build_article_detail_tier_boundary_keeps_content_and_within_budget_v060():
+    """경계: content+structure가 예산 초과·content는 여유 → tier2(structure 생략)로 content 무손실 + 최종 ≤ 예산."""
+    content = "조문 본문 줄. " * 1500          # content 단독은 예산 여유(~13.5k)
+    huge_structured = {"paragraphs": [{"source_text": "가" * 300} for _ in range(40)]}  # structure가 예산 압박
+    art = {"조문번호": "5", "조문제목": "경계", "조문내용": content, "structured": huge_structured}
+    resp = main_module._build_article_detail("law:285891:JO0005", "JO0005", _fake_rs(), art, "20260603")
+    assert resp["content_format"] == "plain_text_verbatim"   # 본문은 전문 유지(oversized 아님)
+    assert resp["content"] == content.strip()                 # 본문 무손실
+    assert resp["article_structure"] is None and resp["structure_omitted"] is True  # 중복 구조만 생략
+    assert len(json.dumps(resp, ensure_ascii=False)) <= main_module._ANNEX_DETAIL_CHAR_BUDGET  # 예산 내
+
+
+def test_get_provision_detail_small_article_unchanged_v060(mock_client):
+    """회귀 가드: 소형 조문은 size-tier 도입 후에도 plain_text_verbatim + article_structure 유지(36규정 전건 tier-1)."""
+    result = asyncio.run(get_provision_detail("law:283849:JO0015"))
+    assert result["content_format"] == "plain_text_verbatim"
+    assert result["article_structure"] is not None
+    assert "content_available" not in result
+    assert result["contract_version"] == "0.8.0"
+
+
+def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):
+    """v0.6.0 백스톱(airtight): 전문 조문에 비정상 장문 사후주입(거대 revision_notice) 후 최종이 예산 초과면
+    oversized로 강등 → 최종 직렬화 ≤ _ANNEX_DETAIL_CHAR_BUDGET. version 메타는 강등 후에도 유지."""
+    from korean_rnd_regs_mcp.main import _ANNEX_DETAIL_CHAR_BUDGET
+    mock_client.get_admin_rule_detail.return_value["발령번호"] = "179"
+    mock_client.get_admin_rule_detail.return_value["행정규칙종류"] = "예규"
+    mock_client.get_admin_rule_detail.return_value["articles"] = [
+        {"조문번호": "1", "조문제목": "대형 조문", "조문내용": "가" * 14000, "structured": None},
+    ]
+    def _huge_resolve(title, api_target, manifest_doc_id, ministry=None):
+        return ResolvedDocId(doc_id="9" * 2000, effective_date="20260506", is_updated=True, manifest_doc_id=manifest_doc_id)
+    mock_client.resolve_latest_doc_id.side_effect = _huge_resolve
+    result = asyncio.run(get_provision_detail("admrul:2100000278740:JO0001"))
     assert result["content_format"] == "oversized_pointer"                       # 강등됨
     assert len(json.dumps(result, ensure_ascii=False)) <= _ANNEX_DETAIL_CHAR_BUDGET  # airtight
     assert result["version_label"] == "예규 제179호"                              # version 유지
