@@ -2996,7 +2996,7 @@ def test_build_article_detail_tier_boundary_keeps_content_and_within_budget_v060
 
 
 def test_get_provision_detail_small_article_unchanged_v060(mock_client):
-    """회귀 가드: 소형 조문은 size-tier 도입 후에도 plain_text_verbatim + article_structure 유지(36규정 전건 tier-1)."""
+    """회귀 가드: 소형 조문은 size-tier 도입 후에도 plain_text_verbatim + article_structure 유지(현행 규정 전건 tier-1)."""
     result = asyncio.run(get_provision_detail("law:283849:JO0015"))
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None

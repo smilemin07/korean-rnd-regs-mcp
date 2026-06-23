@@ -3,6 +3,19 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.8.0] - 2026-06-24
+
+**R&D 규정 지원 확대 — 교육부 학술진흥법 family 3건 (36 → 39)** — v0.7.0 배포 후 라이브 eval에서 도구 호출 게이팅·발견성은 개선됐으나, 핵심 미션("국가법령정보 OpenAPI 수록 R&D 규정을 최대한 지원")의 다음 자연스러운 진전은 교육(학술) 분야 누락 해소다. 학술연구지원사업은 대학·연구자의 핵심 R&D 트랙임에도 그 모법인 학술진흥법 family가 미수록이라, 관련 질의가 "범위 밖→일반 학습지식(stale 위험)"으로 처리됐다. 검증된 저위험 확대 패턴(v0.3.0 보건복지부·v0.4.0 질병관리청과 동일하게 **데이터(yaml)+프롬프트+테스트만**, 서버 알고리즘·응답 schema·검색/랭킹/fallback/transport/캐시·외부 접속 URL 불변)으로 교육부 학술진흥법 3건(법·시행령·시행규칙)을 manifest에 등록한다. **배포 전 LIVE 검증 게이트(2026-06-23) 확정: 정확 title + ministry=교육부 정확일치 resolve가 유일 현행 문서 1건을 집음**(트랙 충돌·동명이종·약칭 0 — 과거 '트랙 판별 가드' 우려는 이 3건 family에는 LIVE 근거 없음 → 순수 data로 안전, 코드 가드 불요). 3건 전부 law target·중첩 schema(평면 admrul 호 구조 backlog와 무관)·oversized 없음(최대 별표 13,213자 < size-tier 예산 15,700 → 본문 전문 tier-1). `contract_version` **0.9.0 유지**(응답 schema·필드·shape·오류코드 불변 — 데이터 corpus 확대만), 패키지 **major** bump(규정 확대 = 새 버전 규칙상 가운데 숫자 +1·마지막 0: 0.7.x → **0.8.0**). 지원 규정 **36 → 39개**. (3-AI /disc 3/3 수렴: 후보 C[규정 확대] 선정·A[평면 admrul 호 구조 파싱 — N=1 host 산술·content 정확·정규식 false-split이 빈 배열보다 위험]·B[R5 비-본문 필드 길이 가드 — 현행 막을 대상 0건의 3번째 연속 예방]은 보류. LIVE 게이트가 Codex[검증된 family]·Gemini[순수 data] 분기를 동시 충족.)
+
+### Added
+
+- **교육부 학술진흥법 family 3건**(`rule_sets.yaml`, 순수 data): `hakjin_act`(학술진흥법, MST 230413, 법률, 시행 2021-06-23, 조문 23·별표 0) / `hakjin_decree`(학술진흥법 시행령, MST 245227, 대통령령, 시행 2022-11-08, 조문 23·별표 3·최대 2,937자) / `hakjin_rule`(학술진흥법 시행규칙, MST 220701, 교육부령, 시행 2020-10-13, 조문 7·별표 1·13,213자=본문 전문 tier-1). 전건 `api_target: law`·중첩 schema·`ministry: 교육부`. 시행령은 학술연구지원사업의 선정(제6조)·협약(제7조)·출연금/사업비·결과보고·평가·전담기관·연구부정·제재 등 R&D 연구행정 절차 골격을 직접 보유. (LIVE 검증: 2026-06-23 게이트 — `law-api-prober`로 현행성·트랙 단건 resolve·schema·R&D 관련성 전건 확정.)
+
+### Changed
+
+- `review_regulation` 프롬프트(`_REVIEW_PROMPT_TEMPLATE`) 적용 범위 목록에 "Tier 1 (Sector — 학술진흥 R&D family): 학술진흥법·시행령·시행규칙(교육부)" 행 추가(host가 교육부 학술 규정을 범위 밖 오분류하지 않도록). README 임베드 사본 byte-sync. 적용 범위 카운트 36 → 39개(서버 instructions·프롬프트·README 동기화). `plugin.json`/`marketplace.json` description에 교육부 추가.
+- 검색 캐시 maxsize(64)는 N=39<64라 영향 없음(불변).
+
 ## [0.7.0] - 2026-06-22
 
 **조문(JO) 발견성 갭 해소 — 문서 레벨 조문 목록** — v0.6.0 배포 후 라이브 eval에서, 호스트가 행정규칙(admrul) 평면 schema의 특정 조문(예: 제2조)을 찾을 때 (a) 문서 레벨 `get_provision_detail` 응답이 `annexes`(별표) 목록은 주면서 `articles`(조문) 목록은 주지 않고 `articles_count`(숫자)만 노출해 JO provision_id를 알 수 없고, (b) 조문 번호("제2조")로는 키워드 검색도 안 맞아, 결국 외부 law.go.kr로 우회하는 갭이 실관측됐다(도구가 정답을 줄 수 있는데도 호스트가 식별자 발견에 비용 지출). 이미 검증된 v0.2.1 `annexes` 목록 패턴을 조문(JO)으로 그대로 재현해, 문서 레벨 응답에 `articles` 목록을 additive로 추가한다. fan-out 부하 0·doc-level 응답 직렬화 1점·검증된 패턴 재사용 = "안정적 제공 + 최소 변경" 정합. **배포 전 36규정 전수 LIVE 실측: 조문 수 최대 규정(rnd_funding_standard 117조문)도 목록 직렬화 ~12.9k자(16k 예산의 80.6%)로 예산 내** — size 백스톱은 데이터 증가·schema 변화 대비 방어망이며 현행 데이터에서는 미발동. `contract_version` **0.8.0 → 0.9.0**(응답 schema additive), 패키지 **minor** bump. 검색/랭킹/fallback/fan-out/transport/bootstrap/캐시 메커니즘·외부 접속 URL·규정 수(36) 불변. (3-AI /disc 3/3 수렴: 후보 #2 선정·#1[R5 비-본문 필드 길이 가드 — 현행 막을 대상 0건의 예방]은 거대 필드 노출 변경과 짝지을 때로 보류.)

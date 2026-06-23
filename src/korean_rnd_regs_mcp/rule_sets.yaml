@@ -3,8 +3,8 @@
 # schema: src/korean_rnd_regs_mcp/manifest.py (Pydantic RuleSet model, 13 fields)
 # 단계: (schema 정의) + (MVP 4개 항목 입력)
 #
-# 본 36개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.4.0: 질병관리청 R&D family 4건 확대)
-# 추가 항목 (교육 학술진흥법, 기관별 매뉴얼 등)은 차기 확장 후보.
+# 본 39개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.8.0: 교육부 학술진흥법 family 3건 확대)
+# 추가 항목 (타 부처 R&D 규정, 기관별 매뉴얼 등)은 차기 확장 후보.
 
 rule_sets:
   # === Tier 1: 핵심 법률·시행령·시행규칙 (혁신법 family) ===
@@ -742,3 +742,63 @@ rule_sets:
     known_limitations:
       - "★범부처 공통 지침의 질병관리청 사본 — OpenAPI에 19개 부처별 사본이 '(부처명)…' 접두 제목으로 각각 존재(범부처 통합 원문 아님). manifest title은 부처 접두 포함 정식명으로 등록해야 resolve가 질병관리청 행 1건을 정확히 집음(접두 없는 제목은 정확일치 0→manifest fallback으로 현행성 추적 死). ministry='질병관리청' 필터는 안전망"
       - "본 행정규칙은 평면 schema — LIVE(2026-06-20): 조문 21·별표 0"
+
+  # === 교육부 학술진흥법 family (학술연구지원사업 — v0.8.0, LIVE 검증 2026-06-23~24) ===
+  # 학술진흥법 3건(법·시행령·시행규칙) 전부 law target·중첩 schema·교육부 소관.
+  # 정확 title + ministry=교육부 정확일치 resolve가 유일 현행 문서 1건을 집음(트랙 충돌·동명이종·약칭 0, LIVE 게이트 확정 2026-06-23).
+
+  - id: hakjin_act
+    title: 학술진흥법
+    tier: "Tier 1"
+    hierarchy_rank: 1
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "230413"
+    unit_types: article  # LIVE(2026-06-23): 조문 23·별표 0
+    query:
+      - 학술진흥법
+    license_status: public_data
+    effective_date: "2021-06-23"
+    source_url: https://www.law.go.kr/법령/학술진흥법
+    ministry: 교육부
+    known_limitations:
+      - "학술연구지원사업의 사업비 계상기준·평가단·연구윤리 등 골격 보유. 별표 0(본문 조문만). 가지조문 누락 가능"
+
+  - id: hakjin_decree
+    title: 학술진흥법 시행령
+    tier: "Tier 1"
+    hierarchy_rank: 2
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "245227"
+    unit_types: both  # LIVE(2026-06-23): 조문 23·별표 3(최대 ~2,937자, oversized 없음)
+    query:
+      - 학술진흥법 시행령
+      - 학술진흥법시행령
+    license_status: public_data
+    effective_date: "2022-11-08"
+    source_url: https://www.law.go.kr/법령/학술진흥법시행령
+    ministry: 교육부
+    known_limitations:
+      - "선정·협약(제7조)·출연금/사업비·결과보고·평가·전담기관·연구부정·제재 등 R&D 연구행정 절차 골격 직접 보유. 별표 3건 소형(본문 전문). 가지조문 누락 가능"
+
+  - id: hakjin_rule
+    title: 학술진흥법 시행규칙
+    tier: "Tier 1"
+    hierarchy_rank: 3
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "220701"
+    unit_types: both  # LIVE(2026-06-23): 조문 7·별표 1(13,213자, size-tier 예산 15,700 미만 → 본문 전문 tier-1)
+    query:
+      - 학술진흥법 시행규칙
+      - 학술진흥법시행규칙
+    license_status: public_data
+    effective_date: "2020-10-13"
+    source_url: https://www.law.go.kr/법령/학술진흥법시행규칙
+    ministry: 교육부
+    known_limitations:
+      - "별표 1건(13,213자)은 size-tier 예산(15,700) 미만이라 본문 전문 tier-1 전달. 가지조문 누락 가능"

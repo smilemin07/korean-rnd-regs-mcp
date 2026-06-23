@@ -1,7 +1,7 @@
 {
   "name": "korean-rnd-regs",
-  "version": "0.7.0",
-  "description": "국가연구개발혁신법·시행령·핵심 행정규칙·부처별 R&D(국토교통·산업·중소기업·과기정통부·보건복지부·질병관리청) 관련 규정 검색·검토용 MCP 서버. 규정 조문·별표 자연어 검색 + 상세 조회 + 다층적 규정 검토.",
+  "version": "0.8.0",
+  "description": "국가연구개발혁신법·시행령·핵심 행정규칙·부처별 R&D(국토교통·산업·중소기업·과기정통부·보건복지부·질병관리청·교육부) 관련 규정 검색·검토용 MCP 서버. 규정 조문·별표 자연어 검색 + 상세 조회 + 다층적 규정 검토.",
   "author": {
     "name": "Andy Kim",
     "url": "https://github.com/smilemin07/korean-rnd-regs-mcp"
