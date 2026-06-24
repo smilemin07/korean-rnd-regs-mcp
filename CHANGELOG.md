@@ -3,6 +3,20 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.9.0] - 2026-06-24
+
+**R&D 규정 지원 확대 2차 — 교육부 산학협력 family 3건 + 연구윤리 지침 (39 → 43)** — v0.8.0(교육부 학술진흥법) 배포·eval에서 단일 조문 타깃 질의가 MCP grounded로 작동함을 입증한 데 이어, 교육부 R&D의 또 다른 핵심 트랙인 대학 산학협력(산업교육진흥 및 산학연협력촉진법 family)과 연구진실성(연구윤리 확보를 위한 지침)을 추가한다. v0.3.0·v0.4.0·v0.8.0과 동일한 검증된 저위험 확대 패턴(**데이터(yaml)+프롬프트+테스트만**, 서버 알고리즘·응답 schema·검색/랭킹/fallback/transport/캐시·외부 접속 URL 불변). **배포 전 LIVE 검증 게이트(2026-06-24, `law-api-prober`): 4건 전부 정확 title + ministry=교육부 정확일치 resolve가 유일 현행 문서 1건**(트랙 충돌·동명이종·부처 사본 0·잘못된 부처 ministry 필터 격리 실증) → 순수 data·코드 가드 불요. 산학협력 3건은 law target·중첩 schema, 연구윤리 지침은 admrul 평면 schema(기존 fallback 자동). oversized 없음(시행령 별표1 ~1,856자 tier-1·시행규칙 부속문서는 전부 별지서식이라 BP 미노출). `contract_version` **0.9.0 유지**(응답 schema·필드·shape·오류코드 불변 — 데이터 corpus 확대만), 패키지 **major** bump(규정 확대 = 새 버전 규칙상 가운데 숫자 +1·마지막 0: 0.8.0 → **0.9.0**). 지원 규정 **39 → 43개**. (3-AI /disc 3/3 수렴: 후보 #1[규정 확대] 선정·#2[law-target broad 질의 외부 드리프트 완화 — N=1·실트래픽 후 재상정]·#5[B2/B3 스태빌리티 — transport 인접 outage 위험·트리거 미점화] 보류. scope=Andy 결정 '4건 한 번에' — fan-out 43은 cold 6.9s@39 → ~8s 추정으로 20s 예산 가드에 여유·배포 1회 = outage-risk 순간 최소화.)
+
+### Added
+
+- **교육부 산학협력 R&D family 3건**(`rule_sets.yaml`, 순수 data): `sanhak_act`(산업교육진흥 및 산학연협력촉진에 관한 법률, MST 267351, 법률, 시행 2025-06-21, 조문 46·별표 0) / `sanhak_decree`(시행령, MST 284767, 대통령령, 시행 2026-03-24, 조문 53·별표 1[BP0000·~1,856자 본문 전문 tier-1]) / `sanhak_rule`(시행규칙, MST 285257, 교육부령, 시행 2026-03-27, 조문 5·별표 0[부속문서 11건은 전부 별지서식=BP 미노출 → `unit_types: article`]). 전건 `api_target: law`·중첩 schema·`ministry: 교육부`. 대학 산학협력단·기술지주회사·협력연구소·산학연협력계약 등 R&D 골격 보유.
+- **연구윤리 확보를 위한 지침 1건**(`rule_sets.yaml`, 순수 data): `research_ethics_guideline`(교육부 훈령 449호, ID 2100000226306, 시행 2023-07-17, 조문 35·별표 0, 평면 schema·fallback 자동·`ministry: 교육부`). 연구부정행위 범위·검증·조사위원회·연구진실성 — 전 부처 R&D 공통 고빈도 검토 주제. (LIVE 검증: 2026-06-24 게이트로 현행성·트랙 단건 resolve·schema·R&D 관련성 전건 확정.)
+
+### Changed
+
+- `review_regulation` 프롬프트(`_REVIEW_PROMPT_TEMPLATE`) 적용 범위 목록에 "Tier 1 (Sector — 산학협력 R&D family)" 행 + Tier 2 공통 행정규칙에 "연구윤리 확보를 위한 지침(교육부)" + 3단계 cross-check 라우팅(산학협력→`sanhak_*` / 연구윤리·연구부정행위·연구진실성→`research_ethics_guideline`) 추가. README 임베드 사본 byte-sync. 적용 범위 카운트 39 → 43개(서버 instructions·프롬프트·README·도구 description 동기화).
+- 검색 캐시 maxsize(64)는 N=43<64라 영향 없음(불변).
+
 ## [0.8.0] - 2026-06-24
 
 **R&D 규정 지원 확대 — 교육부 학술진흥법 family 3건 (36 → 39)** — v0.7.0 배포 후 라이브 eval에서 도구 호출 게이팅·발견성은 개선됐으나, 핵심 미션("국가법령정보 OpenAPI 수록 R&D 규정을 최대한 지원")의 다음 자연스러운 진전은 교육(학술) 분야 누락 해소다. 학술연구지원사업은 대학·연구자의 핵심 R&D 트랙임에도 그 모법인 학술진흥법 family가 미수록이라, 관련 질의가 "범위 밖→일반 학습지식(stale 위험)"으로 처리됐다. 검증된 저위험 확대 패턴(v0.3.0 보건복지부·v0.4.0 질병관리청과 동일하게 **데이터(yaml)+프롬프트+테스트만**, 서버 알고리즘·응답 schema·검색/랭킹/fallback/transport/캐시·외부 접속 URL 불변)으로 교육부 학술진흥법 3건(법·시행령·시행규칙)을 manifest에 등록한다. **배포 전 LIVE 검증 게이트(2026-06-23) 확정: 정확 title + ministry=교육부 정확일치 resolve가 유일 현행 문서 1건을 집음**(트랙 충돌·동명이종·약칭 0 — 과거 '트랙 판별 가드' 우려는 이 3건 family에는 LIVE 근거 없음 → 순수 data로 안전, 코드 가드 불요). 3건 전부 law target·중첩 schema(평면 admrul 호 구조 backlog와 무관)·oversized 없음(최대 별표 13,213자 < size-tier 예산 15,700 → 본문 전문 tier-1). `contract_version` **0.9.0 유지**(응답 schema·필드·shape·오류코드 불변 — 데이터 corpus 확대만), 패키지 **major** bump(규정 확대 = 새 버전 규칙상 가운데 숫자 +1·마지막 0: 0.7.x → **0.8.0**). 지원 규정 **36 → 39개**. (3-AI /disc 3/3 수렴: 후보 C[규정 확대] 선정·A[평면 admrul 호 구조 파싱 — N=1 host 산술·content 정확·정규식 false-split이 빈 배열보다 위험]·B[R5 비-본문 필드 길이 가드 — 현행 막을 대상 0건의 3번째 연속 예방]은 보류. LIVE 게이트가 Codex[검증된 family]·Gemini[순수 data] 분기를 동시 충족.)
