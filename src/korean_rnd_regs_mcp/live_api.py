@@ -7,6 +7,7 @@ import html
 import logging
 import os
 import re
+import threading
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
@@ -287,6 +288,11 @@ def _parse_xml(response: requests.Response) -> ET.Element:
 
 # === LawApiClient ===
 
+# v0.9.1(B2): TTLCache 조회용 sentinel — `key in cache` 후 `cache[key]` 2단계 대신
+# `cache.get(key, _CACHE_MISS)` 단일 조회로 TTL 만료 경계의 이론적 KeyError까지 차단.
+_CACHE_MISS = object()
+
+
 class LawApiClient:
     """Stateless-ish client (caches per instance). One per server is enough."""
 
@@ -302,6 +308,13 @@ class LawApiClient:
         self._failure_cache: TTLCache = TTLCache(maxsize=200, ttl=300)
         self._id_resolution_cache: TTLCache = TTLCache(maxsize=64, ttl=86400)  # v0.4.0: 50→64 (detail cache와 동상 — 단일 fan-out이 규정당 1엔트리 생성)
         self._id_resolution_failure_cache: TTLCache = TTLCache(maxsize=50, ttl=300)
+        # v0.9.1(B2): TTLCache 5종은 thread-safe 아님(in/get/[] read도 expire+링크 변경=mutation).
+        # B2가 fan-out 동시성을 8→32로 키워 같은 client 캐시에 동시 접근이 늘므로, 캐시 touch를
+        # 이 Lock으로 직렬화해 내부 링크 corruption을 막는다. ★Lock은 cache 접근에만 — network
+        # (_request_with_retry)·XML 파싱은 절대 lock 밖(그 안에 들어가면 최악 ~82s 점유로 전체
+        # 캐시 경로 차단). 현 설계는 nesting 없음 → RLock 불요(plain Lock이라 실수로 network를
+        # 감싸면 deadlock으로 fail-loud).
+        self._cache_lock = threading.Lock()
 
     def _require_key(self) -> None:
         if not self.api_key:
@@ -312,16 +325,23 @@ class LawApiClient:
             )
 
     def _check_caches(self, cache_key: tuple, success_cache: TTLCache) -> Any:
-        if cache_key in self._failure_cache:
-            raise self._failure_cache[cache_key]
-        if cache_key in success_cache:
-            return success_cache[cache_key]
+        # v0.9.1(B2): failure/success 두 TTLCache 접근을 한 critical section으로(동시 expire 직렬화).
+        # `in`+`[]` 2단계 대신 `.get(key, _CACHE_MISS)` 단일 조회 — TTL 만료 경계의 이론적 KeyError까지
+        # 차단(캐시 값은 None일 수 없어 miss는 None 반환으로 표현). network 없음(raise/return도 lock 안).
+        with self._cache_lock:
+            failed = self._failure_cache.get(cache_key, _CACHE_MISS)
+            if failed is not _CACHE_MISS:
+                raise failed
+            hit = success_cache.get(cache_key, _CACHE_MISS)
+            if hit is not _CACHE_MISS:
+                return hit
         return None
 
     def _record_failure(self, cache_key: tuple, err: LawApiError) -> None:
         # do not cache auth_failed (user might fix key) or parse on first attempt
         if err.code not in (ERROR_AUTH_FAILED,):
-            self._failure_cache[cache_key] = err
+            with self._cache_lock:  # v0.9.1(B2): 캐시 write 직렬화
+                self._failure_cache[cache_key] = err
 
     # --- 법령 검색 ---
     def search_laws(self, query: str, page: int = 1, page_size: int = 10) -> SearchResult:
@@ -362,7 +382,8 @@ class LawApiClient:
             if total == 0 and not items:
                 raise LawApiError(ERROR_NOT_FOUND, f"법령 검색 결과 0건: query={query!r}")
             result = SearchResult(total=total, page=page, page_size=page_size, items=items)
-            self._search_cache[cache_key] = result
+            with self._cache_lock:  # v0.9.1(B2): 캐시 write 직렬화
+                self._search_cache[cache_key] = result
             return result
         except LawApiError as e:
             self._record_failure(cache_key, e)
@@ -442,7 +463,8 @@ class LawApiClient:
             }
             if not articles and not result["법령명한글"]:
                 raise LawApiError(ERROR_NOT_FOUND, f"법령 상세 결과 없음: MST={mst}")
-            self._detail_cache[cache_key] = result
+            with self._cache_lock:  # v0.9.1(B2): 캐시 write 직렬화
+                self._detail_cache[cache_key] = result
             return result
         except LawApiError as e:
             self._record_failure(cache_key, e)
@@ -516,7 +538,8 @@ class LawApiClient:
             }
             if not articles and not annexes:
                 raise LawApiError(ERROR_NOT_FOUND, f"행정규칙 상세 결과 없음: ID={admrul_id}")
-            self._detail_cache[cache_key] = result
+            with self._cache_lock:  # v0.9.1(B2): 캐시 write 직렬화
+                self._detail_cache[cache_key] = result
             return result
         except LawApiError as e:
             self._record_failure(cache_key, e)
@@ -561,12 +584,14 @@ class LawApiClient:
         행만 후보로 삼는다(동명 타부처 규정 오집 방지). 일치 행이 없으면 manifest fallback(가용성 유지).
         """
         cache_key = ("resolve", api_target, title, ministry or "")
-        cached = self._id_resolution_cache.get(cache_key)
-        if cached is not None:
-            return cached
-        cached_fail = self._id_resolution_failure_cache.get(cache_key)
-        if cached_fail is not None:
-            return cached_fail
+        # v0.9.1(B2): id-resolution 캐시 직접 get 2건을 한 critical section으로(_check_caches 미경유).
+        with self._cache_lock:
+            cached = self._id_resolution_cache.get(cache_key)
+            if cached is not None:
+                return cached
+            cached_fail = self._id_resolution_failure_cache.get(cache_key)
+            if cached_fail is not None:
+                return cached_fail
 
         fallback = ResolvedDocId(
             doc_id=manifest_doc_id,
@@ -581,7 +606,8 @@ class LawApiClient:
                 sr = self.search_admin_rules(title, page_size=5)
         except LawApiError:
             logger.warning("resolve_latest_doc_id: search 실패, manifest ID fallback (target=%s)", api_target)
-            self._id_resolution_failure_cache[cache_key] = fallback
+            with self._cache_lock:  # v0.9.1(B2): 캐시 write 직렬화
+                self._id_resolution_failure_cache[cache_key] = fallback
             return fallback
 
         norm_title = self._normalize_title(title)
@@ -607,7 +633,8 @@ class LawApiClient:
                 "resolve_latest_doc_id: %s updated %s -> %s (시행일 %s)",
                 title, manifest_doc_id, result.doc_id, result.effective_date,
             )
-        self._id_resolution_cache[cache_key] = result
+        with self._cache_lock:  # v0.9.1(B2): 캐시 write 직렬화
+            self._id_resolution_cache[cache_key] = result
         return result
 
     # --- 행정규칙 검색 ---
@@ -648,7 +675,8 @@ class LawApiClient:
             if total == 0 and not items:
                 raise LawApiError(ERROR_NOT_FOUND, f"행정규칙 검색 결과 0건: query={query!r}")
             result = SearchResult(total=total, page=page, page_size=page_size, items=items)
-            self._search_cache[cache_key] = result
+            with self._cache_lock:  # v0.9.1(B2): 캐시 write 직렬화
+                self._search_cache[cache_key] = result
             return result
         except LawApiError as e:
             self._record_failure(cache_key, e)

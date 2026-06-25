@@ -8,6 +8,7 @@ import os
 import re
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Annotated
 from urllib.parse import urljoin, parse_qs
 
@@ -580,6 +581,32 @@ _client_instance: LawApiClient | None = None
 _client_by_key: dict[str, LawApiClient] = {}
 _CLIENT_BY_KEY_MAX = 100
 
+# v0.9.1(B2): fan-out 전용 bounded executor.
+# 측정상 NAS 기본 8스레드 default pool 큐잉이 cold fan-out latency의 ~40%를 차지(8→64스레드
+# 8.35s→4.88s, slow_rule 42→5). law.go.kr offload(resolve+detail)를 이 전용 풀로 격리해 큐잉을
+# 줄인다. 모듈 전역이라 전 사용자(_client_by_key) 합산 동시 law.go.kr 연결을 max_workers로
+# bound(backpressure)한다. import 시 생성하나 ThreadPoolExecutor는 submit 시까지 스레드를
+# spawn하지 않아 boot 무의존(set_default_executor와 달리 transport/loop 비의존). atexit shutdown은
+# 미추가(서버 생존 중 오작동 시 "cannot schedule new futures" 위험).
+# 사이징 32: N=43 cold peak 동시성 ≈43 → 32는 일부 잠깐 큐잉(~5s대)·48은 law.go.kr 동시연결
+# rate-limit/예의 위험. 게이트(NAS cold)에서 rate_limited 관측 시 24로 하향.
+_FANOUT_MAX_WORKERS = 32
+_FANOUT_EXECUTOR = ThreadPoolExecutor(
+    max_workers=_FANOUT_MAX_WORKERS, thread_name_prefix="rnd-fanout"
+)
+
+
+async def _run_offloaded(fn, *args):
+    """동기 law.go.kr 호출을 fan-out 전용 executor로 offload (asyncio.to_thread 등가).
+
+    asyncio.to_thread와 동일하게 현재 contextvars를 복사해 스레드 안에서 실행하되(submit마다
+    새 copy_context — 작업 간 컨텍스트 공유 금지), default pool이 아닌 _FANOUT_EXECUTOR를 쓴다.
+    호출부는 모두 positional args(run_in_executor는 kwargs 미전달).
+    """
+    loop = asyncio.get_running_loop()
+    ctx = contextvars.copy_context()
+    return await loop.run_in_executor(_FANOUT_EXECUTOR, ctx.run, fn, *args)
+
 
 def _get_client() -> LawApiClient:
     key = _request_api_key.get("")
@@ -627,7 +654,7 @@ def _http_no_key_error() -> dict | None:
 
 
 async def _resolve_doc_id(rs, client: LawApiClient) -> ResolvedDocId:
-    return await asyncio.to_thread(
+    return await _run_offloaded(
         client.resolve_latest_doc_id,
         rs.title,
         rs.api_target.value,
@@ -1101,11 +1128,11 @@ async def search_provision(query: str) -> dict:
             resolved = await _resolve_doc_id(rs, client)
             doc_id = resolved.doc_id
             if rs.api_target == ApiTarget.LAW:
-                detail = await asyncio.to_thread(client.get_law_detail, doc_id)
+                detail = await _run_offloaded(client.get_law_detail, doc_id)
                 return (rs, resolved, detail.get("articles", []),
                         detail.get("annexes", []), detail.get("annex_parse_error"))
             else:
-                detail = await asyncio.to_thread(client.get_admin_rule_detail, doc_id)
+                detail = await _run_offloaded(client.get_admin_rule_detail, doc_id)
                 return (rs, resolved, detail.get("articles", []),
                         detail.get("annexes", []), None)
         except asyncio.CancelledError:
@@ -1513,12 +1540,12 @@ async def get_provision_detail(provision_id: str) -> dict:
         doc_id = resolved.doc_id
         annex_parse_error: str | None = None
         if pid.doc_type == "law":
-            detail = await asyncio.to_thread(client.get_law_detail, doc_id)
+            detail = await _run_offloaded(client.get_law_detail, doc_id)
             articles = detail.get("articles", [])
             annexes = detail.get("annexes", [])
             annex_parse_error = detail.get("annex_parse_error")
         else:  # admrul
-            detail = await asyncio.to_thread(client.get_admin_rule_detail, doc_id)
+            detail = await _run_offloaded(client.get_admin_rule_detail, doc_id)
             articles = detail.get("articles", [])
             annexes = detail.get("annexes", [])
     except LawApiError as e:
