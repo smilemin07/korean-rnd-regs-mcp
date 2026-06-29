@@ -143,12 +143,12 @@ def test_review_prompt_instructs_keyword_array_to_suggest():
 
 
 def test_list_rule_sets_returns_live_api_items():
-    """v0.9.0: 교육부 산학협력 family 3건 + 연구윤리 지침 추가 = 43건."""
+    """v0.10.0: 과기정통부 기업부설연구소 family 3건 추가 = 46건."""
     result = asyncio.run(list_rule_sets())
     assert "rule_sets" in result
     assert isinstance(result["rule_sets"], list)
-    assert result["total"] == 43
-    assert len(result["rule_sets"]) == 43
+    assert result["total"] == 46
+    assert len(result["rule_sets"]) == 46
     ids = {rs["id"] for rs in result["rule_sets"]}
     expected = {
         # Tier 1 + 기존 Tier 2 (혁신법 family + 연구개발비 사용 기준)
@@ -176,6 +176,8 @@ def test_list_rule_sets_returns_live_api_items():
         "hakjin_act", "hakjin_decree", "hakjin_rule",
         # v0.9.0 — 교육부 산학협력 family + 연구윤리 지침
         "sanhak_act", "sanhak_decree", "sanhak_rule", "research_ethics_guideline",
+        # v0.10.0 — 과기정통부 기업부설연구소 family
+        "corp_lab_act", "corp_lab_decree", "corp_lab_rule",
     }
     assert ids == expected, f"id 불일치: 누락={expected - ids}, 추가={ids - expected}"
     # 모든 항목이 필수 field + v0.2.6 ministry 필드(additive) 노출
@@ -205,6 +207,12 @@ def test_list_rule_sets_returns_live_api_items():
     assert by_id["sanhak_rule"]["unit_types"] == "article"
     assert by_id["research_ethics_guideline"]["ministry"] == "교육부"
     assert by_id["research_ethics_guideline"]["api_target"] == "admrul"
+    # v0.10.0 — 과기정통부 기업부설연구소 family (law target·ministry=과학기술정보통신부)
+    assert by_id["corp_lab_act"]["ministry"] == "과학기술정보통신부"
+    assert by_id["corp_lab_act"]["api_target"] == "law"
+    assert by_id["corp_lab_act"]["unit_types"] == "article"
+    assert by_id["corp_lab_decree"]["unit_types"] == "both"
+    assert by_id["corp_lab_rule"]["unit_types"] == "both"
 
 
 def test_review_regulation_prompt_includes_annex_discovery_guides():
@@ -300,7 +308,7 @@ def test_server_instructions_fail_closed_and_scope_honesty():
 def test_server_instructions_stale_guard_v030():
     """v0.3.0: 범위 외 정직성 절이 미지원 규정의 변동 구체값 현행 단정 자제 + 43 카운트 동기화."""
     instr = mcp.instructions
-    assert "지원 43개 규정 밖이면" in instr               # 미지원 한정(in-scope 인용 비억제) + 카운트
+    assert "지원 46개 규정 밖이면" in instr               # 미지원 한정(in-scope 인용 비억제) + 카운트
     assert "변동 가능한 구체값을 현행 사실로 단정하지" in instr  # stale 식별자 단정 자제
     assert "1차 출처" in instr                            # 1차 출처 안내 보존
     # 미지원 한정 조건이 유지돼 in-scope 인용을 억제하지 않음(과억제 방지 회귀)
@@ -312,7 +320,7 @@ def test_review_prompt_mentions_health_family_and_count():
     body = review_regulation_prompt("테스트 상황")
     assert "보건의료 R&D family" in body                  # Tier 1 family 행
     assert "보건의료기술 진흥법" in body                  # family 규정명
-    assert "(43개 규정)" in body                          # 카운트 동기화
+    assert "(46개 규정)" in body                          # 카운트 동기화
     assert "health_tech_act" in body                      # cross-check 라우팅
 
 
@@ -334,7 +342,7 @@ def test_review_prompt_mentions_kdca_family_and_count():
     """v0.4.0: review 템플릿에 질병관리청 R&D family 행 + cross-check 라우팅 + 43 카운트."""
     body = review_regulation_prompt("테스트 상황")
     assert "질병관리청 R&D 행정규칙" in body              # Tier 2 family 행
-    assert "(43개 규정)" in body                          # 카운트 동기화
+    assert "(46개 규정)" in body                          # 카운트 동기화
     assert "kdca_rnd_management" in body                   # cross-check 라우팅
 
 
@@ -391,6 +399,35 @@ def test_review_prompt_mentions_sanhak_family_v090():
     assert "research_ethics_guideline" in body
 
 
+def test_corp_lab_family_registered_v0100():
+    """v0.10.0: 과기정통부 기업부설연구소 family 3건 등록. LIVE 게이트(2026-06-29): 정확 title+ministry=과기정통부 단건 resolve·동명충돌 0."""
+    from korean_rnd_regs_mcp.manifest import load_manifest
+    items = {rs.id: rs for rs in load_manifest()}
+    for rid in ("corp_lab_act", "corp_lab_decree", "corp_lab_rule"):
+        assert rid in items, f"기업부설연구소 규정 누락: {rid}"
+        assert items[rid].ministry == "과학기술정보통신부"
+        assert items[rid].api_target == "law"          # 중첩 schema(평면 admrul 아님)
+    # hierarchy: 법1·시행령2·시행규칙3 (기존 law family 패턴)
+    assert items["corp_lab_act"].hierarchy_rank == 1
+    assert items["corp_lab_decree"].hierarchy_rank == 2
+    assert items["corp_lab_rule"].hierarchy_rank == 3
+    # 별표 노출: 법률 article·시행령/시행규칙 both(시행규칙 별표0000은 oversized→oversized_pointer)
+    assert items["corp_lab_act"].unit_types == "article"
+    assert items["corp_lab_decree"].unit_types == "both"
+    assert items["corp_lab_rule"].unit_types == "both"
+    # doc_id 결정론 고정 (yaml drift 방어 — LIVE 게이트 2026-06-29 값)
+    assert items["corp_lab_act"].api_doc_id == "282553"
+    assert items["corp_lab_decree"].api_doc_id == "282915"
+    assert items["corp_lab_rule"].api_doc_id == "283223"
+
+
+def test_review_prompt_mentions_corp_lab_family_v0100():
+    """v0.10.0: review 템플릿 적용 범위에 기업부설연구소 R&D family 행 + cross-check 라우팅."""
+    body = review_regulation_prompt("테스트 상황")
+    assert "기업부설연구소 R&D family" in body
+    assert "corp_lab_act" in body
+
+
 def test_readme_has_stable_usage_guidance():
     """v0.2.12: README '안정적으로 사용하기' 섹션 — 섹션 범위로 가드(다른 섹션/Changelog 우연 통과 방지)."""
     import re
@@ -441,7 +478,7 @@ def test_server_instructions_external_fallback_guard_v041():
     assert "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오" in instr
     # append-only 회귀: 기존 도구 호출 유도·범위 외 정직성 가드 보존
     assert "일반 학습지식으로 답하지 말고" in instr
-    assert "지원 43개 규정 밖이면" in instr
+    assert "지원 46개 규정 밖이면" in instr
 
 
 def test_get_provision_detail_docstring_external_fallback_v041():
@@ -463,7 +500,7 @@ def test_server_instructions_false_negative_guard_v050():
     assert "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오" in instr
     assert "지원 범위 내 규정의 조문·별표 본문은" in instr
     assert "일반 학습지식으로 답하지 말고" in instr
-    assert "지원 43개 규정 밖이면" in instr
+    assert "지원 46개 규정 밖이면" in instr
 
 
 def test_get_provision_detail_docstring_mentions_version_fields_v050():

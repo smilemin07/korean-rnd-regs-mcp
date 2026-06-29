@@ -74,7 +74,7 @@ def test_contract_version_unchanged_0_9_0():
     assert CONTRACT_VERSION == "0.9.0"
 
 
-def test_package_version_0_9_1():
-    """패키지 버전 0.9.1(minor=안정성)."""
+def test_package_version_0_10_0():
+    """패키지 버전 0.10.0(major=규정 확대: 가운데 숫자 +1)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.9.1"
+    assert __version__ == "0.10.0"

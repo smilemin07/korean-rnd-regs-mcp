@@ -3,7 +3,7 @@
 # schema: src/korean_rnd_regs_mcp/manifest.py (Pydantic RuleSet model, 13 fields)
 # 단계: (schema 정의) + (MVP 4개 항목 입력)
 #
-# 본 43개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.9.0: 교육부 산학협력 family 3건 + 연구윤리 지침 1건 확대)
+# 본 46개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.10.0: 과기정통부 기업부설연구소 family 3건 확대)
 # 추가 항목 (타 부처 R&D 규정, 기관별 매뉴얼 등)은 차기 확장 후보.
 
 rule_sets:
@@ -886,3 +886,65 @@ rule_sets:
     ministry: 교육부
     known_limitations:
       - "교육부 훈령(449호) — 연구부정행위 범위·검증·조사위원회·연구진실성 핵심. 평면 schema(호 머신뷰 빈 배열·기존 평면 admrul 공통). 별표 0"
+
+  # === 기업부설연구소 R&D family (v0.10.0, 과학기술정보통신부) ===
+  # 기업부설연구소·연구개발전담부서 인정제 — 기업참여 R&D 과제 참여자격·간접비 산정 근거.
+  # LIVE 게이트(law-api-prober 2026-06-29): 정확 title + ministry=과학기술정보통신부 정확일치 resolve가 유일 현행 문서 1건
+  # (동명충돌·부처 사본·폐지본 혼재 0·C12 미래분리시행 0). MST 282553/282915/283223 현행 일치·전건 시행 2026-02-01.
+  - id: corp_lab_act
+    title: 기업부설연구소등의 연구개발 지원에 관한 법률
+    tier: "Tier 1"
+    hierarchy_rank: 1
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "282553"
+    unit_types: article  # LIVE(2026-06-29): 조문 27·별표 0
+    query:
+      - 기업부설연구소등의 연구개발 지원에 관한 법률
+      - 기업부설연구소
+      - 연구개발전담부서
+    license_status: public_data
+    effective_date: "2026-02-01"
+    source_url: https://www.law.go.kr/법령/기업부설연구소등의연구개발지원에관한법률
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "기업부설연구소·연구개발전담부서 인정요건·지원 골격. 별표 0(본문 조문만). 가지조문 누락 가능"
+
+  - id: corp_lab_decree
+    title: 기업부설연구소등의 연구개발 지원에 관한 법률 시행령
+    tier: "Tier 1"
+    hierarchy_rank: 2
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "282915"
+    unit_types: both  # LIVE(2026-06-29): 조문 20·별표 3(전부 별표구분='별표'·최대 ~6,194자 본문 전문 tier-1)
+    query:
+      - 기업부설연구소등의 연구개발 지원에 관한 법률 시행령
+      - 기업부설연구소 시행령
+    license_status: public_data
+    effective_date: "2026-02-01"
+    source_url: https://www.law.go.kr/법령/기업부설연구소등의연구개발지원에관한법률시행령
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "별표 3건 소형(본문 전문 tier-1) — 인정 기준·연구시설 요건 등. 가지조문 누락 가능"
+
+  - id: corp_lab_rule
+    title: 기업부설연구소등의 연구개발 지원에 관한 법률 시행규칙
+    tier: "Tier 1"
+    hierarchy_rank: 3
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "283223"
+    unit_types: both  # LIVE(2026-06-29): 조문 14·별표 1(별표0000·20,358자 oversized→oversized_pointer)·서식 15건(별표구분='서식'→BP 미노출)
+    query:
+      - 기업부설연구소등의 연구개발 지원에 관한 법률 시행규칙
+      - 기업부설연구소 시행규칙
+    license_status: public_data
+    effective_date: "2026-02-01"
+    source_url: https://www.law.go.kr/법령/기업부설연구소등의연구개발지원에관한법률시행규칙
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "별표 1건(별표0000) 본문이 대용량(20,358자 > 16k 예산)이라 oversized_pointer로 공식 링크 안내(전문 미수록). 부속 서식 15건은 별표구분='서식'이라 BP 미노출. 가지조문 누락 가능"

@@ -3,6 +3,22 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.10.0] - 2026-06-29
+
+**R&D 규정 지원 확대 — 과기정통부 기업부설연구소 family 3건 (43 → 46)** — 스태빌리티 트랙(B2)이 측정상 충분함을 확인한 뒤(좀비-슬롯 fault-injection: 좀비창 ~5s·graceful degradation 이미 작동 → v0.9.2 보류·B3 0-target defer), 데이터/정확도 트랙으로 복귀하여 과학기술정보통신부 소관 「기업부설연구소등의 연구개발 지원에 관한 법률」 family(법·시행령·시행규칙)를 추가한다. 기업부설연구소·연구개발전담부서 인정요건은 기업참여 R&D 과제의 참여자격·간접비 산정 근거로 사용자(연구자·대학행정·전문기관·PM) 직접도가 높다. v0.3.0~v0.9.0과 동일한 검증된 저위험 확대 패턴(**데이터(yaml)+프롬프트+테스트만**, 서버 알고리즘·응답 schema·검색/랭킹/fallback/fan-out/transport/캐시·공유파서·외부 접속 URL 불변). **배포 전 LIVE 게이트(law-api-prober 2026-06-29): 3건 전부 정확 title + ministry=과기정통부 정확일치 resolve가 유일 현행 문서 1건**(동명충돌·부처 사본·폐지본 혼재 0·C12 미래분리시행 0). `contract_version` **0.9.0 유지**(응답 schema·필드·shape·오류코드 불변 — 데이터 corpus 확대만), 패키지 **major** bump(규정 확대 = 버전 규칙상 가운데 숫자 +1·마지막 0: 0.9.1 → **0.10.0**). 지원 규정 **43 → 46개**. **ultracode 워크플로 10에이전트 3렌즈(안정성·가치·규율) 만장일치 #1 + `/goal-disc-out` R1 3/3(Codex+Gemini+Claude) GO·blocking 0 수렴**(나머지 후보[평면 admrul 호 파싱·R5 길이상한·broad 드리프트·검색 recall·B3 연결풀] 전부 defer).
+
+### Added
+
+- **과기정통부 기업부설연구소 R&D family 3건**(`rule_sets.yaml`, 순수 data): `corp_lab_act`(기업부설연구소등의 연구개발 지원에 관한 법률, MST 282553, 법률, 시행 2026-02-01, 조문 27·별표 0·`unit_types: article`) / `corp_lab_decree`(시행령, MST 282915, 대통령령, 시행 2026-02-01, 조문 20·별표 3[전부 별표구분='별표'·최대 ~6,194자 본문 전문 tier-1]·`unit_types: both`) / `corp_lab_rule`(시행규칙, MST 283223, 과학기술정보통신부령, 시행 2026-02-01, 조문 14·별표 1[별표0000·20,358자 oversized → 기존 v0.6.0 size-tier 가드가 `oversized_pointer`로 처리·코드 무변경]+서식 15건[별표구분='서식'=BP 미노출]·`unit_types: both`). 전건 `api_target: law`·중첩 schema·`ministry: 과학기술정보통신부`. 기업부설연구소·연구개발전담부서 인정요건·지원 골격 보유.
+
+### Changed
+
+- `review_regulation` 프롬프트(`_REVIEW_PROMPT_TEMPLATE`) 적용 범위 목록에 "Tier 1 (Sector — 기업부설연구소 R&D family)" 행 + 3단계 cross-check 라우팅(기업부설연구소/연구개발전담부서/연구소 인정 → `corp_lab_*`) 추가. README 임베드 사본 byte-sync(`test_readme_embedded_prompt_matches_template`). 적용 범위 카운트 43 → 46개(서버 instructions·프롬프트·README·도구 description 동기화).
+
+### 검증
+
+- 테스트 신규(기업부설연구소 family 등록 단언 `test_corp_lab_family_registered_v0100` + review 프롬프트 family 행 `test_review_prompt_mentions_corp_lab_family_v0100` + `list_rule_sets` 46건 id 완전일치 갱신). acceptance `v0_10_0.py`(신규 3건 `fetched_ok`·기업부설 `returned`·시행규칙 별표0000 `oversized_pointer` `field_equals`·법률 문서레벨 도달). **배포 전 게이트**: LIVE 게이트(law-api-prober)·라이브 size 스모크(시행규칙 BP0000 → oversized_pointer)·NAS 신이미지 cold fan-out 스모크 N=46(`skipped`/`timeout`/`rate_limited`=0·wall 예산 내)·롤백태그 `:0.9.1-rollback` 보존 → PyPI → GitHub → 플러그인 → NAS 마지막.
+
 ## [0.9.1] - 2026-06-25
 
 **fan-out 전용 bounded executor — 풀 큐잉 latency 제거 (B2 스태빌리티)** — v0.9.0 배포 후 측정(2026-06-25, 코드 무변경)에서 `search_provision`의 cold fan-out(N=43)이 **NAS 기본 8스레드 ThreadPoolExecutor 큐잉**에 지배됨을 확정(executor 스레드 sweep 8→64 = cold wall 8.35s→4.88s·slow_rule 42→5·NAS 실 cold 7.4~7.7s·slow 41~43). law.go.kr offload(resolve+detail)를 NAS 코어 수에 종속된 default pool에서 **전용 bounded executor(`max_workers=32`)로 격리**해 큐잉 latency를 제거한다(로컬 신코드 cold 8스레드 8.35s 대비 32-worker ~5.0s). 응답 schema·검색/랭킹/fallback·외부 접속 URL·규정 수 불변, `contract_version` **0.9.0 유지**, 패키지 **minor** bump(안정성·정확도 = 마지막 숫자 +1: 0.9.0 → **0.9.1**). 변경은 전부 **요청-격리 도구 로직 + client 내부**(부팅/HTTP transport/health/캐시-bootstrap 비의존 — executor는 import 시 생성하나 `ThreadPoolExecutor`는 submit 전 스레드 미spawn이라 boot 무의존). **적대검증 `/goal-disc-out` 2R(Codex+Gemini+Claude) 수렴·blocking 0**: 전용 executor(부팅/transport 영향 없는 격리) > `set_default_executor`(fastmcp 소유 루프 변경 위험), 마이그레이션 5곳 전부(공유 `_resolve_doc_id` 일관성), TTLCache thread-safety 동반(아래).
