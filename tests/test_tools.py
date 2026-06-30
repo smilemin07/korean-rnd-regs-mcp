@@ -934,6 +934,98 @@ def test_build_article_content_short_article_returns_intro_only():
     assert _build_article_content(elem) == "제1조(목적) 이 법은 ... 함을 목적으로 한다."
 
 
+def test_build_article_content_includes_mok_v0101():
+    """v0.10.1: 호 아래 목(目) 본문이 content에 포함되는지 검증.
+
+    LIVE 갭(corp_lab_decree 시행령 제6조①제1호): 호내용은 도입문("다음 각 목의 구분에 따른…")만
+    담고 실제 기준 수치(소기업 3명 등)는 <목내용>에만 존재 → 종전엔 누락. v0.10.1이 목 본문을 4-space
+    indent로 content에 append.
+    """
+    import xml.etree.ElementTree as ET
+
+    from korean_rnd_regs_mcp.live_api import _build_article_content
+
+    xml = """
+    <조문단위>
+      <조문번호>6</조문번호>
+      <조문제목>기업부설연구소등의 인정기준</조문제목>
+      <조문내용>제6조(기업부설연구소등의 인정기준)</조문내용>
+      <항>
+        <항번호>①</항번호>
+        <항내용>① 법 제7조제1항에서 ... 다음 각 호의 기준을 말한다.</항내용>
+        <호>
+          <호번호>1.</호번호>
+          <호내용>1.  다음 각 목의 구분에 따른 연구전담요원을 상시 확보할 것</호내용>
+          <목>
+            <목번호>가.</목번호>
+            <목내용>가.  소기업이 설립한 기업부설연구소: 3명 이상</목내용>
+          </목>
+          <목>
+            <목번호>나.</목번호>
+            <목내용>나.  국외에 있는 기업부설연구소: 5명 이상</목내용>
+          </목>
+        </호>
+      </항>
+    </조문단위>
+    """
+    elem = ET.fromstring(xml)
+    content = _build_article_content(elem)
+
+    # 호 도입문 + 목별 기준값이 모두 content에 포함
+    assert "다음 각 목의 구분" in content
+    assert "소기업이 설립한 기업부설연구소: 3명 이상" in content
+    assert "국외에 있는 기업부설연구소: 5명 이상" in content
+    # 목은 호(2-space)보다 깊은 4-space indent
+    assert "    가.  소기업이 설립한" in content
+    # 목번호 prefix("가./나.")는 항·호와 동일하게 보존(strip 안 함)
+    assert "가.  소기업" in content and "나.  국외" in content
+
+
+def test_build_article_content_malformed_mok_never_raises_v0101():
+    """v0.10.1 fault-isolation: 결손·빈 목 element가 raise 없이 omit되는지 검증.
+
+    get_law_detail의 articles 조립에는 per-article try/except가 없어, 목 순회가 예외를 던지면
+    문서 detail 전체가 실패한다. 따라서 목 코드는 어떤 입력에도 절대 raise하지 않아야 한다.
+    """
+    import xml.etree.ElementTree as ET
+
+    from korean_rnd_regs_mcp.live_api import _build_article_content
+
+    # 유효 목 + 빈 목내용 + 목내용 element 결손 + 빈 <목/> 혼재 — 모두 omit, raise 없음
+    xml = """
+    <조문단위>
+      <조문번호>9</조문번호>
+      <조문내용>제9조(준용)</조문내용>
+      <항>
+        <항번호>①</항번호>
+        <항내용>① 다음 각 호에 따른다.</항내용>
+        <호>
+          <호번호>1.</호번호>
+          <호내용>1.  유효한 목과 결손 목 혼재</호내용>
+          <목>
+            <목번호>가.</목번호>
+            <목내용>가.  유효한 목 본문</목내용>
+          </목>
+          <목>
+            <목번호>나.</목번호>
+            <목내용></목내용>
+          </목>
+          <목>
+            <목번호>다.</목번호>
+          </목>
+          <목/>
+        </호>
+      </항>
+    </조문단위>
+    """
+    elem = ET.fromstring(xml)
+    # raise 없이 실행 + 유효 목만 포함, 빈/결손 목은 omit(빈 4-space 줄 미생성)
+    content = _build_article_content(elem)
+    assert "유효한 목 본문" in content
+    assert "유효한 목과 결손 목 혼재" in content
+    assert "\n    \n" not in content
+
+
 # === live_api 보안 회귀 (Fix A 검증의 mock 버전) ===
 def test_live_api_error_message_no_url_no_key(monkeypatch):
     """_request_with_retry는 ConnectionError 시 URL/key를 message에 포함하지 않음."""

@@ -164,13 +164,15 @@ def _request_with_retry(
 
 
 def _build_article_content(article_elem: ET.Element) -> str:
-    """조문 element의 전체 본문 reconstruct: 조문내용 + 항(항내용 + 호) 합침.
+    """조문 element의 전체 본문 reconstruct: 조문내용 + 항(항내용 + 호(호내용 + 목)) 합침.
 
     국가법령정보 OpenAPI 응답 구조:
     - <조문내용>: 짧은 조문(항 없음)은 본문 전체. 다항조문(예: 혁신법 제15조)은 title repeat만 ("제15조(...)").
     - <항>: 각 항이 <항내용>(예: "① ...본문...")과 <호>들(<호내용>="1. ...")을 포함.
+    - <호>: 일부 호는 <목>들(<목내용>="가.  ...")을 포함 — 실제 기준값이 목에만 있는 경우가 있어
+      (예: 인정기준 호내용="다음 각 목의 구분에 따른…" 도입문 + 목별 수치) 목 본문도 content에 포함 (v0.10.1).
 
-    본 헬퍼는 둘을 합쳐 사용자가 read 가능한 단일 본문으로 반환 (plain text verbatim).
+    본 헬퍼는 이를 합쳐 사용자가 read 가능한 단일 본문으로 반환 (plain text verbatim).
     """
     parts: list[str] = []
     intro = (article_elem.findtext("조문내용") or "").strip()
@@ -184,6 +186,15 @@ def _build_article_content(article_elem: ET.Element) -> str:
             ho_text = (ho.findtext("호내용") or "").strip()
             if ho_text:
                 parts.append("  " + ho_text)  # 2-space indent for visual hierarchy
+            # v0.10.1: 호 아래 목(目 — 가.나.다.)은 별도 <목내용> element에만 있고 호내용엔 도입문만 들어가는
+            # 경우가 있어(LIVE 실측: 시행령 인정기준 등) content에서 누락되던 것을 보강.
+            # fault-isolation: findtext + (x or "") + strip + omit — never raise.
+            # (get_law_detail의 articles 조립에는 per-article try/except가 없으므로 목 순회가 예외를
+            #  던지면 문서 detail 전체가 실패 → 절대 raise하지 않는 형태로만 작성.)
+            for mok in ho.findall("목"):
+                mok_text = (mok.findtext("목내용") or "").strip()
+                if mok_text:
+                    parts.append("    " + mok_text)  # 4-space indent (호 하위 계층)
     return "\n".join(parts)
 
 

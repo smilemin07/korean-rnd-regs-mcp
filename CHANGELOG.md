@@ -3,6 +3,19 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.10.1] - 2026-06-30
+
+**law 호(號) 아래 목(目) 본문 파싱 — 조문 content 완전성 보강 (content-only)** — v0.10.0 배포 후 브라우저 라이브 eval에서 실관측된 유일한 미흡(호스트가 「기업부설연구소 시행령 제6조①제1호 각 목 = 기업유형별 연구전담요원 수 기준」이 도구 content에 미수록임을 정직 고지·날조 0)을 해소한다. 원인 = `_build_article_content`가 조문내용→항(項)→호(號)까지만 순회하고 호 아래 목(目)을 미수록 — LIVE 실측상 호내용은 도입문("다음 각 목의 구분에 따른…")만 담고 실제 기준 수치(소기업 3명 등)는 `<목내용>`에만 존재하여, 도구의 핵심 가치인 grounded verbatim 인용에서 원문 자체가 누락됐다. **수혜 범위 = law 트랙 system-wide**(law-target 26문서 중 19문서·234개 목 보유, 혁신법 시행령·산업기술 시행령 등 핵심 포함; admrul은 전부 평면 schema라 목이 이미 inline 노출·무영향, 중첩 schema admrul 0건). **content-only 축소판** — 목 본문을 기존 content 문자열에 4-space indent로 포함시키는 완전성 수정이라 응답 schema·필드·provision_id·검색/랭킹/fallback/fan-out/transport·공유파서 인터페이스·외부 접속 URL 불변 → `contract_version` **0.9.0 유지**, 패키지 **minor** bump(정확도/완전성 소규모 = 버전 규칙상 마지막 숫자 +1: 0.10.0 → **0.10.1**). 지원 규정 **46개 불변**. **fault-isolation**: 목 순회는 `findtext`+`(x or "").strip()`+omit으로 never-raise(ElementTree semantics상 raise 불가) — `get_law_detail`의 articles 조립에 per-article try/except가 없어 목 코드가 예외를 던지면 문서 detail 전체가 실패하므로, 절대 raise하지 않는 형태로만 작성하고 단위 테스트로 불변식을 잠금. **적대검증 `/goal-disc-out` R1 3/3(Codex 축소GO·Gemini 측정후·Claude GO) — content-only 설계·구현 디테일 만장일치 수렴, GO/DEFER 분기는 '측정 battery로 배포 게이트'라는 동일 요구로 귀결(blocking 0)**. structured(article_structure) parity·평면 admrul 정규식 분해(v0.7.0 백로그)·규정 확대는 scope_out(별도 사이클).
+
+### Changed
+
+- **`_build_article_content`(live_api.py)**: 호(號) 순회 내부에 `for mok in ho.findall("목")` 추가 — 목 본문(`<목내용>`)을 4-space indent(호 2-space의 하위 계층)로 content에 append. 목번호 prefix("가.")는 항·호와 동일하게 보존(strip 안 함). content-only(structured 머신뷰·doc-level/size-tier 조립 무변경). 목을 가진 조문의 `content`·검색 매칭 대상에 목 텍스트가 새로 포함됨(additive 완전성 개선). 목 보유 조문 content 증가분은 기존 v0.6.0 size-tier 가드가 처리(예산 15,700 초과 시 oversized_pointer graceful 강등).
+
+### Added
+
+- **테스트 2건**(`tests/test_tools.py`): `test_build_article_content_includes_mok_v0101`(목 보유 조문 content에 목 텍스트·4-space indent·목번호 prefix 보존 검증) / `test_build_article_content_malformed_mok_never_raises_v0101`(결손·빈 목 element가 raise 없이 omit — fault-isolation 불변식 잠금). 테스트 300 → **302**.
+- **acceptance spec**(`tests/acceptance/v0_10_1.py`): 목 보유 조문(corp_lab_decree JO0006) size 무회귀(plain_text_verbatim 유지) + 광역 '연구개발비'·'기업부설연구소' 검색 무회귀. 목 텍스트 실수록·검색 도달은 배포 전 측정 battery(직접 LIVE 프로브)가 검증.
+
 ## [0.10.0] - 2026-06-29
 
 **R&D 규정 지원 확대 — 과기정통부 기업부설연구소 family 3건 (43 → 46)** — 스태빌리티 트랙(B2)이 측정상 충분함을 확인한 뒤(좀비-슬롯 fault-injection: 좀비창 ~5s·graceful degradation 이미 작동 → v0.9.2 보류·B3 0-target defer), 데이터/정확도 트랙으로 복귀하여 과학기술정보통신부 소관 「기업부설연구소등의 연구개발 지원에 관한 법률」 family(법·시행령·시행규칙)를 추가한다. 기업부설연구소·연구개발전담부서 인정요건은 기업참여 R&D 과제의 참여자격·간접비 산정 근거로 사용자(연구자·대학행정·전문기관·PM) 직접도가 높다. v0.3.0~v0.9.0과 동일한 검증된 저위험 확대 패턴(**데이터(yaml)+프롬프트+테스트만**, 서버 알고리즘·응답 schema·검색/랭킹/fallback/fan-out/transport/캐시·공유파서·외부 접속 URL 불변). **배포 전 LIVE 게이트(law-api-prober 2026-06-29): 3건 전부 정확 title + ministry=과기정통부 정확일치 resolve가 유일 현행 문서 1건**(동명충돌·부처 사본·폐지본 혼재 0·C12 미래분리시행 0). `contract_version` **0.9.0 유지**(응답 schema·필드·shape·오류코드 불변 — 데이터 corpus 확대만), 패키지 **major** bump(규정 확대 = 버전 규칙상 가운데 숫자 +1·마지막 0: 0.9.1 → **0.10.0**). 지원 규정 **43 → 46개**. **ultracode 워크플로 10에이전트 3렌즈(안정성·가치·규율) 만장일치 #1 + `/goal-disc-out` R1 3/3(Codex+Gemini+Claude) GO·blocking 0 수렴**(나머지 후보[평면 admrul 호 파싱·R5 길이상한·broad 드리프트·검색 recall·B3 연결풀] 전부 defer).
