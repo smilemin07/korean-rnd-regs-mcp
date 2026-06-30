@@ -3,6 +3,20 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.11.0] - 2026-06-30
+
+**R&D 규정 지원 확대 — 과기정통부 연구산업진흥법 family 3건 (46 → 49)** — 과학기술정보통신부 소관 「연구산업진흥법」 family(법·시행령·시행규칙)를 추가한다. 연구산업(연구개발서비스업·연구장비산업 등) 진흥 트랙은 현 corpus(혁신법·부처별 R&D·핵심 행정규칙)에 미수록된 갭으로, 연구개발서비스 위탁·연구장비 활용 등 연구행정 실무 참조도가 있다. v0.3.0~v0.10.0과 동일한 검증된 저위험 확대 패턴(**데이터(yaml)+프롬프트+테스트만**, 서버 알고리즘·응답 schema·검색/랭킹/fallback/fan-out/transport/캐시·공유파서·외부 접속 URL 불변, v0.10.1 공유파서 `_build_article_content` 불침투). **배포 전 LIVE 게이트(law-api-prober 2026-06-30): 3건 전부 정확 title + ministry=과기정통부 정확일치 resolve가 유일 현행 문서 1건**(동명충돌·부처 사본·트랙충돌·oversized 0·중복 0·is_updated=False 현행 일치). 전건 중첩 schema라 v0.10.1 호 아래 목 파싱 혜택 자동 적용. `contract_version` **0.9.0 유지**(응답 schema·필드·shape·오류코드 불변 — 데이터 corpus 확대만), 패키지 **major** bump(규정 확대 = 버전 규칙상 가운데 숫자 +1·마지막 0: 0.10.1 → **0.11.0**). 지원 규정 **46 → 49개**. **ultracode 워크플로 10에이전트 3렌즈(안정성 9.5·사용자가치·규율) 만장일치 #1 + `/goal-disc-out` R1 3/3(Codex+Gemini+Claude) GO·blocking 0 수렴**(scope는 family 3건으로 수렴 — 차순위 혁신도전형 고시는 핵심 분류기준표가 별지[BP 미노출]·평면 머신뷰 갭으로 over-claim 위험이 있어 별도 사이클로 defer; B structured 목 parity·C 평면 admrul 호 파싱·D R5 길이상한·E B3 연결풀·F broad 드리프트 전부 defer).
+
+### Added
+
+- **과기정통부 연구산업 R&D family 3건**(`rule_sets.yaml`, 순수 data): `research_industry_act`(연구산업진흥법, MST 231603, 법률, 시행 2021-10-21, 조문 18·별표 0·`unit_types: article`) / `research_industry_decree`(시행령, MST 261923, 대통령령, 시행 2024-06-01, 조문 23·별표 2[전부 별표구분='별표'·최대 ~5,167자 본문 전문 tier-1]·`unit_types: both`) / `research_industry_rule`(시행규칙, MST 262117, 과학기술정보통신부령, 시행 2024-06-01, 조문 4·별표 0·서식 15건[별표구분='서식'=BP 미노출]·`unit_types: article`). 전건 `api_target: law`·중첩 schema·`ministry: 과학기술정보통신부`. 연구산업 육성·전담기관·지원사업 골격 보유.
+- **테스트 2건**(`tests/test_main.py`): `test_research_industry_family_registered_v0110`(ministry·api_target·hierarchy_rank·unit_types·api_doc_id[MST] 결정론 고정 — yaml drift 방어) / `test_review_prompt_mentions_research_industry_family_v0110`(review 템플릿 적용 범위·cross-check 라우팅 행). + acceptance spec 무결성 가드 파라미터 1건. 테스트 303 → **306**.
+- **acceptance spec**(`tests/acceptance/v0_11_0.py`): 신규 3건 도달(search '연구산업' + 법률/시행규칙 doc-level) + 광역 '연구개발비' 무회귀 + 시행령 별표(≤5,167자) plain_text_verbatim tier-1 확인.
+
+### Changed
+
+- **카운트 동기화 46 → 49**: `_SERVER_INSTRUCTIONS`·review 템플릿 적용 범위(연구산업 R&D family 행 + cross-check 라우팅 추가)·README(지원 규정 표·임베드 프롬프트 byte-sync·안내 문구)·내부 주석(stale '43규정' → 49 정정). `docs/api_contract.md` '(유지)' 행 추가.
+
 ## [0.10.1] - 2026-06-30
 
 **law 호(號) 아래 목(目) 본문 파싱 — 조문 content 완전성 보강 (content-only)** — v0.10.0 배포 후 브라우저 라이브 eval에서 실관측된 유일한 미흡(호스트가 「기업부설연구소 시행령 제6조①제1호 각 목 = 기업유형별 연구전담요원 수 기준」이 도구 content에 미수록임을 정직 고지·날조 0)을 해소한다. 원인 = `_build_article_content`가 조문내용→항(項)→호(號)까지만 순회하고 호 아래 목(目)을 미수록 — LIVE 실측상 호내용은 도입문("다음 각 목의 구분에 따른…")만 담고 실제 기준 수치(소기업 3명 등)는 `<목내용>`에만 존재하여, 도구의 핵심 가치인 grounded verbatim 인용에서 원문 자체가 누락됐다. **수혜 범위 = law 트랙 system-wide**(law-target 26문서 중 19문서·234개 목 보유, 혁신법 시행령·산업기술 시행령 등 핵심 포함; admrul은 전부 평면 schema라 목이 이미 inline 노출·무영향, 중첩 schema admrul 0건). **content-only 축소판** — 목 본문을 기존 content 문자열에 4-space indent로 포함시키는 완전성 수정이라 응답 schema·필드·provision_id·검색/랭킹/fallback/fan-out/transport·공유파서 인터페이스·외부 접속 URL 불변 → `contract_version` **0.9.0 유지**, 패키지 **minor** bump(정확도/완전성 소규모 = 버전 규칙상 마지막 숫자 +1: 0.10.0 → **0.10.1**). 지원 규정 **46개 불변**. **fault-isolation**: 목 순회는 `findtext`+`(x or "").strip()`+omit으로 never-raise(ElementTree semantics상 raise 불가) — `get_law_detail`의 articles 조립에 per-article try/except가 없어 목 코드가 예외를 던지면 문서 detail 전체가 실패하므로, 절대 raise하지 않는 형태로만 작성하고 단위 테스트로 불변식을 잠금. **적대검증 `/goal-disc-out` R1 3/3(Codex 축소GO·Gemini 측정후·Claude GO) — content-only 설계·구현 디테일 만장일치 수렴, GO/DEFER 분기는 '측정 battery로 배포 게이트'라는 동일 요구로 귀결(blocking 0)**. structured(article_structure) parity·평면 admrul 정규식 분해(v0.7.0 백로그)·규정 확대는 scope_out(별도 사이클).

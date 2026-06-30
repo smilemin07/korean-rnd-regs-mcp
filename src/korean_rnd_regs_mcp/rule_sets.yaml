@@ -3,7 +3,7 @@
 # schema: src/korean_rnd_regs_mcp/manifest.py (Pydantic RuleSet model, 13 fields)
 # 단계: (schema 정의) + (MVP 4개 항목 입력)
 #
-# 본 46개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.10.0: 과기정통부 기업부설연구소 family 3건 확대)
+# 본 49개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.11.0: 과기정통부 연구산업진흥법 family 3건 확대)
 # 추가 항목 (타 부처 R&D 규정, 기관별 매뉴얼 등)은 차기 확장 후보.
 
 rule_sets:
@@ -948,3 +948,65 @@ rule_sets:
     ministry: 과학기술정보통신부
     known_limitations:
       - "별표 1건(별표0000) 본문이 대용량(20,358자 > 16k 예산)이라 oversized_pointer로 공식 링크 안내(전문 미수록). 부속 서식 15건은 별표구분='서식'이라 BP 미노출. 가지조문 누락 가능"
+
+  # === 연구산업 R&D family (v0.11.0, 과학기술정보통신부) ===
+  # 연구산업(연구개발서비스업·연구장비산업 등) 진흥 — 연구산업 육성·전담기관·지원사업 근거.
+  # LIVE 게이트(law-api-prober 2026-06-30): 정확 title + ministry=과학기술정보통신부 정확일치 resolve가 유일 현행 문서 1건
+  # (동명충돌·부처 사본·트랙충돌 0). MST 231603/261923/262117 현행 일치(is_updated=False). 전건 중첩 schema.
+  - id: research_industry_act
+    title: 연구산업진흥법
+    tier: "Tier 1"
+    hierarchy_rank: 1
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "231603"
+    unit_types: article  # LIVE(2026-06-30): 조문 18·별표 0(중첩 schema)
+    query:
+      - 연구산업진흥법
+      - 연구산업
+      - 연구개발서비스업
+    license_status: public_data
+    effective_date: "2021-10-21"
+    source_url: https://www.law.go.kr/법령/연구산업진흥법
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "연구산업(연구개발서비스업·연구장비산업 등) 육성 모법. 별표 0(본문 조문만). 가지조문 누락 가능"
+
+  - id: research_industry_decree
+    title: 연구산업진흥법 시행령
+    tier: "Tier 1"
+    hierarchy_rank: 2
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "261923"
+    unit_types: both  # LIVE(2026-06-30): 조문 23·별표 2(전부 별표구분='별표'·최대 ~5,167자 본문 전문 tier-1)
+    query:
+      - 연구산업진흥법 시행령
+      - 연구산업 시행령
+    license_status: public_data
+    effective_date: "2024-06-01"
+    source_url: https://www.law.go.kr/법령/연구산업진흥법시행령
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "별표 2건 소형(본문 전문 tier-1) — 연구산업 지원·전담기관 등. 가지조문 누락 가능"
+
+  - id: research_industry_rule
+    title: 연구산업진흥법 시행규칙
+    tier: "Tier 1"
+    hierarchy_rank: 3
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "262117"
+    unit_types: article  # LIVE(2026-06-30): 조문 4·별표 0(부속 서식 15건은 별표구분='서식'→BP 미노출)
+    query:
+      - 연구산업진흥법 시행규칙
+      - 연구산업 시행규칙
+    license_status: public_data
+    effective_date: "2024-06-01"
+    source_url: https://www.law.go.kr/법령/연구산업진흥법시행규칙
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "별표 0 — 부속 서식 15건은 전부 별표구분='서식'이라 BP 미노출 → unit_types=article. 가지조문 누락 가능"
