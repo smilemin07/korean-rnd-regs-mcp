@@ -3,6 +3,20 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.12.0] - 2026-07-01
+
+**R&D 규정 지원 확대 — 산업기술혁신사업 운영 지침 2건 (49 → 51)** — 산업통상부 소관 「산업기술혁신사업」 운영 지침 2건(보안관리요령·기술개발 평가관리지침)을 추가한다. 연구보안·성과평가는 본 서버의 명시 지원 범위이며, 이미 등록된 산업기술혁신촉진법 family(법·시행령·시행규칙·공통 운영요령)에 두 운영 트랙의 규정을 보강한다. v0.3.0~v0.11.0과 동일한 검증된 저위험 확대 패턴(**데이터(yaml)+프롬프트+테스트만**, 서버 알고리즘·응답 schema·검색/랭킹/fallback/fan-out/transport/캐시·공유파서·외부 접속 URL 불변). 둘 다 평면(flat) schema라 기존 「공통 운영요령」과 동형 — 신규 코드/파서 불요. **배포 전 LIVE 게이트(law-api-prober 2026-07-01): 2건 전부 정확 title + ministry=산업통상부 정확일치 resolve가 유일 현행 문서 1건**(동명 타부처 사본·트랙충돌 0·is_updated=False 현행 일치·핵심 콘텐츠 본문 조문 존재=별지/서식 trap 0). `contract_version` **0.9.0 유지**(응답 schema·필드·shape·오류코드 불변 — 데이터 corpus 확대만), 패키지 **major** bump(규정 확대 = 버전 규칙상 가운데 숫자 +1·마지막 0: 0.11.0 → **0.12.0**). 지원 규정 **49 → 51개**. **ultracode 워크플로 10에이전트 3렌즈(안정성·사용자가치·규율) 만장일치 #1 + `/goal-disc-out` R1 3/3(Codex+Gemini+Claude) GO·blocking 0 수렴**(scope는 산업부 운영 지침 2건으로 수렴 — 차순위 혁신도전형 고시는 핵심 분류기준표가 별지[BP 미노출]라 over-claim 위험이 있어 별도 사이클로 defer; B structured 목 parity·C 평면 admrul 호 파싱·D R5 길이상한·E B3 연결풀·F broad 드리프트 전부 defer).
+
+### Added
+
+- **산업기술혁신사업 운영 지침 2건**(`rule_sets.yaml`, 순수 data): `industry_tech_security`(산업기술혁신사업 보안관리요령, admrul 2100000122711, 고시 2018-88, 시행 2018-04-30, 평면 schema·조문 21·별표 1[BP0000 「보안관리 조치사항」 11,204자 본문 전문 tier-1]·서식 6[BP 미노출]·`unit_types: both`) / `industry_tech_evaluation`(산업기술혁신사업 기술개발 평가관리지침, admrul 2100000252016, 예규 139, 시행 2024-12-30, 평면 schema·조문 47·별표 3[BP0001 추진절차 46,830자·BP0002 16,511자 oversized→oversized_pointer / BP0003 1,651자 tier-1]·`unit_types: both`). 전건 `api_target: admrul`·평면 schema·`ministry: 산업통상부`. 보안등급 분류·보안대책(보안관리요령)·평가위원회·평가단·전문기관(평가관리지침) 등 실질 규정은 본문 조문 제공.
+- **테스트 2건**(`tests/test_main.py`): `test_industry_tech_guidelines_registered_v0120`(ministry·api_target·hierarchy_rank·unit_types·api_doc_id 결정론 고정 — yaml drift 방어) / `test_review_prompt_mentions_industry_tech_guidelines_v0120`(review 템플릿 적용 범위에 신규 지침 2건 노출). + acceptance spec 무결성 가드 파라미터 1건(자동 발견). 테스트 306 → **309**.
+- **acceptance spec**(`tests/acceptance/v0_12_0.py`): 신규 2건 도달(search '산업기술' fan-out + doc-level resolve 2건) + 광역 '연구개발비' 무회귀 + 보안관리요령 별표 BP0000(11,204자) plain_text_verbatim tier-1 + 평가관리지침 별표 BP0001(46,830자) oversized_pointer(정직 처리) 확인.
+
+### Changed
+
+- **카운트 동기화 49 → 51**: `_SERVER_INSTRUCTIONS`·review 템플릿 적용 범위(사업 운영규정·요령 행에 신규 2건 추가)·README(지원 규정 표[산업부 5→7개]·임베드 프롬프트 byte-sync·안내 문구)·내부 주석(캐시 headroom·fan-out 사이징·articles cap). `docs/api_contract.md` '(유지)' 행 추가.
+
 ## [0.11.0] - 2026-06-30
 
 **R&D 규정 지원 확대 — 과기정통부 연구산업진흥법 family 3건 (46 → 49)** — 과학기술정보통신부 소관 「연구산업진흥법」 family(법·시행령·시행규칙)를 추가한다. 연구산업(연구개발서비스업·연구장비산업 등) 진흥 트랙은 현 corpus(혁신법·부처별 R&D·핵심 행정규칙)에 미수록된 갭으로, 연구개발서비스 위탁·연구장비 활용 등 연구행정 실무 참조도가 있다. v0.3.0~v0.10.0과 동일한 검증된 저위험 확대 패턴(**데이터(yaml)+프롬프트+테스트만**, 서버 알고리즘·응답 schema·검색/랭킹/fallback/fan-out/transport/캐시·공유파서·외부 접속 URL 불변, v0.10.1 공유파서 `_build_article_content` 불침투). **배포 전 LIVE 게이트(law-api-prober 2026-06-30): 3건 전부 정확 title + ministry=과기정통부 정확일치 resolve가 유일 현행 문서 1건**(동명충돌·부처 사본·트랙충돌·oversized 0·중복 0·is_updated=False 현행 일치). 전건 중첩 schema라 v0.10.1 호 아래 목 파싱 혜택 자동 적용. `contract_version` **0.9.0 유지**(응답 schema·필드·shape·오류코드 불변 — 데이터 corpus 확대만), 패키지 **major** bump(규정 확대 = 버전 규칙상 가운데 숫자 +1·마지막 0: 0.10.1 → **0.11.0**). 지원 규정 **46 → 49개**. **ultracode 워크플로 10에이전트 3렌즈(안정성 9.5·사용자가치·규율) 만장일치 #1 + `/goal-disc-out` R1 3/3(Codex+Gemini+Claude) GO·blocking 0 수렴**(scope는 family 3건으로 수렴 — 차순위 혁신도전형 고시는 핵심 분류기준표가 별지[BP 미노출]·평면 머신뷰 갭으로 over-claim 위험이 있어 별도 사이클로 defer; B structured 목 parity·C 평면 admrul 호 파싱·D R5 길이상한·E B3 연결풀·F broad 드리프트 전부 defer).

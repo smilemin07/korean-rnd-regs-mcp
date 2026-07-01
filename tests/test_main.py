@@ -143,12 +143,12 @@ def test_review_prompt_instructs_keyword_array_to_suggest():
 
 
 def test_list_rule_sets_returns_live_api_items():
-    """v0.11.0: 과기정통부 연구산업진흥법 family 3건 추가 = 49건."""
+    """v0.12.0: 산업기술혁신사업 운영 지침 2건(보안관리요령·평가관리지침) 추가 = 51건."""
     result = asyncio.run(list_rule_sets())
     assert "rule_sets" in result
     assert isinstance(result["rule_sets"], list)
-    assert result["total"] == 49
-    assert len(result["rule_sets"]) == 49
+    assert result["total"] == 51
+    assert len(result["rule_sets"]) == 51
     ids = {rs["id"] for rs in result["rule_sets"]}
     expected = {
         # Tier 1 + 기존 Tier 2 (혁신법 family + 연구개발비 사용 기준)
@@ -159,6 +159,8 @@ def test_list_rule_sets_returns_live_api_items():
         "sector_kt_act", "sector_kt_decree", "sector_kt_rule", "kt_rnd_operations",
         # v0.2.5 — 산업기술 R&D family (산업통상부)
         "industry_tech_act", "industry_tech_decree", "industry_tech_rule", "industry_tech_operating",
+        # v0.12.0 — 산업기술혁신사업 운영 지침 2건 (연구보안·성과평가)
+        "industry_tech_security", "industry_tech_evaluation",
         # v0.2.5 — 중소기업 R&D family (중소벤처기업부)
         "sme_tech_act", "sme_tech_decree", "sme_tech_rule", "sme_rnd_operating",
         # v0.2.6 — 성과평가 family
@@ -310,7 +312,7 @@ def test_server_instructions_fail_closed_and_scope_honesty():
 def test_server_instructions_stale_guard_v030():
     """v0.3.0: 범위 외 정직성 절이 미지원 규정의 변동 구체값 현행 단정 자제 + 43 카운트 동기화."""
     instr = mcp.instructions
-    assert "지원 49개 규정 밖이면" in instr               # 미지원 한정(in-scope 인용 비억제) + 카운트
+    assert "지원 51개 규정 밖이면" in instr               # 미지원 한정(in-scope 인용 비억제) + 카운트
     assert "변동 가능한 구체값을 현행 사실로 단정하지" in instr  # stale 식별자 단정 자제
     assert "1차 출처" in instr                            # 1차 출처 안내 보존
     # 미지원 한정 조건이 유지돼 in-scope 인용을 억제하지 않음(과억제 방지 회귀)
@@ -322,7 +324,7 @@ def test_review_prompt_mentions_health_family_and_count():
     body = review_regulation_prompt("테스트 상황")
     assert "보건의료 R&D family" in body                  # Tier 1 family 행
     assert "보건의료기술 진흥법" in body                  # family 규정명
-    assert "(49개 규정)" in body                          # 카운트 동기화
+    assert "(51개 규정)" in body                          # 카운트 동기화
     assert "health_tech_act" in body                      # cross-check 라우팅
 
 
@@ -344,7 +346,7 @@ def test_review_prompt_mentions_kdca_family_and_count():
     """v0.4.0: review 템플릿에 질병관리청 R&D family 행 + cross-check 라우팅 + 43 카운트."""
     body = review_regulation_prompt("테스트 상황")
     assert "질병관리청 R&D 행정규칙" in body              # Tier 2 family 행
-    assert "(49개 규정)" in body                          # 카운트 동기화
+    assert "(51개 규정)" in body                          # 카운트 동기화
     assert "kdca_rnd_management" in body                   # cross-check 라우팅
 
 
@@ -459,6 +461,28 @@ def test_review_prompt_mentions_research_industry_family_v0110():
     assert "research_industry_act" in body
 
 
+def test_industry_tech_guidelines_registered_v0120():
+    """v0.12.0: 산업기술혁신사업 운영 지침 2건 등록(ministry=산업통상부·admrul 평면). LIVE 게이트(2026-07-01): 정확 title+ministry 단건 resolve·동명 타부처 사본 0."""
+    from korean_rnd_regs_mcp.manifest import load_manifest
+    items = {rs.id: rs for rs in load_manifest()}
+    for rid in ("industry_tech_security", "industry_tech_evaluation"):
+        assert rid in items, f"산업기술 지침 누락: {rid}"
+        assert items[rid].ministry == "산업통상부"
+        assert items[rid].api_target == "admrul"        # 평면 schema admrul(기존 공통 운영요령과 동형)
+        assert items[rid].hierarchy_rank == 4            # 운영요령과 병렬 admrul(Tier 2)
+        assert items[rid].unit_types == "both"           # 둘 다 별표 노출(BP)
+    # doc_id 결정론 고정 (yaml drift 방어 — LIVE 게이트 2026-07-01 값)
+    assert items["industry_tech_security"].api_doc_id == "2100000122711"
+    assert items["industry_tech_evaluation"].api_doc_id == "2100000252016"
+
+
+def test_review_prompt_mentions_industry_tech_guidelines_v0120():
+    """v0.12.0: review 템플릿 적용 범위(사업 운영규정·요령)에 산업기술혁신사업 보안관리요령·평가관리지침 노출."""
+    body = review_regulation_prompt("테스트 상황")
+    assert "산업기술혁신사업 보안관리요령" in body
+    assert "산업기술혁신사업 기술개발 평가관리지침" in body
+
+
 def test_readme_has_stable_usage_guidance():
     """v0.2.12: README '안정적으로 사용하기' 섹션 — 섹션 범위로 가드(다른 섹션/Changelog 우연 통과 방지)."""
     import re
@@ -509,7 +533,7 @@ def test_server_instructions_external_fallback_guard_v041():
     assert "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오" in instr
     # append-only 회귀: 기존 도구 호출 유도·범위 외 정직성 가드 보존
     assert "일반 학습지식으로 답하지 말고" in instr
-    assert "지원 49개 규정 밖이면" in instr
+    assert "지원 51개 규정 밖이면" in instr
 
 
 def test_get_provision_detail_docstring_external_fallback_v041():
@@ -531,7 +555,7 @@ def test_server_instructions_false_negative_guard_v050():
     assert "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오" in instr
     assert "지원 범위 내 규정의 조문·별표 본문은" in instr
     assert "일반 학습지식으로 답하지 말고" in instr
-    assert "지원 49개 규정 밖이면" in instr
+    assert "지원 51개 규정 밖이면" in instr
 
 
 def test_get_provision_detail_docstring_mentions_version_fields_v050():

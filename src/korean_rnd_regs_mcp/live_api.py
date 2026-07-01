@@ -315,7 +315,7 @@ class LawApiClient:
             logger.warning("LAW_API_KEY empty — calls will raise auth_failed")
         # caches: 24h for success, 5min for failure (avoid hammering)
         self._search_cache: TTLCache = TTLCache(maxsize=100, ttl=86400)
-        self._detail_cache: TTLCache = TTLCache(maxsize=64, ttl=86400)  # v0.4.0: 50→64 — 규정 확대 선제 마진(v0.11.0 현재 N=49<64, warm-hit 보존·headroom 15). N>64 확대 시 warm-hit 무력화 대비 상향 검토
+        self._detail_cache: TTLCache = TTLCache(maxsize=64, ttl=86400)  # v0.4.0: 50→64 — 규정 확대 선제 마진(v0.12.0 현재 N=51<64, warm-hit 보존·headroom 13). N>64 확대 시 warm-hit 무력화 대비 상향 검토
         self._failure_cache: TTLCache = TTLCache(maxsize=200, ttl=300)
         self._id_resolution_cache: TTLCache = TTLCache(maxsize=64, ttl=86400)  # v0.4.0: 50→64 (detail cache와 동상 — 단일 fan-out이 규정당 1엔트리 생성)
         self._id_resolution_failure_cache: TTLCache = TTLCache(maxsize=50, ttl=300)

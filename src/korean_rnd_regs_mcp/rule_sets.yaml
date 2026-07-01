@@ -3,7 +3,7 @@
 # schema: src/korean_rnd_regs_mcp/manifest.py (Pydantic RuleSet model, 13 fields)
 # 단계: (schema 정의) + (MVP 4개 항목 입력)
 #
-# 본 49개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.11.0: 과기정통부 연구산업진흥법 family 3건 확대)
+# 본 51개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.12.0: 산업기술혁신사업 운영 지침 2건 — 보안관리요령·기술개발 평가관리지침 확대)
 # 추가 항목 (타 부처 R&D 규정, 기관별 매뉴얼 등)은 차기 확장 후보.
 
 rule_sets:
@@ -305,6 +305,54 @@ rule_sets:
       - "본 행정규칙은 평면 schema — LIVE 검증(2026-06-12): 조문 53·별표 7·서식 9(서식은 BP·검색 미지원). 가지조문 누락 가능"
       - "별표·서식 총량 약 27만자 대용량 — 대용량 별표는 본문 미수록(oversized_pointer), 전문은 공식 링크 확인"
       - "혁신법·시행령이 상위 일반 규범 — 산업부 소관 사업에 본 요령 특화 적용"
+
+  # 산업기술혁신사업 운영 지침 2건 (v0.12.0) — 연구보안·성과평가 트랙 보강.
+  # LIVE 게이트(law-api-prober 2026-07-01): 정확 title + ministry=산업통상부 정확일치 resolve 단건
+  # (동명 타부처 사본·트랙충돌 0). 둘 다 평면 schema라 「공통 운영요령」과 동형(신규 코드 불요).
+  - id: industry_tech_security
+    title: 산업기술혁신사업 보안관리요령
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000122711"
+    unit_types: both  # LIVE(2026-07-01): 평면 schema·조문 21·별표 1(BP0000 「보안관리 조치사항」 11,204자 본문 전문 tier-1)·서식 6(BP 미노출)
+    query:
+      - 산업기술혁신사업 보안관리요령
+      - 산업기술 보안관리요령
+      - 보안관리요령
+      - 산업기술 연구보안
+    license_status: public_data
+    effective_date: "2018-04-30"
+    source_url: https://www.law.go.kr/행정규칙/산업기술혁신사업보안관리요령
+    ministry: 산업통상부
+    known_limitations:
+      - "평면 schema — LIVE(2026-07-01): 고시 2018-88·조문 21·별표 1(BP0000 본문 전문 tier-1)·서식 6(별표구분='서식'→BP 미노출). 보안등급 분류·보안대책·국외유출 방지 등 실질 규정은 본문 조문 제공. 가지조문 누락 가능"
+      - "혁신법·시행령이 상위 일반 규범 — 산업부 소관 산업기술혁신사업 연구보안에 본 요령 특화 적용"
+
+  - id: industry_tech_evaluation
+    title: 산업기술혁신사업 기술개발 평가관리지침
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000252016"
+    unit_types: both  # LIVE(2026-07-01): 평면 schema·조문 47·별표 3(BP0001 추진절차 46,830자·BP0002 16,511자 oversized→pointer / BP0003 1,651자 tier-1)
+    query:
+      - 산업기술혁신사업 기술개발 평가관리지침
+      - 산업기술 평가관리지침
+      - 평가관리지침
+      - 산업기술 성과평가
+    license_status: public_data
+    effective_date: "2024-12-30"
+    source_url: https://www.law.go.kr/행정규칙/산업기술혁신사업기술개발평가관리지침
+    ministry: 산업통상부
+    known_limitations:
+      - "평면 schema — LIVE(2026-07-01): 예규 139·조문 47·별표 3. 평가위원회·평가단·전문기관·이의신청 등 평가 실질 규정은 본문 조문 제공. 가지조문 누락 가능"
+      - "추진절차(별표1 46,830자)·제출서류·신청자격 검토 기준(별표2 16,511자)은 대용량 — 본문 미수록(oversized_pointer), 전문은 공식 링크 확인(별표3만 본문 전문)"
+      - "혁신법·시행령이 상위 일반 규범 — 산업부 소관 산업기술혁신사업 성과평가에 본 지침 특화 적용"
 
   # === Sector: 중소기업 R&D family (중소벤처기업부 소관 — 혁신법과 함께 적용, v0.2.5) ===
   # 중기부 공고 R&D 과제는 혁신법(일반)과 본 family(중소기업 기술혁신 특화)를 함께 검토.
