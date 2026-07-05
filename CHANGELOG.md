@@ -3,6 +3,20 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.13.0] - 2026-07-05
+
+**R&D 규정 지원 확대 — 혁신도전형 고시 + 별지 정직 caveat (51 → 52)** — 과학기술정보통신부 소관 「혁신도전형 연구개발사업군의 지정 및 분류 기준 등에 관한 고시」를 추가한다. v0.11.0·v0.12.0에서 "별지 over-claim 위험"으로 별도 사이클로 defer됐던 차순위 후보를, **별지 정직 caveat**(핵심 분류 기준이 별지 1 수록이라 도구 조회 대상이 아님을 known_limitations로 직접 고지)와 함께 등록한다. v0.3.0~v0.12.0과 동일한 검증된 저위험 확대 패턴(**데이터(yaml)+프롬프트+테스트만**, 서버 알고리즘·응답 schema·검색/랭킹/fallback/fan-out/transport/캐시·공유파서·외부 접속 URL 불변)의 9번째 적용. 평면(flat) schema라 기존 평면 admrul 19건과 동형 — 신규 코드/파서 불요. **배포 전 LIVE 게이트(law-api-prober 2026-07-05): 정확 title + ministry=과학기술정보통신부 정확일치 resolve가 유일 현행 문서 1건**(동명·타부처 사본·트랙충돌 0·is_updated=False 현행·조문 8건 전부 tier-1[최대 1,272자]·발령번호 메타[고시 2025-4] 합성 가능). ★유일 쟁점이던 별지 실체는 유형 2종 서술(밀착관리형/공개경쟁형) 274자로 실측 확정 — 실무 가치가 높은 지정 절차(제5조)·지정 해제(제6조)·수의계약 등 특례(제7조)는 본문 조문 전문 제공. `contract_version` **0.9.0 유지**(응답 schema·필드·shape·오류코드 불변 — 데이터 corpus 확대만), 패키지 **major** bump(규정 확대 = 버전 규칙상 가운데 숫자 +1·마지막 0: 0.12.0 → **0.13.0**). 지원 규정 **51 → 52개**. **`/disc` 3-AI(Claude+Codex+Gemini) R1 3/3 GO·blocking 0 수렴**(caveat는 known_limitations 한정[전역 프롬프트 비대화 배제 3/3]·defer-all은 안정성 기여 없음·structured 목 parity·평면 admrul 호 파싱·R5·B3·broad 드리프트 전부 defer 유지. 운영 트랙[NAS Container Manager 부팅 작업·외부 감시 알림]은 서버 코드 무변경이라 본 패키지 밖 병행).
+
+### Added
+
+- **혁신도전형 고시 1건**(`rule_sets.yaml`, 순수 data): `innovation_challenge_criteria`(혁신도전형 연구개발사업군의 지정 및 분류 기준 등에 관한 고시, admrul 2100000253392, 고시 2025-4, 시행 2025-02-03, 평면 schema·조문 8·별표 0·별지 1[BP 미노출 by-design]·`unit_types: article`·`ministry: 과학기술정보통신부`). 지정 절차·지정 해제·수의계약 특례 등 실질 규정은 본문 조문 제공. ★known_limitations에 별지 정직 caveat 명시(핵심 분류 기준[밀착관리형·공개경쟁형]은 별지 1 수록 → 도구의 별표(BP) 조회 대상 아님·제4조는 위임 문구만·원문은 법제처 확인).
+- **테스트 3건**: `test_innovation_challenge_registered_v0130`(tests/test_main.py — ministry·api_target·hierarchy_rank·unit_types·api_doc_id 결정론 고정 + ★별지 caveat 문구 잠금) / `test_review_prompt_mentions_innovation_challenge_v0130`(review 템플릿 적용 범위 노출) / `test_doc_level_forms_only_warning_innovation_challenge_v0130`(tests/test_tools.py — 별지 1건뿐인 doc-level에서 별표 목록 비움 + '본문 조회 불가' 경고[v0.2.2] 노출 잠금 = 별지 정직 caveat의 서버측 근거). + acceptance spec 무결성 가드 파라미터 1건(자동 발견). 테스트 309 → **313**.
+- **acceptance spec**(`tests/acceptance/v0_13_0.py`): 신규 도달(search '혁신도전형' fan-out + doc-level resolve) + 광역 '연구개발비' 무회귀 + 제5조(최대 조문 1,272자) plain_text_verbatim + 제4조(별지 위임 문구) 전문 확인. Level B에 ★별지 정직성 프롬프트(호스트가 분류 기준 본문을 날조하지 않고 별지 수록·공식 원문 안내로 정직 처리하는지) 포함.
+
+### Changed
+
+- **카운트 동기화 51 → 52**: `_SERVER_INSTRUCTIONS`·review 템플릿 적용 범위(공통 행정규칙 행에 혁신도전형 고시 추가)·README(지원 규정 표[Tier 2 핵심 행정규칙 4→5개]·임베드 프롬프트 byte-sync·안내 문구)·내부 주석(캐시 headroom·fan-out 사이징·articles cap). `docs/api_contract.md` '(유지)' 행 추가.
+
 ## [0.12.0] - 2026-07-01
 
 **R&D 규정 지원 확대 — 산업기술혁신사업 운영 지침 2건 (49 → 51)** — 산업통상부 소관 「산업기술혁신사업」 운영 지침 2건(보안관리요령·기술개발 평가관리지침)을 추가한다. 연구보안·성과평가는 본 서버의 명시 지원 범위이며, 이미 등록된 산업기술혁신촉진법 family(법·시행령·시행규칙·공통 운영요령)에 두 운영 트랙의 규정을 보강한다. v0.3.0~v0.11.0과 동일한 검증된 저위험 확대 패턴(**데이터(yaml)+프롬프트+테스트만**, 서버 알고리즘·응답 schema·검색/랭킹/fallback/fan-out/transport/캐시·공유파서·외부 접속 URL 불변). 둘 다 평면(flat) schema라 기존 「공통 운영요령」과 동형 — 신규 코드/파서 불요. **배포 전 LIVE 게이트(law-api-prober 2026-07-01): 2건 전부 정확 title + ministry=산업통상부 정확일치 resolve가 유일 현행 문서 1건**(동명 타부처 사본·트랙충돌 0·is_updated=False 현행 일치·핵심 콘텐츠 본문 조문 존재=별지/서식 trap 0). `contract_version` **0.9.0 유지**(응답 schema·필드·shape·오류코드 불변 — 데이터 corpus 확대만), 패키지 **major** bump(규정 확대 = 버전 규칙상 가운데 숫자 +1·마지막 0: 0.11.0 → **0.12.0**). 지원 규정 **49 → 51개**. **ultracode 워크플로 10에이전트 3렌즈(안정성·사용자가치·규율) 만장일치 #1 + `/goal-disc-out` R1 3/3(Codex+Gemini+Claude) GO·blocking 0 수렴**(scope는 산업부 운영 지침 2건으로 수렴 — 차순위 혁신도전형 고시는 핵심 분류기준표가 별지[BP 미노출]라 over-claim 위험이 있어 별도 사이클로 defer; B structured 목 parity·C 평면 admrul 호 파싱·D R5 길이상한·E B3 연결풀·F broad 드리프트 전부 defer).

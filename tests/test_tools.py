@@ -2395,6 +2395,27 @@ def test_doc_level_annexes_listing_admrul(mock_client):
     assert "annexes_unavailable" not in result             # admrul은 annex_parse_error 미발화
 
 
+def test_doc_level_forms_only_warning_innovation_challenge_v0130(mock_client):
+    """v0.13.0(혁신도전형 고시 형상): 부속문서가 별지 1건뿐인 admrul doc-level — 별표(BP) 목록은 비고
+    별지 count + '본문 조회 불가' 경고(v0.2.2 일반화)가 노출되는지 잠금(별지 정직 caveat의 서버측 근거)."""
+    mock_client.get_admin_rule_detail.return_value = {
+        **mock_client.get_admin_rule_detail.return_value,
+        "행정규칙일련번호": "2100000253392",
+        "행정규칙명": "혁신도전형 연구개발사업군의 지정 및 분류 기준 등에 관한 고시",
+        "annexes": [
+            {"별표번호": "1", "별표가지번호": "00", "별표구분": "별지",
+             "별표제목": "혁신도전형 연구개발사업군의 유형 및 분류 기준(제4조 관련)",
+             "별표내용": "1. 밀착관리형 사업 … 2. 공개경쟁형 사업 …", "별표서식파일링크": ""},
+        ],
+    }
+    result = asyncio.run(get_provision_detail("admrul:2100000253392"))
+    assert result["unit_type"] == "document"
+    assert result["annexes_count"] == 1                      # 전건 집계(별지 포함) — 하위호환
+    assert result["annexes_count_by_kind"] == {"별지": 1}
+    assert result["annexes"] == []                           # 별지는 BP 미노출(by-design)
+    assert any("본문 조회 불가" in w for w in result["warnings"])  # 막다른 길 신호(v0.2.2)
+
+
 # === v0.2.3: 대용량 별표 핀포인트 도달성 (멀티윈도우 스니펫 + 포인터 문구) ===
 def _far_rows_annex_content(first_row, second_row):
     """두 매칭 행이 스니펫 예산(_SNIPPET_MAX=2000자) 밖으로 떨어진 표 본문 생성.

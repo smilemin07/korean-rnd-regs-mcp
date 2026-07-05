@@ -3,7 +3,7 @@
 # schema: src/korean_rnd_regs_mcp/manifest.py (Pydantic RuleSet model, 13 fields)
 # 단계: (schema 정의) + (MVP 4개 항목 입력)
 #
-# 본 51개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.12.0: 산업기술혁신사업 운영 지침 2건 — 보안관리요령·기술개발 평가관리지침 확대)
+# 본 52개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.13.0: 혁신도전형 연구개발사업군 지정·분류 기준 고시 확대 — 별지 정직 caveat)
 # 추가 항목 (타 부처 R&D 규정, 기관별 매뉴얼 등)은 차기 확장 후보.
 
 rule_sets:
@@ -145,6 +145,31 @@ rule_sets:
     known_limitations:
       - "본 행정규칙은 평면 schema(<조문내용> root 직속) — get_admin_rule_detail의 fallback으로 처리"
       - "부처별 자체 연구노트 관리지침은 별도 — 본 manifest는 과기정통부 표준 지침만 포함"
+
+  # 혁신도전형 고시 (v0.13.0) — 혁신도전형 연구개발사업군 지정·분류 트랙.
+  # LIVE 게이트(law-api-prober 2026-07-05): 정확 title + ministry=과학기술정보통신부 정확일치 resolve 단건
+  # (동명·타부처 사본·트랙충돌 0·is_updated=False). 평면 schema라 기존 fallback 파서 동형(신규 코드 불요).
+  # ★핵심 분류 기준은 별지 1(274자)에만 있어 BP 미노출(by-design) — known_limitations로 정직 고지(별지 정직 caveat).
+  - id: innovation_challenge_criteria
+    title: 혁신도전형 연구개발사업군의 지정 및 분류 기준 등에 관한 고시
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000253392"
+    unit_types: article  # LIVE(2026-07-05): 평면 schema·조문 8·별표 0·별지 1(별표구분='별지'→BP 미노출)
+    query:
+      - 혁신도전형 연구개발사업군의 지정 및 분류 기준 등에 관한 고시
+      - 혁신도전형 연구개발사업군
+      - 혁신도전형
+    license_status: public_data
+    effective_date: "2025-02-03"
+    source_url: https://www.law.go.kr/행정규칙/혁신도전형연구개발사업군의지정및분류기준등에관한고시
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "핵심 분류 기준(밀착관리형 사업·공개경쟁형 사업의 유형 구분)은 별지 1 수록 — 별표구분='별지'는 본 도구의 별표(BP) 조회 대상이 아니며, 제4조 본문은 별지 위임 문구만 제공. 분류 기준 원문은 법제처 공식 원문에서 확인"
+      - "평면 schema — LIVE(2026-07-05): 고시 2025-4·조문 8. 지정 절차(제5조)·지정 해제(제6조)·수의계약 등 특례(제7조)는 본문 조문 전문 제공. 가지조문 누락 가능"
 
   # === Sector: 국토교통 R&D family (혁신법과 함께 적용) ===
   # 혁신법(일반법)이 모든 국가 R&D에 일괄 적용되는 반면, 본 family는 국토교통 분야 R&D 운영의 특화 근거.
