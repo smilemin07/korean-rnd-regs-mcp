@@ -389,16 +389,16 @@ rule_sets:
     retrieval: live_api
     api_target: law
     api_id_type: MST
-    api_doc_id: "286263"
+    api_doc_id: "281987"
     unit_types: article
     query:
       - 중소기업 기술혁신 촉진법
       - 중소기업기술혁신촉진법
     license_status: public_data
-    effective_date: "2026-05-26"
+    effective_date: "2026-07-01"
     source_url: https://www.law.go.kr/법령/중소기업기술혁신촉진법
     known_limitations:
-      - "LIVE 검증(2026-06-12): 조문 33·별표 없음. 가지조문 검색·상세조회 누락 가능"
+      - "LIVE 검증(2026-07-06): 조문 33·별표 없음. 가지조문 검색·상세조회 누락 가능"
 
   - id: sme_tech_decree
     title: 중소기업 기술혁신 촉진법 시행령
@@ -407,16 +407,16 @@ rule_sets:
     retrieval: live_api
     api_target: law
     api_id_type: MST
-    api_doc_id: "283001"
+    api_doc_id: "287505"
     unit_types: both
     query:
       - 중소기업 기술혁신 촉진법 시행령
       - 중소기업기술혁신촉진법 시행령
     license_status: public_data
-    effective_date: "2026-02-01"
+    effective_date: "2026-07-01"
     source_url: https://www.law.go.kr/법령/중소기업기술혁신촉진법시행령
     known_limitations:
-      - "LIVE 검증(2026-06-12): 조문 23·별표 4(검색·BP 상세 지원). 가지조문 누락 가능"
+      - "LIVE 검증(2026-07-06): 조문 23·별표 4(검색·BP 상세 지원). 가지조문 누락 가능"
 
   - id: sme_tech_rule
     title: 중소기업 기술혁신 촉진법 시행규칙

@@ -3,6 +3,20 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.13.1] - 2026-07-06
+
+**manifest 현행 정합성 — 중소기업 기술혁신 촉진법 family 시행일·doc_id 동기화** — 2026-07-01 개정 발효로 현행이 바뀐 「중소기업 기술혁신 촉진법」(법률)·「동 시행령」 2건의 manifest fallback 식별자·시행일을 현행에 맞춘다. 런타임은 search-first(매 요청 규정명으로 최신 doc_id를 LIVE resolve)라 정상 조회 시 서비스 영향은 없으나, manifest 값은 (a) resolve 실패 시 **fallback doc_id** (b) `list_rule_sets`의 시행일 표시 (c) resolve 결과와 다를 때 응답의 "개정 반영: 시행일 X → Y" 안내에 쓰인다 — 구 값은 **이미 비현행인 구버전(법률 2026-05-26판·시행령 2026-02-01판)**을 fallback으로 서빙할 잠재 결함이자 `list_rule_sets` 표시 시행일의 stale 상태였다. **`/regs-audit` 전수 감사(law-api-prober 2026-07-06 LIVE): 52개 규정 중 CHANGED 2건은 이 둘뿐**(나머지 50건 현행 일치·resolve 실패 0). **Claude 직접 lawSearch 재검증(2026-07-06)**: 법률=단건 현행 행 MST 281987·시행 2026-07-01·공포 2025-12-30(제21289호)·일부개정 / 시행령=단건 현행 행 MST 287505·시행 2026-07-01·공포 2026-06-30(제36482호)·일부개정. 신 MST가 구 MST보다 작은 번호(281987<286263)인 것은 공포 시점 차이(공포 후 시행 대기분이 발효)일 뿐 오집 아님(C12 함정 준수 — 판정은 검색 행 기준·상세응답 시행일자 미사용). 조문·별표 수(법 33·별표 0 / 시행령 23·별표 4)는 신 MST에서도 LIVE 동일 → known_limitations 수치 불변, 검증일 주석만 갱신. `contract_version` **0.9.0 유지**(응답 schema·필드·shape·오류코드 불변 — 데이터 4필드만), 패키지 **minor** bump(현행 정합 = 버전 규칙상 마지막 숫자 +1: 0.13.0 → **0.13.1**). 지원 규정 수 **52개 불변**. **코드 로직 0줄**(서버 알고리즘·검색/랭킹/fallback/fan-out/transport/캐시·공유파서·외부 접속 URL 불변). 선례: v0.2.4(2026-06-12)가 동일 성격 「현행 시행일 정합」 패치를 무사고 배포. **`/disc` 3-AI(Claude+Codex+Gemini) R1 3/3 GO·blocking 0 수렴**(다른 backlog[structured 목 parity·평면 admrul 호 파싱·R5·B3·broad 드리프트] 동승 금지 — 단일 의도·최소 변경·outage 회피).
+
+### Changed
+
+- **manifest 현행화**(`rule_sets.yaml`, 순수 data 4필드): `sme_tech_act` `api_doc_id` 286263 → **281987**·`effective_date` 2026-05-26 → **2026-07-01** / `sme_tech_decree` `api_doc_id` 283001 → **287505**·`effective_date` 2026-02-01 → **2026-07-01**. 두 항목 `known_limitations`의 LIVE 검증일 주석 2026-06-12 → 2026-07-06(조문·별표 수치 불변).
+- **문서 동기화**: README 지원 규정 표 2행 시행일(법률·시행령 2026-07-01) + Changelog 항목. `docs/api_contract.md` '(유지)' 행 추가.
+
+### Added
+
+- **정적 잠금 테스트 1건**(`tests/test_main.py`): `test_sme_tech_family_current_docids_v0131` — 두 규정의 `api_doc_id`·`effective_date`를 현행 값으로 결정론 고정(v0.9.0+ doc_id lock 패턴). ★acceptance의 `fetched_ok`는 search-first가 title로 resolve하므로 manifest fallback 값 오타를 못 잡아(도달만 확인), 정적 lock이 yaml 편집 오타를 pytest로 차단. + acceptance spec 무결성 가드 파라미터 1건(자동 발견). 테스트 313 → **315**.
+- **acceptance spec**(`tests/acceptance/v0_13_1.py`): 갱신 대상 2건 도달(search '중소기업 기술혁신' fan-out) + 시행령 현행 MST(law:287505) 문서레벨 resolve 무오류 + 광역 '연구개발비' 무회귀. Level B에 현행 정합 grounding·무회귀 프롬프트.
+
 ## [0.13.0] - 2026-07-05
 
 **R&D 규정 지원 확대 — 혁신도전형 고시 + 별지 정직 caveat (51 → 52)** — 과학기술정보통신부 소관 「혁신도전형 연구개발사업군의 지정 및 분류 기준 등에 관한 고시」를 추가한다. v0.11.0·v0.12.0에서 "별지 over-claim 위험"으로 별도 사이클로 defer됐던 차순위 후보를, **별지 정직 caveat**(핵심 분류 기준이 별지 1 수록이라 도구 조회 대상이 아님을 known_limitations로 직접 고지)와 함께 등록한다. v0.3.0~v0.12.0과 동일한 검증된 저위험 확대 패턴(**데이터(yaml)+프롬프트+테스트만**, 서버 알고리즘·응답 schema·검색/랭킹/fallback/fan-out/transport/캐시·공유파서·외부 접속 URL 불변)의 9번째 적용. 평면(flat) schema라 기존 평면 admrul 19건과 동형 — 신규 코드/파서 불요. **배포 전 LIVE 게이트(law-api-prober 2026-07-05): 정확 title + ministry=과학기술정보통신부 정확일치 resolve가 유일 현행 문서 1건**(동명·타부처 사본·트랙충돌 0·is_updated=False 현행·조문 8건 전부 tier-1[최대 1,272자]·발령번호 메타[고시 2025-4] 합성 가능). ★유일 쟁점이던 별지 실체는 유형 2종 서술(밀착관리형/공개경쟁형) 274자로 실측 확정 — 실무 가치가 높은 지정 절차(제5조)·지정 해제(제6조)·수의계약 등 특례(제7조)는 본문 조문 전문 제공. `contract_version` **0.9.0 유지**(응답 schema·필드·shape·오류코드 불변 — 데이터 corpus 확대만), 패키지 **major** bump(규정 확대 = 버전 규칙상 가운데 숫자 +1·마지막 0: 0.12.0 → **0.13.0**). 지원 규정 **51 → 52개**. **`/disc` 3-AI(Claude+Codex+Gemini) R1 3/3 GO·blocking 0 수렴**(caveat는 known_limitations 한정[전역 프롬프트 비대화 배제 3/3]·defer-all은 안정성 기여 없음·structured 목 parity·평면 admrul 호 파싱·R5·B3·broad 드리프트 전부 defer 유지. 운영 트랙[NAS Container Manager 부팅 작업·외부 감시 알림]은 서버 코드 무변경이라 본 패키지 밖 병행).

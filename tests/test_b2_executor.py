@@ -74,7 +74,7 @@ def test_contract_version_unchanged_0_9_0():
     assert CONTRACT_VERSION == "0.9.0"
 
 
-def test_package_version_0_13_0():
-    """패키지 버전 0.13.0(major=규정 확대: 가운데 숫자 +1·마지막 0 — 혁신도전형 고시 51→52)."""
+def test_package_version_0_13_1():
+    """패키지 버전 0.13.1(minor=현행 정합: 마지막 숫자 +1 — 중소기업 기술혁신 촉진법 family 시행일·doc_id 동기화)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.13.0"
+    assert __version__ == "0.13.1"

@@ -509,6 +509,22 @@ def test_review_prompt_mentions_innovation_challenge_v0130():
     assert "혁신도전형 연구개발사업군 지정 및 분류 기준 고시" in body
 
 
+def test_sme_tech_family_current_docids_v0131():
+    """v0.13.1: 중소기업 기술혁신 촉진법 family 현행 정합성 잠금 — manifest fallback doc_id·시행일 결정론 고정.
+
+    LIVE 게이트(law-api-prober + 직접 lawSearch 2026-07-06): 2026-07-01 개정 발효로
+    법률 286263→281987·시행령 283001→287505(둘 다 시행 2026-07-01). resolve 실패 시 fallback이
+    구버전(비현행) 본문을 서빙하던 잠재 결함을 이 잠금이 차단한다(acceptance의 fetched_ok는
+    search-first가 title로 resolve하므로 manifest fallback 값 오타를 못 잡음 → 정적 lock 필요).
+    """
+    from korean_rnd_regs_mcp.manifest import load_manifest
+    items = {rs.id: rs for rs in load_manifest()}
+    assert items["sme_tech_act"].api_doc_id == "281987"
+    assert items["sme_tech_act"].effective_date == "2026-07-01"
+    assert items["sme_tech_decree"].api_doc_id == "287505"
+    assert items["sme_tech_decree"].effective_date == "2026-07-01"
+
+
 def test_readme_has_stable_usage_guidance():
     """v0.2.12: README '안정적으로 사용하기' 섹션 — 섹션 범위로 가드(다른 섹션/Changelog 우연 통과 방지)."""
     import re
