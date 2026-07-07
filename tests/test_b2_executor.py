@@ -68,14 +68,14 @@ def test_cache_lock_never_wraps_network_or_parse():
     assert lock_blocks >= 8, f"_cache_lock 블록이 {lock_blocks}개뿐 — 캐시 touch 직렬화 누락 의심"
 
 
-def test_contract_version_0_10_0():
-    """v0.14.0: 가지조문(제N조의M) 지원 — JO 6자리 가지 인코딩·검색/doc-level/상세에 가지조문 유입
-    (신규 provision_id 의미 추가) → contract 0.9.0 → 0.10.0 minor bump."""
+def test_contract_version_0_11_0():
+    """v0.15.0: 조문 개정 이력(공포일) 발견성 — doc-level articles·JO 상세에 latest_history 필드 추가
+    (응답 schema 신규 필드) → contract 0.10.0 → 0.11.0 minor bump."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.10.0"
+    assert CONTRACT_VERSION == "0.11.0"
 
 
-def test_package_version_0_14_0():
-    """패키지 버전 0.14.0(major=큰 변화: 가운데 +1·마지막 0 — 가지조문 지원, 시스템 전역 신규 조회 유형 + contract bump)."""
+def test_package_version_0_15_0():
+    """패키지 버전 0.15.0(major=큰 변화: 가운데 +1·마지막 0 — 개정 이력 발견성, 시스템 전역 신규 조회 유형 + contract bump)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.14.0"
+    assert __version__ == "0.15.0"

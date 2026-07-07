@@ -64,6 +64,10 @@ _SERVER_INSTRUCTIONS = (
     "행정규칙(고시·예규·훈령)의 발령번호·종류는 get_provision_detail 응답의 "
     "issuance_number·regulation_kind·version_label 필드로 확인하되, 이 값은 조회된 규정의 것이며 현행임을 보증하지 않습니다"
     "(검색 실패 시 등록(manifest) 버전일 수 있고 개정 안내가 없어도 현행이라는 뜻은 아니므로, 현행 여부 단정이 필요하면 1차 출처에서 확인). "
+    "특정 법령의 '최근 개정된 조문'을 물으면, 문서레벨 get_provision_detail(unit_id 없이) 응답의 articles 목록에서 "
+    "각 조문의 latest_history 필드(예 '개정 2025.12.30(공포)'·'본조신설 2026.6.30(공포)')로 최근 변경 조문을 찾아 그 조문을 조회하십시오. "
+    "이 값의 날짜는 공포일이며(값에 (공포) 표기) 시행일이 아니고, 유형(개정·신설·삭제 등)은 해당 날짜에 부착된 마커 유형일 뿐 개정 범위·중요도를 뜻하지 않습니다. "
+    "latest_history가 없는 조문을 '개정되지 않았다'고 단정하지 마십시오(마커를 캡처하지 못한 것일 수 있음). "
     "MCP에 등록되었거나 list_rule_sets·search_provision으로 검색·조회된 규정을 외부 검색에서 찾지 못했다는 이유만으로 "
     "존재하지 않는다고 단정하지 말고 get_provision_detail 결과와 응답이 제공한 공식 URL로 확인하십시오."
 )
@@ -825,6 +829,101 @@ def _article_unit_id(art: dict) -> str | None:
     return f"JO{no_int:04d}"
 
 
+# --- 조문 개정 이력 발견성 (v0.15.0): 조문별 최신 이력 마커(공포일+유형) 도출 ---
+# 동기: v0.13.1 eval shortfall A — "최근 개정" 질의에서 호스트가 어느 조문이 개정됐는지 몰라(개정 마커는
+# 개별 조문을 열어야만 보임·닭-달걀) 법률 개정을 false-negative로 놓침. doc-level articles 목록·JO 상세에
+# 조문별 최신 이력 힌트를 additive 노출해 발견 경로를 연다. ★값은 공포일(시행일 아님)·유형은 해당 날짜에
+# 부착된 마커 유형이며 개정의 범위·중요도를 뜻하지 않는다. 필드 부재 ≠ 미개정 보증(마커 미캡처일 뿐).
+# 소스 2종: (1) 조문 content 내 꺾쇠 마커 <개정 날짜목록>·<신설 …>·삭제 후행 <날짜> (GT4)
+#           (2) 조문참고자료 태그 내 대괄호 마커 [본조신설 날짜]·[전문개정 …]·[… 이동 <날짜>] (GT5·신설 조문의 유일 소스)
+# 날짜 = YYYY.M.D(공포일·zero-pad 없음·다중 ", " 구분·최다 13개·마커 최장 141자). admrul 평면은 마커 0(GT6).
+
+# 날짜 토큰(공백 tolerant — 이론상 "2020. 6. 9." 변형; 실측 전건 compact). 연·월·일만 캡처(말미 마침표 미포함).
+_HISTORY_DATE_PATTERN = re.compile(r"\d{4}\.[ ]?\d{1,2}\.[ ]?\d{1,2}")
+# content 마커: (삭제 접두)? + <내부>. content 유형은 개정·신설(내부)·삭제(무접두)뿐 — law 29문서 census 확정
+# (개정 883·신설 127·무접두=삭제 85·이상치 0). 날짜 있는 꺾쇠만 이력(비-날짜 꺾쇠 무시).
+_CONTENT_HISTORY_MARKER = re.compile(r"(삭제)?[ \t]*<\s*([^<>]{0,300}?)\s*>")
+# 조문참고자료 마커: [내부]. ★접두 라벨 anchored 마커만 이력으로 취급 — 임의 날짜 loose-grab 금지.
+# (census flag: [법률 제16892호(2020.1.29) …개정…] 타법 개정 참조의 날짜를 이 조문 이력으로 오추출·
+#  [종전 …으로 이동 <날짜>]·[제N조에서 이동 <날짜>] 재번호(개정 아님)를 배제. 둘 다 라벨로 시작하지 않아 skip.)
+_REFERENCE_HISTORY_MARKER = re.compile(r"\[\s*([^\[\]]{0,300}?)\s*\]")
+# 조문참고자료 이력 라벨(전수 census: 본조신설 208·전문개정 197·제목개정 76이 유일. 방어적 여유 2종 포함).
+_REFERENCE_LABELS = ("본조신설", "전문개정", "제목개정", "일부개정", "본조개정")
+# 유형 tie-break 순위(작을수록 우선) — 동일 날짜에서 라벨 결정. 실질(신설/개정) 우선, 메타(제목개정)·삭제 후순위.
+_HISTORY_TYPE_RANK = {t: i for i, t in enumerate(
+    ("본조신설", "신설", "전문개정", "개정", "본조개정", "일부개정", "제목개정", "삭제")
+)}
+
+
+def _parse_history_date(date_str: str):
+    """'YYYY.M.D'(공백 변형 포함) → (year, month, day) int tuple. 비정상 → None (never-raise)."""
+    parts = date_str.replace(" ", "").split(".")
+    try:
+        return (int(parts[0]), int(parts[1]), int(parts[2]))
+    except (ValueError, IndexError):
+        return None
+
+
+def _article_amendment_history(art: dict) -> str | None:
+    """조문 dict → 최신 이력 힌트 문자열 "유형 공포일(공포)"(예 "개정 2025.12.30(공포)"·"본조신설 2026.6.30(공포)"·
+    "삭제 2020.3.3(공포)"), 마커 없으면 None. never-raise (doc-level articles 조립·JO 상세 head 호출 — 예외 시 응답 전체 실패).
+
+    ★never-raise 필수: 이 헬퍼가 raise하면 (a) doc-level articles 조립 comprehension(per-article try 부재)이
+      문서 detail 전체를 깨뜨리고 (b) _build_article_detail head 조립도 실패. 모든 파싱은 findall/int try로 격리.
+    ★날짜는 원문 verbatim(공백만 정규화)·비교용으로만 int 파싱 → fabrication 0. 값=공포일(시행일 아님).
+    ★조문참고자료는 접두 라벨 anchored만 — 타법 개정 참조([법률 제N호(날짜)…])·이동(재번호) 날짜 오추출 배제(census).
+      유형 tie-break는 content 우선(개정/신설 실텍스트 마커 > 조문참고자료 메타). 필드 값 = f"{유형} {날짜}".strip().
+    """
+    try:
+        content = (art.get("조문내용") or "")
+        reference = (art.get("조문참고자료") or "")
+        # 후보: (neg_date_tuple, source_rank[content=0/ref=1], type_rank, verbatim_date, type_str)
+        candidates: list[tuple] = []
+
+        for m in _CONTENT_HISTORY_MARKER.finditer(content):
+            del_prefix, inner = m.group(1), m.group(2)
+            dates = _HISTORY_DATE_PATTERN.findall(inner)
+            if not dates:
+                continue  # 날짜 없는 꺾쇠(비-이력) 무시
+            if "개정" in inner:
+                mtype = "개정"
+            elif "신설" in inner:
+                mtype = "신설"
+            elif del_prefix:
+                mtype = "삭제"  # 무접두 <날짜> = 삭제(census 85/85) — bare 노출·개정 오귀속 방지
+            else:
+                mtype = ""  # 무접두·비삭제(실측 0건) — bare date로 graceful
+            for d in dates:
+                dt = _parse_history_date(d)
+                if dt is None:
+                    continue
+                candidates.append((tuple(-x for x in dt), 0, _HISTORY_TYPE_RANK.get(mtype, 999), d.replace(" ", ""), mtype))
+
+        for m in _REFERENCE_HISTORY_MARKER.finditer(reference):
+            inner = m.group(1).strip()
+            label = next((lbl for lbl in _REFERENCE_LABELS if inner.startswith(lbl)), None)
+            if label is None:
+                continue  # 이동·타법 개정 참조 등 비-이력 마커 skip (loose-grab 금지)
+            # ★대괄호 이력 마커는 라벨 1개 + 그 라벨의 날짜(선행 라벨의 첫 날짜)로 구성 — LIVE 527 브래킷
+            #   전건 라벨 1·날짜 1(다중 라벨/다중 날짜 0). 첫 날짜만 취해, 가령의 [본조신설 2011.1.1, 일부개정
+            #   2022.2.2] 형태에서 뒷 날짜를 선행 라벨로 오라벨링(정직성 위반)하는 벡터를 원천 차단(적대검증 R1).
+            _ref_dates = _HISTORY_DATE_PATTERN.findall(inner)
+            if _ref_dates:
+                dt = _parse_history_date(_ref_dates[0])
+                if dt is not None:
+                    candidates.append((tuple(-x for x in dt), 1, _HISTORY_TYPE_RANK.get(label, 999), _ref_dates[0].replace(" ", ""), label))
+
+        if not candidates:
+            return None
+        # min: neg_date_tuple 최소(=최신 날짜) → source_rank(content 0 우선) → type_rank(실질 우선) → 결정성
+        best = min(candidates)
+        # 값에 (공포) 내장 — 날짜가 시행일이 아닌 공포일임을 값 레벨에서 명시(데이터 앵커 > 프롬프트 framing·v0.5.0 원칙,
+        # 적대검증 R1). 예 "개정 2025.12.30(공포)"·"본조신설 2026.6.30(공포)". 유형 미상(bare)이면 "날짜(공포)".
+        return f"{best[4]} {best[3]}(공포)".strip()
+    except Exception:  # noqa: BLE001 — 개정 이력은 부가 힌트 — 어떤 파싱 오류도 응답을 깨서는 안 됨
+        return None
+
+
 def _is_deleted_annex_title(title: str) -> bool:
     """제목 기반 삭제 별표 판정 (v0.2.1).
 
@@ -990,6 +1089,11 @@ def _build_article_detail(provision_id: str, unit_id: str, rs, art: dict, eff_da
         "unit_id": unit_id,
         "title": title,
     }
+    # v0.15.0: 조문 상세에도 최신 이력 힌트(공포일+유형) 동반 — doc-level 목록과 정합(값=공포일·시행일 아님).
+    # head에 넣어 3-tier(전문/구조생략/oversized) 전건에 실림. 마커 부재 시 생략. never-raise(_article_amendment_history).
+    _hist = _article_amendment_history(art)
+    if _hist:
+        head["latest_history"] = _hist
     tail = {
         "effective_date": eff_date,
         "contract_version": CONTRACT_VERSION,
@@ -1535,6 +1639,11 @@ async def get_provision_detail(provision_id: str) -> dict:
     - unit_id 생략 시 document-level 요약 반환 — annexes 목록(별표 제목·provision_id·deleted 표시,
       v0.2.1)과 articles 목록(조문 제목·provision_id, v0.7.0 — 응답 한도 초과 시 articles_truncated)이
       포함되므로, 특정 별표·조문의 provision_id가 불확실하면 추측하지 말고 이 목록에서 선택할 것.
+      articles 목록의 각 조문에는 최신 이력 마커가 있으면 latest_history 필드(예 "개정 2025.12.30(공포)",
+      "본조신설 2026.6.30(공포)", "삭제 2020.3.3(공포)")가 포함되어(v0.15.0), "최근 개정된 조문"을 찾을 때 대상
+      조문을 발견하는 데 쓸 수 있음(JO 상세 응답에도 동반). ★날짜=공포일(값에 (공포) 표기·시행일 아님)·유형=해당
+      날짜에 부착된 마커일 뿐 개정 범위를 뜻하지 않음·필드 부재는 미개정 보증이 아님(마커 미캡처일 수 있음). law
+      트랙 한정(행정규칙 평면 schema는 조문별 개정 마커가 없어 미부착).
     - unit_id가 JO… 면 조문 본문 + article_structure (v0.6.0 size-tiered — 대용량 조문은
       article_structure 생략 또는 본문 미수록 oversized_pointer), BP… 면 별표 본문 (행정규칙·법령
       시행령 모두, v0.2; size-tiered). BP는 4자리(본별표, 예: BP0001=별표 1) 또는 6자리(가지별표
@@ -1688,11 +1797,17 @@ async def get_provision_detail(provision_id: str) -> dict:
             if art_unit_id in _seen_jo:
                 continue
             _seen_jo.add(art_unit_id)
-            _articles_list.append({
+            _item = {
                 "provision_id": build_provision_id(pid.doc_type, pid.doc_id, art_unit_id),
                 "label": unit_label(art_unit_id),
                 "title": (art.get("조문제목") or "").strip(),
-            })
+            }
+            # v0.15.0: 조문별 최신 이력 힌트(공포일+유형) — 호스트가 "최근 개정" 질의에 어느 조문을
+            # 열지 발견하도록. 마커 부재 시 필드 생략(부재 ≠ 미개정 보증). admrul 평면은 마커 0이라 전건 생략.
+            _hist = _article_amendment_history(art)
+            if _hist:
+                _item["latest_history"] = _hist
+            _articles_list.append(_item)
         result["articles"] = _articles_list
         # size 백스톱: articles 목록 항목들이 응답을 예산(16,000) 너머로 키우지 않도록, 최종 직렬화(절단
         # 플래그·경고 포함)를 실제 json.dumps로 측정해 초과 시 목록을 뒤에서 제거(추정 산식 아님 →
@@ -1914,6 +2029,7 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
    - 별표 상세 응답에 dependent_article_hints가 있으면, 힌트에 적힌 조문을 같은 문서에서 get_provision_detail로 함께 조회할 것. 힌트는 별표 제목에서 뽑은 미검증 단서이므로 힌트 자체를 근거로 인용하지 말고, 조회된 조문 원문만 근거로 삼을 것. 이 동반 조회는 힌트에 적힌 조문 1단계까지만 자동 수행하고, 그 조문에서 이어지는 참조는 본 5단계의 일반 규칙에 따를 것.
    - 별표 번호나 가지번호가 불확실하면 BP provision_id를 추측해 호출하지 말 것. 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 annexes 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.
    - 조문(JO)도 마찬가지로, 특정 조문의 provision_id가 불확실하면 추측하지 말고 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 articles 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.
+   - '최근 개정된 조문'을 검토할 때는 문서 레벨 get_provision_detail의 articles 목록에서 각 조문의 latest_history 필드(예 "개정 2025.12.30(공포)")로 최근 변경 조문을 찾아 그 조문을 조회할 것. 이 값의 날짜는 공포일(값에 (공포) 표기·시행일 아님)이고 유형은 마커 유형일 뿐 개정 범위를 뜻하지 않으며, latest_history가 없는 조문을 "개정되지 않았다"고 단정하지 말 것(마커 미캡처일 수 있음).
    - 참조 조항 확인 없이 결론을 확정하지 말 것.
 
 6. 조문 요건 해석, 사실관계 분석, 상위 규정 우선 원칙

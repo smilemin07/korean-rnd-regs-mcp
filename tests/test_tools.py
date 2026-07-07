@@ -543,7 +543,7 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
     """suggest 응답에 현행 contract_version(0.10.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.10.0"
+    assert result["contract_version"] == "0.11.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -868,7 +868,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.10.0"
+    assert result["contract_version"] == "0.11.0"
 
 
 # === _build_article_content  ===
@@ -2247,6 +2247,137 @@ def test_get_provision_detail_branch_article_strict_match_v0140(mock_client):
     assert "가지조문 내용" in branch_resp["content"]
 
 
+# === v0.15.0: 조문 개정 이력(공포일) 발견성 ===
+def test_amendment_history_content_markers_v0150():
+    """v0.15.0: _article_amendment_history — content 꺾쇠 마커(개정/신설/삭제) 최신 공포일 도출.
+    다중 날짜는 최신값·삭제 무접두 <날짜>는 '삭제' 라벨(census 85/85)."""
+    from korean_rnd_regs_mcp.main import _article_amendment_history as H
+    # 개정 다중 날짜 → 최신값
+    assert H({"조문내용": "제10조(융자) 본문 <개정 2017.7.26, 2025.12.30>"}) == "개정 2025.12.30(공포)"
+    # 신설
+    assert H({"조문내용": "③ 사용료를 지원할 수 있다. <신설 2025.12.30>"}) == "신설 2025.12.30(공포)"
+    # 삭제 무접두 <날짜> → '삭제' 라벨(bare·개정 오귀속 아님)
+    assert H({"조문내용": "제59조 삭제 <2020.3.3>"}) == "삭제 2020.3.3(공포)"
+    # 마커 없음 → None (필드 생략)
+    assert H({"조문내용": "제5조(정의) 이 영에서 정하는 바에 따른다."}) is None
+    assert H({}) is None
+
+
+def test_amendment_history_reference_label_anchored_v0150():
+    """v0.15.0: 조문참고자료 대괄호 마커는 ★접두 라벨 anchored만 추출 — 신설 조문(content 마커 0)의
+    유일 소스([본조신설 …]) 캡처 + 타법 개정 참조([법률 제N호(날짜)…])·이동(재번호) 날짜 오추출 배제."""
+    from korean_rnd_regs_mcp.main import _article_amendment_history as H
+    # ref-only 본조신설 (신설 가지조문 = v0.13.1 eval 제7조의2 케이스): content 마커 없음
+    assert H({"조문내용": "제7조의2(융자·보증 지원기관) 본문",
+              "조문참고자료": "\n\t\t[본조신설 2026.6.30]\n"}) == "본조신설 2026.6.30(공포)"
+    # ★타법 개정 참조: [법률 제16892호(2020.1.29) …개정…] 의 2020.1.29를 오추출하지 않음
+    #   (라벨로 시작하지 않아 skip) → content 개정일만 반영
+    assert H({"조문내용": "제37조의4(기술) 본문 <개정 2025.10.1>",
+              "조문참고자료": "[본조신설 2014.12.23]\n[법률 제16892호(2020.1.29) 제37조의4의 개정규정은 …]"}) == "개정 2025.10.1(공포)"
+    # ★이동(재번호) 마커 배제 — 접두 라벨 아님. content 생성일(본조신설)만 반영
+    assert H({"조문내용": "제8조의3 본문",
+              "조문참고자료": "[본조신설 2021.6.8]\n[제8조의2에서 이동 <2026.6.30>]"}) == "본조신설 2021.6.8(공포)"
+    # 전문개정·제목개정 라벨
+    assert H({"조문내용": "제3조 본문", "조문참고자료": "[전문개정 2011.4.14]"}) == "전문개정 2011.4.14(공포)"
+
+
+def test_amendment_history_content_source_priority_v0150():
+    """v0.15.0: 동일 날짜 tie-break — content 실텍스트 마커(개정/신설) > 조문참고자료 메타(제목개정).
+    제10조: content <개정 2025.12.30> + 참고자료 [제목개정 2025.12.30] → '개정'(content 우선)."""
+    from korean_rnd_regs_mcp.main import _article_amendment_history as H
+    assert H({"조문내용": "제10조 본문 <개정 2017.7.26, 2025.12.30>",
+              "조문참고자료": "[전문개정 2011.4.14]\n[제목개정 2025.12.30]"}) == "개정 2025.12.30(공포)"
+
+
+def test_amendment_history_never_raises_v0150():
+    """v0.15.0 ★never-raise: 개정 이력 헬퍼는 어떤 비정상 입력에도 예외를 던지지 않음
+    (doc-level articles 조립 comprehension·_build_article_detail head에 per-item try 부재 → raise 시 전체 실패)."""
+    from korean_rnd_regs_mcp.main import _article_amendment_history as H
+    # 비정상 입력 — 전부 None 또는 문자열 반환, 예외 없음
+    assert H({"조문내용": None, "조문참고자료": None}) is None
+    assert H({"조문내용": "<개정 >", "조문참고자료": "[본조신설 ]"}) is None  # 날짜 없는 마커
+    assert H({"조문내용": "<개정 9999.99.99>"}) == "개정 9999.99.99(공포)"  # 비현실 날짜도 파싱은 됨(원문 verbatim)
+    assert H({"조문내용": "<개정 2020.13.40>"}) == "개정 2020.13.40(공포)"  # 월/일 범위검증 안 함(원문 신뢰)
+    H({"조문내용": "<" + "개정 2020.1.1 " * 5000 + ">"})  # 초장문 단일 마커 — 무예외(300자 상한으로 미매칭 None 가능)
+    assert H({"조문내용": "제1조 <개정 abcd.e.f>"}) is None  # 날짜 아닌 꺾쇠 → 마커 아님
+    # 극단: 거대 content·reference에도 raise 없음
+    H({"조문내용": "가" * 100000, "조문참고자료": "[본조신설 2020.1.1]" * 1000})
+
+
+def test_doc_level_articles_includes_latest_history_v0150(mock_client):
+    """v0.15.0: doc-level articles 항목에 최신 이력 힌트(latest_history) additive — 마커 보유 조문만
+    부착, 무마커 조문은 필드 생략(부재 ≠ 미개정). v0.13.1 eval shortfall A 발견 경로."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "articles": [
+            {"조문번호": "10", "조문제목": "융자", "조문내용": "제10조 본문 <개정 2025.12.30>",
+             "structured": {"title": "제10조", "paragraphs": []}},
+            {"조문번호": "7", "조문가지번호": "2", "조문제목": "융자·보증 지원기관",
+             "조문내용": "제7조의2 본문", "조문참고자료": "[본조신설 2026.6.30]",
+             "structured": {"title": "제7조의2", "paragraphs": []}},
+            {"조문번호": "5", "조문제목": "정의", "조문내용": "제5조 정의 (마커 없음)",
+             "structured": {"title": "제5조", "paragraphs": []}},
+        ],
+    }
+    result = asyncio.run(get_provision_detail("law:281987"))
+    listed = {a["label"]: a for a in result["articles"]}
+    assert listed["제10조"]["latest_history"] == "개정 2025.12.30(공포)"
+    assert listed["제7조의2"]["latest_history"] == "본조신설 2026.6.30(공포)"  # content 마커 0·참고자료 유일 소스
+    assert "latest_history" not in listed["제5조"]  # 무마커 → 필드 생략(부재 ≠ 미개정)
+
+
+def test_jo_detail_includes_latest_history_v0150(mock_client):
+    """v0.15.0: JO 단일 조문 상세에도 latest_history 동반(head — 3-tier 전건). 무마커 조문은 생략."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "articles": [
+            {"조문번호": "10", "조문제목": "융자", "조문내용": "제10조 융자 본문 <개정 2025.12.30>",
+             "structured": {"title": "제10조", "paragraphs": []}},
+            {"조문번호": "5", "조문제목": "정의", "조문내용": "제5조 정의 마커 없음",
+             "structured": {"title": "제5조", "paragraphs": []}},
+        ],
+    }
+    r10 = asyncio.run(get_provision_detail("law:281987:JO0010"))
+    assert r10["latest_history"] == "개정 2025.12.30(공포)"
+    r5 = asyncio.run(get_provision_detail("law:281987:JO0005"))
+    assert "latest_history" not in r5  # 무마커 → 생략
+
+
+def test_law_detail_captures_reference_field_v0150(monkeypatch):
+    """v0.15.0(live_api): 중첩 law 파서가 조문참고자료 태그를 캡처(findtext never-raise) — 신설 조문 이력의
+    유일 소스. 태그 부재 조문은 '' (빈 값)."""
+    import requests as requests_mod
+    from korean_rnd_regs_mcp.live_api import LawApiClient
+    fake_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<법령>
+  <기본정보><법령명_한글>테스트</법령명_한글><시행일자>20260701</시행일자></기본정보>
+  <조문>
+    <조문단위>
+      <조문번호>7</조문번호><조문가지번호>2</조문가지번호><조문여부>조문</조문여부>
+      <조문제목>융자</조문제목><조문내용>제7조의2 본문</조문내용>
+      <조문참고자료>[본조신설 2026.6.30]</조문참고자료>
+    </조문단위>
+    <조문단위>
+      <조문번호>8</조문번호><조문여부>조문</조문여부>
+      <조문제목>정의</조문제목><조문내용>제8조 본문</조문내용>
+    </조문단위>
+  </조문>
+</법령>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_xml
+        headers = {"Content-Type": "application/xml"}
+
+    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    arts = client.get_law_detail("9999")["articles"]
+    assert arts[0]["조문참고자료"] == "[본조신설 2026.6.30]"
+    assert arts[1].get("조문참고자료", "") == ""  # 태그 부재 → 빈 값(findtext 기본)
+
+
 def test_doc_level_articles_truncation_backstop_v070(mock_client):
     """v0.7.0 size 백스톱: 다수의 짧은 조문(빈 제목 400건 — 적대검증 BLOCKING1 재현 케이스)으로 예산
     초과 시 절단 + articles_truncated + ★최종 직렬화(플래그·경고 포함)가 hard 한도(16,000) 이내.
@@ -3268,7 +3399,7 @@ def test_get_provision_detail_small_article_unchanged_v060(mock_client):
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None
     assert "content_available" not in result
-    assert result["contract_version"] == "0.10.0"
+    assert result["contract_version"] == "0.11.0"
 
 
 def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):

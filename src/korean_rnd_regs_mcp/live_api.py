@@ -425,6 +425,12 @@ class LawApiClient:
                     # 다항조문은 본문이 <항>·<호>에 있음.
                     # _build_article_content가 조문내용 + 항(항내용 + 호) 모두 합침.
                     "조문내용": _build_article_content(a),
+                    # v0.15.0: 조문참고자료 — 대괄호 개정 이력 마커([본조신설 날짜]·[전문개정 날짜]·
+                    # [제목개정 날짜]·[종전 …으로 이동 <날짜>] 등)의 유일 위치. content 꺾쇠 마커와 병용해
+                    # main._article_amendment_history가 조문별 최신 공포일(개정 발견성)을 도출한다. ★신설 조문
+                    # (제N조의M)은 content 마커가 없고 이 태그에만 [본조신설 …]이 있어(GT5) 캡처 필수.
+                    # findtext라 never-raise (articles 조립 comprehension에 per-article try 없음 — 조문가지번호와 동일).
+                    "조문참고자료": a.findtext("조문참고자료", ""),
                     # machine-readable nested hierarchy (LLM 재포맷 방어).
                     "structured": _build_article_structure(a),
                 }
@@ -504,6 +510,10 @@ class LawApiClient:
                     # 다항조문은 본문이 <항>·<호>에 있음.
                     # _build_article_content가 조문내용 + 항(항내용 + 호) 모두 합침.
                     "조문내용": _build_article_content(a),
+                    # v0.15.0: 조문참고자료(law 파서와 동일) — 중첩 schema admrul은 현 manifest 0건이나
+                    # 스키마 정합 위해 캡처(findtext never-raise). 평면 admrul은 이 태그·꺾쇠 마커 모두 없어
+                    # (GT6) 개정 이력 필드가 자연히 부재 → main 헬퍼가 .get()로 graceful 처리.
+                    "조문참고자료": a.findtext("조문참고자료", ""),
                     # machine-readable nested hierarchy (LLM 재포맷 방어).
                     "structured": _build_article_structure(a),
                 }

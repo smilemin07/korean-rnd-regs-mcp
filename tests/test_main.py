@@ -265,10 +265,10 @@ def test_tool_docstrings_include_usage_timing_stanza():
     assert "추측하지 마십시오" in gpd  # provision_id 없이 추측 금지(삭제 여부·현행 내용은 호출로 확인)
 
 
-def test_contract_version_is_0_10_0():
-    """v0.14.0: 가지조문(제N조의M) 지원 — JO 6자리 가지 인코딩 → contract 0.9.0→0.10.0."""
+def test_contract_version_is_0_11_0():
+    """v0.15.0: 조문 개정 이력(공포일) 발견성 — latest_history 필드 additive → contract 0.10.0→0.11.0."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.10.0"
+    assert CONTRACT_VERSION == "0.11.0"
 
 
 # === v0.2.11: MCP Registry 등록 마커 + server.json ===

@@ -29,10 +29,10 @@ def test_contract_version_pinned():
     #         또는 oversized_pointer, 별표 패턴 확장) → minor bump.
     # 0.9.0 = get_provision_detail document-level 응답에 articles(조문) 목록 additive(v0.7.0 — 별표
     #         annexes 목록 패턴 재현, JO 발견성 갭 해소) → minor bump.
-    # 0.10.0 = 가지조문(제N조의M) 지원(v0.14.0) — JO 6자리 가지 인코딩(JO000702=제7조의2, 가지별표 BP 6자리
+    # 0.11.0 = 조문 개정 이력 발견성(v0.15.0)·직전 0.10.0 = 가지조문(제N조의M) 지원(v0.14.0) — JO 6자리 가지 인코딩(JO000702=제7조의2, 가지별표 BP 6자리
     #          동형)·_UNIT_PATTERN 협소화(JO 4/6자리·가지 01~99)·검색/doc-level articles/상세에 가지조문 유입
     #          (거동 변경·신규 provision_id 의미 추가) → minor bump.
-    assert CONTRACT_VERSION == "0.10.0"
+    assert CONTRACT_VERSION == "0.11.0"
 
 
 # === unit_label (v0.1.8 — overflow_candidates label용) ===
