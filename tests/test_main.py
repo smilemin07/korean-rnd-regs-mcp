@@ -93,11 +93,11 @@ def test_review_regulation_prompt_includes_tier2_routing():
 
 
 def test_review_regulation_prompt_includes_limitation_notice():
-    """본 server cover 범위 밖 자료 + 가지조문/별표 한계 명시 (false negative 방지)."""
+    """본 server cover 범위 밖 자료 명시 + 가지조문/별표 조회 안내 (false negative 방지)."""
     body = review_regulation_prompt("X")
     assert "매뉴얼" in body  # 매뉴얼·운영규정·관리지침
-    assert "가지조문" in body  # v0.2 deferred
-    assert "별표" in body  # v0.3 deferred
+    assert "가지조문" in body  # v0.14.0: 지원 안내(누락 아님)
+    assert "별표" in body  # v0.2.0 지원
     assert "변호사 자문" in body  # 법률 판단 disclaimer
 
 
@@ -265,10 +265,10 @@ def test_tool_docstrings_include_usage_timing_stanza():
     assert "추측하지 마십시오" in gpd  # provision_id 없이 추측 금지(삭제 여부·현행 내용은 호출로 확인)
 
 
-def test_contract_version_is_0_9_0():
-    """v0.7.0: get_provision_detail document-level articles 목록 additive → contract 0.8.0→0.9.0."""
+def test_contract_version_is_0_10_0():
+    """v0.14.0: 가지조문(제N조의M) 지원 — JO 6자리 가지 인코딩 → contract 0.9.0→0.10.0."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.9.0"
+    assert CONTRACT_VERSION == "0.10.0"
 
 
 # === v0.2.11: MCP Registry 등록 마커 + server.json ===

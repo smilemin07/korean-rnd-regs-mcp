@@ -248,11 +248,10 @@ def _parse_flat_article(elem: ET.Element) -> Optional[dict]:
     일부 행정규칙(예: 동시수행 과제 수 제한, 연구노트 지침, 연구개발비 사용 기준)은 `<조문단위>`
     wrapper 없이 `<조문내용>` element가 root 직속으로 평면 배치됨. 이 schema를 fallback으로 지원.
 
-    가지조문(제15조의2 등) silent skip.
-    - 현행 provision_id의 JO unit_id는 숫자만 지원 — 조문 가지번호 표현 불가(가지별표 BP는 v0.2.1 지원)
-    - 정규식이 가지조문 매칭하면 본 조문(제15조)과 동일 조문번호=15로 collision 발생
-    - 예: rnd_funding_standard에 제10조의2/제11조의2/제15조의2/제16조의2/제17조의2 등 8건 LIVE 발견
-    - skip + logger.warning으로 누락 통지. v0.3 JO prefix 확장 시 자동 활성화 예정.
+    가지조문(제15조의2 등)도 지원 (v0.14.0).
+    - 정규식이 가지번호(group 2)를 캡처 → 조문가지번호로 노출. main._article_unit_id가 JO 6자리
+      (JO000702 = 제7조의2)로 인코딩해 본조문(제15조)과 collision 없이 조회 가능(가지별표 BP 동형).
+    - 예: rnd_funding_standard에 제10조의2/제11조의2/제15조의2/제16조의2/제17조의2 등 8건 LIVE.
     """
     text = (elem.text or "").strip()
     if not text:
@@ -265,19 +264,14 @@ def _parse_flat_article(elem: ET.Element) -> Optional[dict]:
             logger.debug("flat schema parse miss: head=%s...", text[:80])
         return None
     no, gaji, title, _body = m.groups()
-    if gaji:
-        # 가지조문 — JO 가지번호 미지원(현행 contract 동일), skip하여 collision 방지
-        logger.warning(
-            "flat schema: 가지조문 제%s조의%s(%s) skip — JO 가지번호 미지원 (v0.3 prefix 확장 예정)",
-            no, gaji, title,
-        )
-        return None
     first_line = text.split('\n', 1)[0]
     return {
         "조문번호": no,
+        "조문가지번호": gaji or "",  # v0.14.0: 가지조문(제N조의M)의 가지 M — 본조문은 ""
         "조문제목": title or "",
         "조문내용": text,
         # 평면 schema는 항·호 hierarchy element가 없음 — paragraphs 빈 list 반환
+        # (항·호·목 structured 분해는 별건 백로그 C4 — 가지조문도 content 전문은 반환).
         "structured": {"title": first_line, "paragraphs": []},
     }
 
@@ -419,11 +413,14 @@ class LawApiClient:
             # LIVE 검증: <조문여부>=전문 element는 장/절/관 wrapper(예: "제1장 총칙")로
             # 실제 조문이 아님. 동일 조문번호로 wrapper + 실제 조문이 함께 등장하여 (혁신법·시행령 7건 collision)
             # JO0001 검색·상세조회 시 wrapper만 반환되는 silent bug 발생. 조문여부="조문"만 articles에 포함.
-            # 가지조문(<조문가지번호> 채워진 element)도 skip — 현행 contract에서도
-            # JO unit_id가 숫자만 지원하므로 가지조문은 본 조문과 collision (예: 제15조 ↔ 제15조의2).
+            # 가지조문(<조문가지번호> 채워진 element, 예: 제7조의2)도 포함 (v0.14.0) — JO 6자리 가지
+            # 인코딩(JO000702)으로 본조문(제7조)과 collision 없이 표현(가지별표 BP 6자리 동형). 조문가지번호는
+            # main._article_unit_id/_article_branch_no가 (번호,가지) id 생성·매칭에 사용. findtext라 never-raise
+            # (articles 조립 comprehension에 per-article try 없음 — 신규 필드도 예외를 던지지 않아야 함).
             articles = [
                 {
                     "조문번호": a.findtext("조문번호", ""),
+                    "조문가지번호": a.findtext("조문가지번호", ""),  # v0.14.0: 가지조문 (번호,가지) 인코딩용
                     "조문제목": a.findtext("조문제목", ""),
                     # 다항조문은 본문이 <항>·<호>에 있음.
                     # _build_article_content가 조문내용 + 항(항내용 + 호) 모두 합침.
@@ -433,7 +430,6 @@ class LawApiClient:
                 }
                 for a in root.findall(".//조문단위")
                 if (a.findtext("조문여부") or "").strip() == "조문"
-                and not (a.findtext("조문가지번호") or "").strip()
             ]
             # 별표 (v0.2): 법령(시행령) 별표 inline 텍스트 지원. fault-isolation —
             # 별표 파싱 실패가 조문(articles) 반환 경로를 깨뜨리지 않도록 독립 try/except로 격리하고,
@@ -498,10 +494,12 @@ class LawApiClient:
         try:
             response = _request_with_retry(url, params)
             root = _parse_xml(response)
-            # 조문 (있을 수도 없을 수도). 8차/wrapper element + 가지조문 동일 filter 적용.
+            # 조문 (있을 수도 없을 수도). wrapper(장/절/관) element는 제외; 가지조문(조문가지번호)은
+            # v0.14.0부터 포함(JO 6자리 가지 인코딩·법령 파서와 동일). 조문가지번호 findtext는 never-raise.
             articles = [
                 {
                     "조문번호": a.findtext("조문번호", ""),
+                    "조문가지번호": a.findtext("조문가지번호", ""),  # v0.14.0: 가지조문 (번호,가지) 인코딩용
                     "조문제목": a.findtext("조문제목", ""),
                     # 다항조문은 본문이 <항>·<호>에 있음.
                     # _build_article_content가 조문내용 + 항(항내용 + 호) 모두 합침.
@@ -511,7 +509,6 @@ class LawApiClient:
                 }
                 for a in root.findall(".//조문단위")
                 if (a.findtext("조문여부") or "").strip() == "조문"
-                and not (a.findtext("조문가지번호") or "").strip()
             ]
             # 평면 schema fallback: 일부 행정규칙은 <조문단위> 없이 root 직속 <조문내용> 사용.
             # LIVE 검증: 동시수행 과제 수 제한(ID 2100000196149), 연구노트 지침(ID 2100000207982).

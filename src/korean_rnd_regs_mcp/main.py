@@ -780,6 +780,51 @@ def _annex_branch_no(ann: dict) -> int:
     return int(branch_raw) if branch_raw.isdigit() else 0
 
 
+# --- 조문(JO) 단위 공유 헬퍼 (v0.14.0: 가지조문 제N조의M — 가지별표 _annex_unit_id/_annex_branch_no 동형) ---
+# search emit·doc-level articles 목록·get_provision_detail 상세가 단일 인코딩/판정을 공유해야 id 정합(죽은 id 방지).
+
+def _article_branch_no(art: dict) -> int | None:
+    """조문 dict의 가지번호 — 본조문(가지 키 부재·빈 값·'0'·'00')은 0, 유효 가지(1~99)는 그 int,
+    가지번호가 있으나 유효 2자리 정수(01~99)가 아니면 None(=인코딩 불가·skip 신호). never-raise.
+
+    ★length ≤ 2 가드로 int() 자체가 raise하지 않음(>4,300자리 ASCII 숫자열의 CPython int 변환 상한 회피).
+    ★비숫자·비ASCII·3자리+ 가지는 0(본조문 aliasing)이 아니라 None으로 skip → 본조문과의 id 충돌·오도달 방지.
+    """
+    branch_raw = (art.get("조문가지번호") or "").strip()
+    if not branch_raw:
+        return 0  # 본조문(가지 없음)
+    if branch_raw.isascii() and branch_raw.isdigit() and len(branch_raw) <= 2:
+        return int(branch_raw)  # 0~99 (len≤2라 int() raise 없음; '00'·'0' → 0 = 본조문)
+    return None  # 가지번호가 있으나 유효 2자리 정수 아님 → 인코딩 불가(skip)
+
+
+def _article_unit_id(art: dict) -> str | None:
+    """조문 dict → JO unit_id (가지-aware, v0.14.0). 조문번호 비ASCII·비숫자·인코딩 불가 → None (never-raise).
+
+    본조문(가지 0) → JO{번호4} (기존 4자리 — id 불변, 하위호환).
+    가지조문(가지 1~99) → JO{번호4}{가지2} 6자리 (예: JO000702 = 제7조의2).
+    ★방어적 skip(=None): 조문번호 비ASCII·비숫자·≥10000(5자리+), 또는 가지번호가 있으나 유효 2자리 정수가
+      아닌 경우(_article_branch_no None). _UNIT_PATTERN 위반 id를 만들지 않아 build_provision_id가 raise하지
+      않음(get_law_detail articles 조립엔 per-article try가 없어 raise 시 문서 detail 전체 실패 — never-raise 필수).
+      LIVE 최대 조문번호 <1000·가지 ≤2자리라 실발생 0이나, 오주소·id 충돌 대신 조용히 제외한다.
+    """
+    no = (art.get("조문번호") or "").strip()
+    if not (no.isascii() and no.isdigit()):
+        return None
+    try:
+        no_int = int(no)
+    except ValueError:
+        return None  # CPython int 변환 상한(>4,300자리) 등 비정상
+    if no_int > 9999:
+        return None  # JO{번호:04d}가 5자리+ → _UNIT_PATTERN reject 방지
+    branch = _article_branch_no(art)
+    if branch is None:
+        return None  # 가지번호가 있으나 유효 2자리 정수 아님 — 인코딩 불가(오도달·id 충돌 방지)
+    if branch:
+        return f"JO{no_int:04d}{branch:02d}"
+    return f"JO{no_int:04d}"
+
+
 def _is_deleted_annex_title(title: str) -> bool:
     """제목 기반 삭제 별표 판정 (v0.2.1).
 
@@ -1196,18 +1241,18 @@ async def search_provision(query: str) -> dict:
             logger.warning("search_provision: rule_set=%s 별표 파싱 실패: %s", rs.id, annex_parse_error)
             errors.append({"rule_set_id": rs.id, "code": "annex_parse_failed", "message": annex_parse_error})
 
-        # article 검색
+        # article 검색 (v0.14.0: 가지조문도 _article_unit_id로 가지-aware JO id emit — 별표 annex 패턴 동형)
         if rs.unit_types in (UnitTypes.ARTICLE, UnitTypes.BOTH):
             for art in articles:
                 title = (art.get("조문제목") or "").strip()
                 content = (art.get("조문내용") or "").strip()
                 if _content_matches(title, content):
-                    art_no = (art.get("조문번호") or "").strip()
-                    if art_no.isdigit():
+                    unit_id = _article_unit_id(art)
+                    if unit_id:
                         snippet = _snippet_for(content)
                         _scored.append((
                             _relevance_sort_key(rs, tokens, title, content, "article", _ordinal),
-                            _build_match(rs, f"JO{int(art_no):04d}", "article", title, snippet, resolved)))
+                            _build_match(rs, unit_id, "article", title, snippet, resolved)))
                         _ordinal += 1
 
         # annex 검색 — 별표구분=='별표' 한정 + 가지-aware BP id (v0.2.1: 별지·서식은
@@ -1627,22 +1672,19 @@ async def get_provision_detail(provision_id: str) -> dict:
         # v0.7.0: 문서 레벨 articles(조문) 목록 — 호스트가 특정 조문의 JO provision_id를 추측하거나
         # 외부(law.go.kr)로 우회하지 않고 선택하도록 노출(v0.6.0 eval 실관측: admrul 평면 schema
         # 특정조문 외부 우회). 별표 annexes 목록과 동형 {provision_id, label, title}·본문 미포함.
-        # ASCII 숫자 조문번호만 수록 — live_api 파서가 가지조문·wrapper는 이미 제외(중첩 403/평면 256)하고,
-        # 상위첨자('²'=isdigit True·isascii False)·비정상 장문 숫자(CPython int 변환 4,300자리 상한)는 int()
-        # 예외를 내므로 isascii 가드 + try/except로 skip(죽은 id·문서 레벨 조회 crash 방지). build는 _DOC_ARTICLES_MAX로
-        # bound(비정상 대량 입력 O(n²)·메모리 방어). dedup은 방어적(정상 데이터엔 중복 없음·첫 등장=JO first-match 정합).
+        # v0.14.0: 가지조문(제N조의M)도 _article_unit_id가 6자리 가지 JO(JO000702)로 인코딩해 수록(본조문 4자리).
+        # live_api 파서가 wrapper(장/절/관)는 이미 제외. 조문번호 상위첨자('²'=isdigit True·isascii False)·비정상
+        # 장문·인코딩 불가(≥5자리 조문번호·≥3자리 가지)는 _article_unit_id가 None으로 skip(죽은 id·문서 레벨 조회
+        # crash 방지). build는 _DOC_ARTICLES_MAX로 bound(비정상 대량 입력 O(n²)·메모리 방어). dedup은 (번호,가지)
+        # id 기준 방어적(제N조·제N조의M는 서로 다른 id로 공존·정상 데이터엔 동일 id 중복 없음).
         _articles_list: list[dict] = []
         _seen_jo: set[str] = set()
         for art in articles:
             if len(_articles_list) >= _DOC_ARTICLES_MAX:
                 break  # 예산상 수록 불가능한 초과분 — 아래 size 백스톱이 articles_truncated 처리
-            no = (art.get("조문번호") or "").strip()
-            if not (no.isascii() and no.isdigit()):
-                continue
-            try:
-                art_unit_id = f"JO{int(no):04d}"
-            except ValueError:
-                continue  # CPython int 변환 상한(>4,300자리) 등 비정상 — JO 조회 불가
+            art_unit_id = _article_unit_id(art)
+            if art_unit_id is None:
+                continue  # 조문번호 비숫자·인코딩 불가 — JO 조회 불가
             if art_unit_id in _seen_jo:
                 continue
             _seen_jo.add(art_unit_id)
@@ -1678,10 +1720,16 @@ async def get_provision_detail(provision_id: str) -> dict:
 
     # article (JO)
     if pid.unit_id.startswith("JO"):
-        target_no = int(pid.unit_id[2:])
+        # v0.14.0: 길이 기반 디코드(4자리=본조문, 6자리=번호4+가지2) + (번호,가지) 엄격 매칭 (가지별표 BP 동형).
+        # unit_id는 parse()로 _UNIT_PATTERN 검증을 이미 통과 → 4자리 또는 6자리(가지 01~99)만 도달.
+        digits = pid.unit_id[2:]
+        if len(digits) == 6:
+            target_no, target_branch = int(digits[:4]), int(digits[4:])
+        else:
+            target_no, target_branch = int(digits), 0
         for art in articles:
             no = (art.get("조문번호") or "").strip()
-            # v0.7.0: 비ASCII·비정상 장문 숫자(상위첨자·>4,300자리)는 int() 예외를 내므로 가드 후 skip
+            # 비ASCII·비정상 장문 숫자(상위첨자·>4,300자리)는 int() 예외를 내므로 가드 후 skip
             # — 앞선 비정상 조문번호 1건이 목표 조문 도달 전에 전체 조회를 깨뜨리지 않도록(doc-level
             #   articles 목록 필터와 정합 → 노출한 정상 JO id가 실제로 조회 가능함을 보장).
             if not (no.isascii() and no.isdigit()):
@@ -1690,6 +1738,8 @@ async def get_provision_detail(provision_id: str) -> dict:
                 if int(no) != target_no:
                     continue
             except ValueError:
+                continue
+            if _article_branch_no(art) != target_branch:  # v0.14.0: 가지 엄격 매칭(제7조 ↔ 제7조의2 구분)
                 continue
             resp = _build_article_detail(provision_id, pid.unit_id, rs, art, eff_date)
             resp.update(_version_meta)  # v0.5.0: admrul version 식별자(조문+번호 동반 질의 시 외부행 차단)
@@ -1915,7 +1965,7 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
 - 사용자가 제공하지 않은 필수 사실: [없으면 "해당 없음"]
 - MCP 미커버 자료 확인 필요: [없으면 "해당 없음"]
 - 위 각 항목이 결론에 미치는 영향: [예: "사실 부족으로 단정 불가" 등]
-- 가지조문(예: 제15조의2) 검색·상세조회 누락 가능
+- 가지조문(제N조의M, 예: 제7조의2)은 v0.14.0부터 검색·상세조회 지원 — 누락 아님(문서레벨 get_provision_detail의 articles 목록에서 provision_id 확인 가능)
 
 ### 7. 권고 조치
 - 규정상 확인된 후속 절차·승인·보고·문서화 조치만 기재할 것.

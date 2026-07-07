@@ -541,9 +541,9 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 
 
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
-    """suggest 응답에 현행 contract_version(0.9.0) 포함."""
+    """suggest 응답에 현행 contract_version(0.10.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.9.0"
+    assert result["contract_version"] == "0.10.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -868,7 +868,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.9.0"
+    assert result["contract_version"] == "0.10.0"
 
 
 # === _build_article_content  ===
@@ -2072,7 +2072,9 @@ def test_doc_level_articles_listing_v070(mock_client):
 
 
 def test_doc_level_articles_skips_nondigit_and_dedups_v070(mock_client):
-    """v0.7.0: articles 목록은 숫자 조문번호만(가지조문 등 비숫자 제외) + 중복 조문번호 1개(JO first-match 정합)."""
+    """v0.7.0: articles 목록은 숫자 조문번호만(조문번호 자체가 '2의2'처럼 비숫자면 제외) + 중복 1개(JO first-match).
+    ★v0.14.0 참고: 정상 가지조문은 조문번호='2'+조문가지번호='2'(별도 필드)로 표현되어 JO000202로 수록됨 —
+    본 케이스의 '2의2'는 조문번호 필드 자체가 비숫자인 malformed 케이스라 여전히 제외(_article_unit_id None)."""
     base = mock_client.get_law_detail.return_value
     mock_client.get_law_detail.return_value = {
         **base,
@@ -2091,6 +2093,158 @@ def test_doc_level_articles_skips_nondigit_and_dedups_v070(mock_client):
     ids = [a["provision_id"] for a in result["articles"]]
     assert ids == ["law:283849:JO0002", "law:283849:JO0005"]  # 비숫자 제외 + dedup
     assert result["articles"][0]["title"] == "정의"  # 중복 중 첫 등장 유지
+
+
+# === v0.14.0: 가지조문(제N조의M) 조회·발견 지원 ===
+def test_law_detail_captures_branch_article_v0140(monkeypatch):
+    """v0.14.0(live_api): 중첩 law 파서가 가지조문(조문가지번호 채워진 <조문단위>)을 skip하지 않고
+    조문가지번호와 함께 파싱. 본조문(제7조)+가지조문(제7조의2) 공존 — 네트워크 없이 로컬 XML."""
+    import requests as requests_mod
+    from korean_rnd_regs_mcp.live_api import LawApiClient
+
+    fake_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<법령>
+  <기본정보>
+    <법령ID>9999</법령ID>
+    <법령명_한글>테스트 시행령</법령명_한글>
+    <시행일자>20260701</시행일자>
+  </기본정보>
+  <조문>
+    <조문단위>
+      <조문번호>7</조문번호>
+      <조문여부>조문</조문여부>
+      <조문제목>지원</조문제목>
+      <조문내용>제7조(지원) 본문</조문내용>
+    </조문단위>
+    <조문단위>
+      <조문번호>7</조문번호>
+      <조문가지번호>2</조문가지번호>
+      <조문여부>조문</조문여부>
+      <조문제목>융자·보증 지원기관</조문제목>
+      <조문내용>제7조의2(융자·보증 지원기관) 지원기관 본문</조문내용>
+    </조문단위>
+  </조문>
+</법령>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_xml
+        headers = {"Content-Type": "application/xml"}
+
+    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    result = client.get_law_detail("9999")
+    arts = result["articles"]
+    assert len(arts) == 2  # 가지조문 skip되지 않음(종전엔 1건)
+    base, branch = arts
+    assert base["조문번호"] == "7" and base.get("조문가지번호", "") == ""
+    assert branch["조문번호"] == "7" and branch["조문가지번호"] == "2"
+    assert "융자·보증" in branch["조문내용"]
+
+
+def test_parse_flat_article_captures_branch_v0140():
+    """v0.14.0(live_api): 평면 schema _parse_flat_article이 가지조문(제N조의M)을 skip하지 않고
+    조문가지번호(정규식 group 2)를 노출. 본조문은 조문가지번호=''."""
+    import xml.etree.ElementTree as ET
+    from korean_rnd_regs_mcp.live_api import _parse_flat_article
+    base = _parse_flat_article(ET.fromstring("<조문내용>제10조(정의) 이 지침에서 정의는...</조문내용>"))
+    branch = _parse_flat_article(ET.fromstring("<조문내용>제10조의2(추가 정의) 가지조문 본문</조문내용>"))
+    assert base["조문번호"] == "10" and base["조문가지번호"] == ""
+    assert branch["조문번호"] == "10" and branch["조문가지번호"] == "2"
+    assert branch["조문제목"] == "추가 정의"
+
+
+def test_article_unit_id_helper_v0140():
+    """v0.14.0: _article_unit_id — 본조문 4자리 / 가지조문 6자리 / 방어적 skip(None·인코딩 불가). never-raise."""
+    from korean_rnd_regs_mcp.main import _article_unit_id, _article_branch_no
+    from korean_rnd_regs_mcp.provision_id import parse as parse_pid
+    assert _article_unit_id({"조문번호": "7"}) == "JO0007"                        # 본조문(가지 키 없음·하위호환)
+    assert _article_unit_id({"조문번호": "7", "조문가지번호": ""}) == "JO0007"     # 본조문(빈 가지)
+    assert _article_unit_id({"조문번호": "7", "조문가지번호": "0"}) == "JO0007"    # 가지 0 = 본조문
+    assert _article_unit_id({"조문번호": "7", "조문가지번호": "2"}) == "JO000702"  # 가지조문
+    assert _article_unit_id({"조문번호": "15", "조문가지번호": "10"}) == "JO001510"
+    assert _article_unit_id({"조문번호": "2의2"}) is None                          # 비숫자 조문번호(malformed)
+    assert _article_unit_id({"조문번호": ""}) is None                              # 빈 조문번호
+    assert _article_unit_id({"조문번호": "10000"}) is None                         # ≥5자리 → 인코딩 불가(방어)
+    assert _article_unit_id({"조문번호": "7", "조문가지번호": "100"}) is None       # 가지 ≥3자리 → 인코딩 불가(방어)
+    assert _article_branch_no({"조문번호": "7", "조문가지번호": "2"}) == 2
+    assert _article_branch_no({"조문번호": "7"}) == 0
+    # ★never-raise + 비정수 가지 → None skip(본조문 JO0007과 aliasing 방지·Codex/Gemini R1 지적)
+    assert _article_branch_no({"조문번호": "7", "조문가지번호": "가"}) is None      # 비ASCII 가지
+    assert _article_branch_no({"조문번호": "7", "조문가지번호": "1의2"}) is None    # 오타/비정수 가지
+    assert _article_branch_no({"조문번호": "7", "조문가지번호": "9" * 5000}) is None  # 초장문 → len 가드로 int() raise 없음
+    assert _article_unit_id({"조문번호": "7", "조문가지번호": "가"}) is None         # 비정수 가지 → skip(본조문 aliasing 아님)
+    # 생성된 6자리 JO는 반드시 parse 가능해야 함(죽은 id 방지)
+    parse_pid("law:1:" + _article_unit_id({"조문번호": "7", "조문가지번호": "2"}))
+
+
+def test_doc_level_articles_includes_branch_v0140(mock_client):
+    """v0.14.0: doc-level articles 목록에 본조문(제7조)+가지조문(제7조의2·제8조의2)이 distinct id로 공존.
+    v0.13.1 eval이 놓친 sme_tech_decree(287505) 제7조의2·제8조의2 발견 경로."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "articles": [
+            {"조문번호": "7", "조문제목": "지원", "조문내용": "본문",
+             "structured": {"title": "제7조", "paragraphs": []}},
+            {"조문번호": "7", "조문가지번호": "2", "조문제목": "융자·보증 지원기관", "조문내용": "본문",
+             "structured": {"title": "제7조의2", "paragraphs": []}},
+            {"조문번호": "8", "조문가지번호": "2", "조문제목": "융자·보증 대상·조건·절차", "조문내용": "본문",
+             "structured": {"title": "제8조의2", "paragraphs": []}},
+        ],
+    }
+    result = asyncio.run(get_provision_detail("law:287505"))
+    listed = result["articles"]
+    assert [a["provision_id"] for a in listed] == [
+        "law:287505:JO0007", "law:287505:JO000702", "law:287505:JO000802"]
+    assert [a["label"] for a in listed] == ["제7조", "제7조의2", "제8조의2"]
+    # 노출된 모든 provision_id는 실제 조회 가능해야 함(죽은 id 방지)
+    from korean_rnd_regs_mcp.provision_id import parse as parse_pid
+    for a in listed:
+        parse_pid(a["provision_id"])
+
+
+def test_search_provision_emits_branch_article_v0140(mock_client):
+    """v0.14.0: search — 가지조문은 6자리 JO id로 emit(본조문 4자리와 collision 없이 둘 다 노출)."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "articles": [
+            {"조문번호": "7", "조문제목": "융자 지원", "조문내용": "융자 보증 지원 본문",
+             "structured": {"title": "제7조", "paragraphs": []}},
+            {"조문번호": "7", "조문가지번호": "2", "조문제목": "융자·보증 지원기관",
+             "조문내용": "융자 보증 지원기관은 중소벤처기업진흥공단·기술보증기금",
+             "structured": {"title": "제7조의2", "paragraphs": []}},
+        ],
+    }
+    result = asyncio.run(search_provision("융자 보증"))
+    ids = [m["provision_id"] for m in result["results"]]
+    assert any(pid.endswith(":JO000702") for pid in ids)  # 가지조문 6자리 JO emit
+    assert any(pid.endswith(":JO0007") for pid in ids)     # 본조문 4자리 JO도 emit(둘 다)
+
+
+def test_get_provision_detail_branch_article_strict_match_v0140(mock_client):
+    """v0.14.0: 동일 조문번호 본조문(제7조)+가지조문(제7조의2) 공존 — JO0007=본조문, JO000702=가지 (엄격 매칭).
+    첫-일치 오도달 없음(제7조의2 조회가 제7조를 반환하지 않음)."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "articles": [
+            {"조문번호": "7", "조문제목": "지원", "조문내용": "제7조 본조문 지원 내용",
+             "structured": {"title": "제7조(지원)", "paragraphs": []}},
+            {"조문번호": "7", "조문가지번호": "2", "조문제목": "융자·보증 지원기관",
+             "조문내용": "제7조의2 융자·보증 지원기관 가지조문 내용",
+             "structured": {"title": "제7조의2(융자·보증 지원기관)", "paragraphs": []}},
+        ],
+    }
+    base_resp = asyncio.run(get_provision_detail("law:287505:JO0007"))
+    assert base_resp["unit_id"] == "JO0007"
+    assert "본조문 지원" in base_resp["content"]
+    assert "가지조문" not in base_resp["content"]  # 교차 오도달 없음
+    branch_resp = asyncio.run(get_provision_detail("law:287505:JO000702"))
+    assert branch_resp["unit_id"] == "JO000702"
+    assert branch_resp["title"] == "융자·보증 지원기관"
+    assert "가지조문 내용" in branch_resp["content"]
 
 
 def test_doc_level_articles_truncation_backstop_v070(mock_client):
@@ -3114,7 +3268,7 @@ def test_get_provision_detail_small_article_unchanged_v060(mock_client):
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None
     assert "content_available" not in result
-    assert result["contract_version"] == "0.9.0"
+    assert result["contract_version"] == "0.10.0"
 
 
 def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):

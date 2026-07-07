@@ -29,7 +29,10 @@ def test_contract_version_pinned():
     #         또는 oversized_pointer, 별표 패턴 확장) → minor bump.
     # 0.9.0 = get_provision_detail document-level 응답에 articles(조문) 목록 additive(v0.7.0 — 별표
     #         annexes 목록 패턴 재현, JO 발견성 갭 해소) → minor bump.
-    assert CONTRACT_VERSION == "0.9.0"
+    # 0.10.0 = 가지조문(제N조의M) 지원(v0.14.0) — JO 6자리 가지 인코딩(JO000702=제7조의2, 가지별표 BP 6자리
+    #          동형)·_UNIT_PATTERN 협소화(JO 4/6자리·가지 01~99)·검색/doc-level articles/상세에 가지조문 유입
+    #          (거동 변경·신규 provision_id 의미 추가) → minor bump.
+    assert CONTRACT_VERSION == "0.10.0"
 
 
 # === unit_label (v0.1.8 — overflow_candidates label용) ===
@@ -112,7 +115,7 @@ def test_parse_invalid_unit_prefix_fails():
 
 
 def test_parse_invalid_unit_too_few_digits_fails():
-    # JO 뒤 3자리만 — 4자리 이상 필요
+    # JO 뒤 3자리만 — 4자리(본조문)/6자리(가지조문)만 유효
     with pytest.raises(InvalidProvisionId):
         parse("law:189938:JO003")
 
@@ -179,5 +182,36 @@ def test_parse_rejects_undefined_bp_lengths():
         parse("law:189938:BP00012")
     with pytest.raises(InvalidProvisionId):
         parse("law:189938:BP0001023")
-    # JO(조문)는 종전대로 4자리 이상 허용 (불변)
-    assert parse("law:189938:JO00012").unit_id == "JO00012"
+    # v0.14.0 협소화: JO도 BP와 동형으로 4자리(본조문)/6자리(가지조문)만 — 5자리는 reject
+    # (종전 JO\d{4,} 무제한은 6자리 JO000602를 '제602조'로 aliasing시켰음; 서버 emit은 전건 4자리라 실영향 0).
+    with pytest.raises(InvalidProvisionId):
+        parse("law:189938:JO00012")
+
+
+# === v0.14.0: JO 가지조문 (6자리 = 번호4 + 가지2) ===
+def test_parse_branch_article_six_digit_jo():
+    pid = parse("law:287505:JO000702")
+    assert pid.unit_id == "JO000702"
+    assert build("law", "287505", "JO000702") == "law:287505:JO000702"
+    assert unit_type("JO000702") == "article"
+
+
+def test_unit_label_branch_article():
+    assert unit_label("JO000702") == "제7조의2"      # 제7조의2 (융자·보증 지원기관)
+    assert unit_label("JO001503") == "제15조의3"
+    assert unit_label("JO0007") == "제7조"           # 본조문 4자리 불변
+    assert unit_label("JO0702") == "제702조"         # 4자리 = 번호 702 (가지 아님 — 길이로 구분)
+
+
+def test_parse_rejects_branch_zero_jo():
+    # 가지 '00'(=본조문 없음)은 4자리 본조문 JO0007과 의미 중복 → reject (collision-safety, Codex R1).
+    with pytest.raises(InvalidProvisionId):
+        parse("law:287505:JO000700")
+
+
+def test_parse_rejects_five_and_seven_digit_jo():
+    # 5자리·7자리 JO는 디코드 의미 미정의 → reject (BP 4/6자리 협소화와 동형).
+    with pytest.raises(InvalidProvisionId):
+        parse("law:287505:JO00070")     # 5자리
+    with pytest.raises(InvalidProvisionId):
+        parse("law:287505:JO0007021")   # 7자리
