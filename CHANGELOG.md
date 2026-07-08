@@ -3,6 +3,26 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.16.0] - 2026-07-08
+
+**검색 경로 개정 이력 발견성 노출 — search_provision/suggest 결과의 law 조문에 latest_history** — 직전 v0.15.0이 조문 개정 이력(공포일) `latest_history`를 **문서 레벨 조회 전용**으로 넣었으나, 배포 후 브라우저 라이브 eval(claude.ai·Sonnet 5 High) **발견 #1**: 호스트의 "최근 개정 조문?" 기본 본능이 키워드 검색(`search_provision`)이라, 문서레벨 전용 신호를 1턴에 만나지 못하고 사용자 nudge 후 2턴에야 문서레벨 순회로 정답 도달. 검색 경로(검색 결과·추천 후보)에 개정 신호가 0이었다. 이를 `search_provision` 결과의 **law 조문(article) 매치에 `latest_history`를 additive 노출**(v0.15.0 §5.12와 동일 값·헬퍼)하여 검색-first 경로에서 개정 신호를 결정론 데이터로 즉시 인지하게 해소한다(데이터 앵커 > 프롬프트, v0.5.0 원칙). `suggest_review_sources`가 검색 결과 dict를 그대로 복사(`dict(m)`)해 후보를 구성하므로 이 필드가 **추천 후보에도 자동 전파**된다(코드 확인). `contract_version` **0.11.0 → 0.12.0**(§5.13·응답 schema 신규 필드), 패키지 **major** bump(contract bump = 큰 변화: 가운데 +1·마지막 0, 0.15.0 → **0.16.0**·최근 규칙 패턴 contract bump ⟺ major 정합). 지원 규정 수 **52개 불변**. **최소형(leg1 단독)** — 개정 의도 질의 유도 note·`document_provision_id` 노출 두 leg은 **`/disc` 3-AI(Claude+Codex+Gemini) R1 만장일치로 gold-plating 판정·드롭**(note는 이미 있는 서버 안내와 동일한 Level-B 프롬프트 레버라 중복 + base_size 산입 복잡도 위험 / `document_provision_id`는 매치 `provision_id`에서 파생 가능·응답 크기 지배 항·scope creep → backlog 이월). **outage 회피**: 부팅/HTTP transport/health/캐시-bootstrap·파서(live_api)·검색 매칭/랭킹/fallback/fan-out 예산 비의존(응답 build만 변경)·`_article_amendment_history` never-raise 재사용(추가 네트워크 0·CPU regex만)·16k char 예산 내 뒤쪽 절단(응답 초과·크래시 구조상 불가)·롤백 먼저.
+
+### Added
+
+- **`latest_history` 검색 노출**(`main.py` `search_provision` article emit 분기): law 조문 매치에 `_article_amendment_history(art)` 값이 있으면 `latest_history`(예 `"개정 2025.12.30(공포)"`) additive 부착. `rs.api_target == LAW` 한정(평면 admrul·별표 매치는 조문참고자료 미보유라 None → 필드 생략)·마커 부재 시 생략·`_build_match` 내부가 아니라 article 분기에서만 부착(별표 경로 오염 원천 차단). `suggest_review_sources` 후보에 자동 전파(shallow copy).
+- **테스트**(`tests/test_tools.py`): law 조문 매치 부착·admrul/별표 매치 생략·마커 부재 생략·suggest 후보 전파·검색 응답 허용키 집합에 `latest_history` 추가·contract 0.12.0/패키지 0.16.0 잠금. 테스트 334 → **339**.
+- **acceptance spec**(`tests/acceptance/v0_16_0.py`): '개정' 질의에서 law 조문 매치에 `latest_history` 부착 존재·무회귀 '연구개발비' returned ≥ 10·중기법 도달. Level B에 v0.15.0 발견 #1 그 질의(중기법 "2026 개정 조문") before/after 검증 프롬프트.
+
+### Changed
+
+- **정직 framing**(`_SERVER_INSTRUCTIONS`·`search_provision`/`review_regulation` docstring·프롬프트·README byte-sync): 검색·추천 결과의 `latest_history`는 키워드에 걸린 조문에 한정되므로 개정 조문 **전수** 확인은 문서레벨 `articles` 목록을 사용하도록 명시. 날짜=공포일(값에 (공포) 표기·시행일 아님)·유형은 마커 유형·필드 부재 ≠ 미개정 보증은 v0.15.0 문구 재사용.
+- `contract_version` **0.11.0 → 0.12.0**(§5.13). `docs/api_contract.md` §5.13 신설·변경 이력 표 행 추가.
+
+### Deferred (backlog)
+
+- **개정 의도 질의 유도 top-level note** — 배포 후 eval에서 "검색 `latest_history`는 봤으나 문서레벨 전수 이동 실패"가 재현되면 후속 소형 릴리스로 재상정.
+- **`document_provision_id` per-match 노출** — 발견성 대비 응답 크기 비용·`provision_id` 파생 가능성으로 드롭.
+
 ## [0.15.0] - 2026-07-08
 
 **law 조문 개정 이력(공포일) 발견성 — 문서 레벨 개정 힌트** — 특정 법령의 "최근 개정된 조문"을 조문 목록 레벨에서 발견 가능하게 한다. 종전에는 조문 개정 마커(`<개정 2025.12.30>` 등)가 조문 content 안에만 있어 개별 조문을 하나씩 열어야만 보였다(닭-달걀: 어느 조문이 개정됐는지 모르면 열 조문을 고를 수 없음). v0.13.1 라이브 eval **shortfall A**에서 「중소기업 기술혁신 촉진법」(MST 281987)이 2026-07-01 시행 개정(제10조 융자 지원 도입·제18조③ SW 사용료 지원 신설)됐는데도 호스트가 제15·31조만 조회한 뒤 "법률 2026 개정 확인 안 됨"으로 **false-negative** 결론을 낸 결함을 직접 겨냥한다. document-level `articles` 목록의 각 조문 항목과 `get_provision_detail`(JO) 상세에, 그 조문의 최신 이력 마커 `latest_history`(예 `"개정 2025.12.30(공포)"`·`"본조신설 2026.6.30(공포)"`·`"삭제 2020.3.3(공포)"`)를 additive로 노출한다(마커 없으면 필드 생략). `contract_version` **0.10.0 → 0.11.0**(응답 schema 신규 필드), 패키지 **major** bump(시스템 전역 신규 조회 유형 + contract bump = 큰 변화: 가운데 숫자 +1·마지막 0, 0.14.0 → **0.15.0**). 지원 규정 수 **52개 불변**. **law 트랙 한정**(admrul 평면 schema는 조문별 개정 마커가 없어 — LIVE census 확정 — 전건 미부착). **`/disc` 3-AI(Claude+Codex+Gemini) R1 3/3 GO·blocking 0**(후보 A 만장일치·조문시행일자 필드 reject[문서 시행일 echo·혁신법은 미래 분리시행일 오염]·조문변경여부 비노출[비공식 귀납·직전 공포 1건 한정]·content+조문참고자료 병행 소스[신설 조문은 참고자료가 유일 소스]·최소형 표면 합의). **law 29문서 전수 census(law-api-prober LIVE)가 구현을 1건 교정**: 조문참고자료에서 임의 날짜 loose-grab이 `[법률 제16892호(2020.1.29) …개정…]` 타법 개정 참조의 날짜를 이 조문 이력으로 오추출 → **접두 라벨 anchored 추출만**으로 폐쇄(이동 재번호도 함께 배제). **outage 회피**: 부팅/HTTP transport/health/캐시-bootstrap 비의존(도구 응답 build만 변경)·doc-level 집계는 검색 fan-out과 미공유 요청격리 경로(검색 latency 0)·신규 파서/추출 코드 never-raise(fault-isolation)·롤백 먼저.

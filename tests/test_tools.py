@@ -543,7 +543,7 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
     """suggest 응답에 현행 contract_version(0.10.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.11.0"
+    assert result["contract_version"] == "0.12.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -868,7 +868,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.11.0"
+    assert result["contract_version"] == "0.12.0"
 
 
 # === _build_article_content  ===
@@ -2378,6 +2378,73 @@ def test_law_detail_captures_reference_field_v0150(monkeypatch):
     assert arts[1].get("조문참고자료", "") == ""  # 태그 부재 → 빈 값(findtext 기본)
 
 
+# === v0.16.0: 검색 경로 개정 이력 노출 (search_provision/suggest 결과에 latest_history) ===
+def test_search_law_article_latest_history_v0160(mock_client):
+    """v0.16.0: 검색 결과의 law 조문 매치에 latest_history 부착(마커 보유)·무마커 조문은 필드 생략.
+    v0.15.0 doc-level 전용이던 신호를 검색-first 경로에서도 결정론 데이터로 노출(발견 #1 해소)."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "articles": [
+            {"조문번호": "10", "조문제목": "융자 지원", "조문내용": "제10조(융자 지원) 융자 본문 <개정 2025.12.30>",
+             "structured": {"title": "제10조", "paragraphs": []}},
+            {"조문번호": "5", "조문제목": "융자 정의", "조문내용": "제5조 융자 정의 (마커 없음)",
+             "structured": {"title": "제5조", "paragraphs": []}},
+        ],
+    }
+    result = asyncio.run(search_provision("융자"))
+    law_arts = [m for m in result["results"]
+                if m["provision_id"].startswith("law:") and m["unit_type"] == "article"]
+    j10 = next(m for m in law_arts if m["unit_id"] == "JO0010")
+    j5 = next(m for m in law_arts if m["unit_id"] == "JO0005")
+    assert j10["latest_history"] == "개정 2025.12.30(공포)"  # 마커 보유 → 부착
+    assert "latest_history" not in j5  # 무마커 → 생략(부재 ≠ 미개정)
+
+
+def test_search_admrul_article_omits_latest_history_v0160(mock_client):
+    """v0.16.0: admrul 조문 매치는 latest_history 미부착(law 한정 게이트) — content에 마커가 있어도
+    api_target 게이트로 차단(평면 admrul은 조문참고자료 미보유라 실제 마커도 0)."""
+    base = mock_client.get_admin_rule_detail.return_value
+    mock_client.get_admin_rule_detail.return_value = {
+        **base,
+        "articles": [
+            {"조문번호": "3", "조문제목": "융자관리", "조문내용": "제3조 융자관리 <개정 2025.12.30>",
+             "structured": {"title": "제3조", "paragraphs": []}},
+        ],
+        "annexes": [],
+    }
+    result = asyncio.run(search_provision("융자관리"))
+    admrul_arts = [m for m in result["results"]
+                   if m["provision_id"].startswith("admrul:") and m["unit_type"] == "article"]
+    assert admrul_arts, "admrul 조문 매치가 있어야"
+    assert all("latest_history" not in m for m in admrul_arts)  # law 한정 게이트로 미부착
+
+
+def test_search_annex_omits_latest_history_v0160(mock_client):
+    """v0.16.0: 별표(annex) 매치는 latest_history 미부착 — law 조문 분기에서만 부착(별표 경로 오염 차단)."""
+    result = asyncio.run(search_provision("계상기준"))  # 기본 mock annex 제목 매칭
+    annex_matches = [m for m in result["results"] if m["unit_type"] == "annex"]
+    assert annex_matches, "별표 매치가 있어야"
+    assert all("latest_history" not in m for m in annex_matches)
+
+
+def test_suggest_propagates_latest_history_v0160(mock_client):
+    """v0.16.0: search 결과의 latest_history가 suggest_review_sources 후보에 자동 전파(dict 복사)."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "articles": [
+            {"조문번호": "10", "조문제목": "융자 지원", "조문내용": "제10조 융자 지원 본문 <개정 2025.12.30>",
+             "structured": {"title": "제10조", "paragraphs": []}},
+        ],
+    }
+    result = asyncio.run(suggest_review_sources("융자 지원 조문", keywords=["융자"]))
+    law_cands = [c for c in result["candidates"]
+                 if c["provision_id"].startswith("law:") and c.get("unit_type") == "article"]
+    assert law_cands, "law 조문 후보가 있어야"
+    assert any(c.get("latest_history") == "개정 2025.12.30(공포)" for c in law_cands)
+
+
 def test_doc_level_articles_truncation_backstop_v070(mock_client):
     """v0.7.0 size 백스톱: 다수의 짧은 조문(빈 제목 400건 — 적대검증 BLOCKING1 재현 케이스)으로 예산
     초과 시 절단 + articles_truncated + ★최종 직렬화(플래그·경고 포함)가 hard 한도(16,000) 이내.
@@ -2993,10 +3060,11 @@ def test_search_provision_relevance_survives_truncation(mock_client, monkeypatch
 
 
 def test_search_provision_no_relevance_score_leak(mock_client):
-    """정렬키·score가 응답 결과에 누출되지 않음 — 알려진 키만 보유(schema 무변·contract 0.6.0 유지)."""
+    """정렬키·score가 응답 결과에 누출되지 않음 — 알려진 키만 보유. v0.16.0: latest_history 추가."""
     result = asyncio.run(search_provision("특별평가"))
     allowed = {"provision_id", "rule_set_id", "document_title", "unit_id", "unit_type",
-               "title", "snippet", "warnings", "effective_date", "revision_notice"}
+               "title", "snippet", "warnings", "effective_date", "revision_notice",
+               "latest_history"}
     for r in result["results"]:
         assert set(r.keys()) <= allowed, f"예상치 못한 키: {set(r.keys()) - allowed}"
 
@@ -3399,7 +3467,7 @@ def test_get_provision_detail_small_article_unchanged_v060(mock_client):
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None
     assert "content_available" not in result
-    assert result["contract_version"] == "0.11.0"
+    assert result["contract_version"] == "0.12.0"
 
 
 def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):

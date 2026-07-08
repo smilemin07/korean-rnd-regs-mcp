@@ -66,6 +66,8 @@ _SERVER_INSTRUCTIONS = (
     "(검색 실패 시 등록(manifest) 버전일 수 있고 개정 안내가 없어도 현행이라는 뜻은 아니므로, 현행 여부 단정이 필요하면 1차 출처에서 확인). "
     "특정 법령의 '최근 개정된 조문'을 물으면, 문서레벨 get_provision_detail(unit_id 없이) 응답의 articles 목록에서 "
     "각 조문의 latest_history 필드(예 '개정 2025.12.30(공포)'·'본조신설 2026.6.30(공포)')로 최근 변경 조문을 찾아 그 조문을 조회하십시오. "
+    "search_provision·suggest_review_sources 결과의 law 조문 매치에도 latest_history가 있으면 함께 실리나, 이는 키워드에 걸린 조문에 한정되므로 "
+    "개정 조문 전수 확인은 문서레벨 articles 목록을 사용하십시오. "
     "이 값의 날짜는 공포일이며(값에 (공포) 표기) 시행일이 아니고, 유형(개정·신설·삭제 등)은 해당 날짜에 부착된 마커 유형일 뿐 개정 범위·중요도를 뜻하지 않습니다. "
     "latest_history가 없는 조문을 '개정되지 않았다'고 단정하지 마십시오(마커를 캡처하지 못한 것일 수 있음). "
     "MCP에 등록되었거나 list_rule_sets·search_provision으로 검색·조회된 규정을 외부 검색에서 찾지 못했다는 이유만으로 "
@@ -1219,6 +1221,11 @@ async def search_provision(query: str) -> dict:
     snippet은 _SNIPPET_MAX (2000자)로 제한, 전체 응답은 16k char 예산 내(초과 시 뒤쪽
     결과 절단·truncated=true — 광역 질의는 키워드를 좁혀 재검색할 것) — MCP output size limit 회피.
 
+    v0.16.0: law 조문 매치에 최신 개정 이력 힌트가 있으면 `latest_history`(예 "개정 2025.12.30(공포)")를
+    additive 노출 — '최근 개정 조문' 질의에서 검색 결과만으로 개정 조문을 인지 가능(마커 부재 매치·평면
+    admrul·별표는 생략). 날짜는 공포일(값에 (공포) 표기·시행일 아님)이고, 검색 매치는 키워드에 걸린 조문에
+    한정되므로 특정 법령의 개정 조문 전수 확인은 문서레벨 get_provision_detail(unit 없이)의 articles 목록으로.
+
     매칭 (v0.1.6): query를 공백으로 토큰 분해하여 모든 토큰(2자 이상)이 한 조문/별표의
     제목 또는 본문에 존재하면 매칭(토큰 AND). 단일 토큰 query는 종전과 동일한 부분문자열 매칭.
     원문이 "협약의 변경/협약을 변경"으로 써서 "협약 변경"이 안 잡히던 띄어쓰기 불일치를 해소.
@@ -1354,9 +1361,20 @@ async def search_provision(query: str) -> dict:
                     unit_id = _article_unit_id(art)
                     if unit_id:
                         snippet = _snippet_for(content)
+                        match = _build_match(rs, unit_id, "article", title, snippet, resolved)
+                        # v0.16.0: law 조문 매치에 최신 개정 이력 힌트(latest_history) additive —
+                        # 검색-first 호스트가 '최근 개정 조문' 질의에서 개정 신호를 검색 경로에서 즉시
+                        # 인지(v0.15.0의 doc-level 전용 노출 갭 해소·데이터 앵커>프롬프트). law 한정
+                        # (평면 admrul·annex는 조문참고자료 미보유라 항상 None)·마커 부재 시 필드 생략·
+                        # never-raise 헬퍼 재사용. 값=공포일(값에 (공포) 표기·시행일 아님). _build_match
+                        # 내부가 아니라 여기(article 분기)에서만 부착 — annex 경로 오염 원천 차단.
+                        if rs.api_target == ApiTarget.LAW:
+                            _hist = _article_amendment_history(art)
+                            if _hist:
+                                match["latest_history"] = _hist
                         _scored.append((
                             _relevance_sort_key(rs, tokens, title, content, "article", _ordinal),
-                            _build_match(rs, unit_id, "article", title, snippet, resolved)))
+                            match))
                         _ordinal += 1
 
         # annex 검색 — 별표구분=='별표' 한정 + 가지-aware BP id (v0.2.1: 별지·서식은
@@ -2029,7 +2047,7 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
    - 별표 상세 응답에 dependent_article_hints가 있으면, 힌트에 적힌 조문을 같은 문서에서 get_provision_detail로 함께 조회할 것. 힌트는 별표 제목에서 뽑은 미검증 단서이므로 힌트 자체를 근거로 인용하지 말고, 조회된 조문 원문만 근거로 삼을 것. 이 동반 조회는 힌트에 적힌 조문 1단계까지만 자동 수행하고, 그 조문에서 이어지는 참조는 본 5단계의 일반 규칙에 따를 것.
    - 별표 번호나 가지번호가 불확실하면 BP provision_id를 추측해 호출하지 말 것. 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 annexes 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.
    - 조문(JO)도 마찬가지로, 특정 조문의 provision_id가 불확실하면 추측하지 말고 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 articles 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.
-   - '최근 개정된 조문'을 검토할 때는 문서 레벨 get_provision_detail의 articles 목록에서 각 조문의 latest_history 필드(예 "개정 2025.12.30(공포)")로 최근 변경 조문을 찾아 그 조문을 조회할 것. 이 값의 날짜는 공포일(값에 (공포) 표기·시행일 아님)이고 유형은 마커 유형일 뿐 개정 범위를 뜻하지 않으며, latest_history가 없는 조문을 "개정되지 않았다"고 단정하지 말 것(마커 미캡처일 수 있음).
+   - '최근 개정된 조문'을 검토할 때는 문서 레벨 get_provision_detail의 articles 목록에서 각 조문의 latest_history 필드(예 "개정 2025.12.30(공포)")로 최근 변경 조문을 찾아 그 조문을 조회할 것. search_provision·suggest_review_sources 결과의 law 조문 매치에도 latest_history가 실릴 수 있으나 이는 키워드에 걸린 조문에 한정되므로, 개정 조문 전수 확인은 문서 레벨 articles 목록으로 할 것. 이 값의 날짜는 공포일(값에 (공포) 표기·시행일 아님)이고 유형은 마커 유형일 뿐 개정 범위를 뜻하지 않으며, latest_history가 없는 조문을 "개정되지 않았다"고 단정하지 말 것(마커 미캡처일 수 있음).
    - 참조 조항 확인 없이 결론을 확정하지 말 것.
 
 6. 조문 요건 해석, 사실관계 분석, 상위 규정 우선 원칙

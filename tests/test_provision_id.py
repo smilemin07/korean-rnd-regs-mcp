@@ -32,7 +32,8 @@ def test_contract_version_pinned():
     # 0.11.0 = 조문 개정 이력 발견성(v0.15.0)·직전 0.10.0 = 가지조문(제N조의M) 지원(v0.14.0) — JO 6자리 가지 인코딩(JO000702=제7조의2, 가지별표 BP 6자리
     #          동형)·_UNIT_PATTERN 협소화(JO 4/6자리·가지 01~99)·검색/doc-level articles/상세에 가지조문 유입
     #          (거동 변경·신규 provision_id 의미 추가) → minor bump.
-    assert CONTRACT_VERSION == "0.11.0"
+    # 0.12.0 = 검색 경로 개정 이력 노출(v0.16.0) — search_provision/suggest 결과의 law 조문 매치에 latest_history additive(§5.13) → minor bump.
+    assert CONTRACT_VERSION == "0.12.0"
 
 
 # === unit_label (v0.1.8 — overflow_candidates label용) ===

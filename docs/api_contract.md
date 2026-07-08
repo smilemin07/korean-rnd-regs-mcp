@@ -1,6 +1,6 @@
 # korean-rnd-regs-mcp API Contract
 
-- contract_version: **0.11.0** (0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 minor bump, §6 변경 이력 참조)
+- contract_version: **0.12.0** (0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 → 0.12.0 minor bump, §6 변경 이력 참조)
 - 작성일: 2026-05-24 (0.2.0 개정: 2026-06-04, 0.3.0 개정: 2026-06-07, 0.4.0 개정: 2026-06-09, 0.5.0 개정: 2026-06-10, 0.6.0 개정: 2026-06-13, 0.7.0 개정: 2026-06-21, 0.8.0 개정: 2026-06-21, 0.9.0 개정: 2026-06-22, 0.10.0 개정: 2026-07-07)
 - semver 정책: 0.x.x 대역은 unstable signal — minor bump(0.1.0 → 0.2.0)도 breaking change 허용. v0.2 가지조문 확장 시 0.2.0 minor bump로 자연스럽게 처리 (1.0.x 유지 시 2.0 major bump 필요했음)
 - 변경 정책: 본 문서 변경은 외부 사용자 코드·Claude Desktop 캐시·README 예시를 깰 수 있으므로 0.1.0 publish 이후 신중히 (§6 참조)
@@ -111,7 +111,7 @@ law:189938:BP000102              # 법령 별표 1의2 형식 (가지별표 인�
     },
     ...
   ],
-  "contract_version": "0.11.0",
+  "contract_version": "0.12.0",
   "disclaimer": "본 결과는 검토 후보일 뿐 법률 판단이 아닙니다. 출처를 직접 확인하세요."
 }
 ```
@@ -242,9 +242,16 @@ law:189938:BP000102              # 법령 별표 1의2 형식 (가지별표 인�
 - **안전·크기**: 값은 원문 verbatim(공백만 정규화)·비교용으로만 int 파싱 → fabrication 0. 추출 헬퍼는 **never-raise**(doc-level articles 조립 comprehension·`_build_article_detail` head에 per-item try 부재 → raise 시 문서 detail 전체 실패; 모든 파싱을 findall/int try로 격리, 단위 테스트로 불변식 잠금). 신규 필드는 마커 보유 조문당 ~30자 — 배포 전 law 29문서 전수 실측상 최악 doc-level(industry_tech_decree 84조문)=11,239자 < 16,000 예산(전 52규정 16k 초과 0·`articles_truncated` 0), 기존 size 백스톱(§5.10)이 추가 안전망.
 - **동기**: 응답 schema 신규 필드(document-level articles 항목·JO 상세) → contract_version **0.11.0**(0.10.0 → 0.11.0). 검색/랭킹/fallback/fan-out 알고리즘·transport·외부 URL·규정 수(52) 불변. C4 평면 admrul 항·호 structured 분해·목 structured parity는 별도 의도(scope 밖).
 
+### 5.13 검색 경로 개정 이력 노출 — search_provision/suggest 결과에 latest_history (0.12.0 minor — 응답 additive 필드)
+
+- **`latest_history` 필드** (additive): `search_provision` 결과의 **law 조문(article) 매치**에, 그 조문에 §5.12의 최신 개정 이력 마커가 있으면 `latest_history` 문자열(예 `"개정 2025.12.30(공포)"`)을 추가 — §5.12 문서레벨 노출과 동일한 값·헬퍼(`_article_amendment_history`, never-raise). `suggest_review_sources`는 `search_provision` 결과 dict를 그대로 복사해 후보를 구성하므로(코드상 `dict(m)` shallow copy·snippet만 교체) 이 필드가 후보에도 **자동 전파**된다. 마커 없는 매치·평면 admrul·별표(annex) 매치는 값이 항상 None이라 **필드 생략**.
+- **동기**: v0.15.0 라이브 eval 발견 #1 — 호스트의 "최근 개정 조문?" 기본 본능이 키워드 검색(`search_provision`)이라, 문서레벨 전용이던 §5.12 `latest_history`를 1턴에 발견하지 못하고 사용자 nudge 후에야 문서레벨 순회로 도달. 검색 경로의 매칭 조문 자체에 개정 신호를 결정론 데이터로 심어(데이터 앵커 > 프롬프트) 검색-first 경로에서 즉시 인지 가능하게 해소. 검색 매치는 키워드에 걸린 조문에 한정되므로 개정 조문 **전수** 확인은 여전히 문서레벨 articles 목록(§5.10·§5.12)을 사용 — 이 한정을 `_SERVER_INSTRUCTIONS`·docstring·`review_regulation` 프롬프트(README byte-sync)에 명시.
+- **안전·크기**: `_article_amendment_history`는 §5.12에서 확립된 never-raise 헬퍼를 재사용(추가 네트워크 0·CPU regex만)·law 조문 분기에서만 부착(`_build_match` 내부 미주입 → 별표 경로 오염 원천 차단). 신규 필드는 마커 보유 law 조문 매치당 ~40자. 검색 응답은 기존 16k char 예산(§5.2·§5.11) 내에서 뒤쪽 결과를 절단(`truncated=true`)하는 방식이라 응답 초과·크래시는 구조상 불가하며, 예산-포화 광역 질의에서 뒤쪽 매치 1건이 조기 절단될 수 있음(무회귀 하한 유지는 배포 전 LIVE 실측으로 확인). 16k 상수 불변.
+- **동기**: 응답 schema 신규 필드(search_provision 결과 항목·전파로 suggest 후보) → contract_version **0.12.0**(0.11.0 → 0.12.0). 파서(live_api)·검색 매칭/랭킹/fallback/fan-out 알고리즘·transport·외부 URL·규정 수(52) 불변. 개정 의도 질의 유도 note·document_provision_id 노출은 별도 의도(scope 밖·backlog).
+
 ## 6. contract_version 관리
 
-- 본 문서 contract_version: **0.11.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 minor)
+- 본 문서 contract_version: **0.12.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 → 0.12.0 minor)
 - 코드 상수: `korean_rnd_regs_mcp.provision_id.CONTRACT_VERSION`
 - 변경 정책 (0.x.x — unstable signal):
 
@@ -295,5 +302,6 @@ law:189938:BP000102              # 법령 별표 1의2 형식 (가지별표 인�
 | 0.9.0 (유지) | 2026-07-06 | 패키지 **0.13.1** manifest 현행 정합성(중소기업 기술혁신 촉진법 family 시행일·doc_id 동기화). **contract_version bump 없음** — 응답 schema·필드·shape·오류코드·검색/랭킹/fallback·transport·캐시·외부 URL·규정 수(52) 불변. (데이터) `rule_sets.yaml` 4필드 현행화(2026-07-01 개정 발효 반영): `sme_tech_act` api_doc_id 286263→281987·effective_date 2026-05-26→2026-07-01 / `sme_tech_decree` api_doc_id 283001→287505·effective_date 2026-02-01→2026-07-01(+known_limitations LIVE 검증일 주석 2026-06-12→2026-07-06·수치 불변). `/regs-audit` 전수 감사(law-api-prober 2026-07-06): 52건 중 CHANGED 2건은 이 둘뿐(50건 현행 일치·resolve 실패 0)·직접 lawSearch 재검증(신 MST 단건 현행·C12 준수). 런타임은 search-first라 정상 조회 무영향이나 fallback doc_id·list_rule_sets 표시 시행일·개정 드리프트 노트의 현행성 결함 폐쇄. 코드 로직 0줄·선례 v0.2.4(계약 외 데이터). 도구 응답·계약 무변 → 0.9.0 유지 |
 | **0.10.0** | 2026-07-07 | **minor bump** (패키지 **0.14.0**). 가지조문(제N조의M) 지원(§5.11) — provision_id JO 6자리 가지 인코딩(`JO{번호4}{가지2}`, 예 `JO000702`=제7조의2·가지별표 BP 6자리 동형)·`_UNIT_PATTERN` 협소화(`JO\d{4}(?:0[1-9]|[1-9]\d)?` — 종전 무제한 `JO\d{4,}`의 6자리 aliasing(JO000602→제602조) 폐쇄·가지 01~99만·가지 00 reject·서버 emit 전건 4자리라 실 blast 0). 파서 3경로(중첩 law·중첩 admrul·평면 admrul `_parse_flat_article`)가 종전 skip하던 가지조문을 포함하고 `조문가지번호` 노출(findtext·never-raise — `get_law_detail` articles 조립 per-article try 부재라 raise 금지·단위 테스트 잠금). 검색 emit·document-level `articles` 목록·`get_provision_detail`(JO) 상세가 단일 공유 헬퍼 `_article_unit_id`/`_article_branch_no`(BP `_annex_unit_id` 미러)로 (번호,가지) id 생성·엄격 매칭(제7조↔제7조의2 distinct·첫-일치 오도달 0). 동기=v0.13.1 라이브 eval에서 중소기업 기술혁신 촉진법 시행령(287505) 2026.6.30 개정 신설 제7조의2·제8조의2가 가지조문이라 미반환한 갭(system-wide·law 29문서 181개 가지조문 미반환·약 19% 커버리지 갭) 해소. 부수(계약 외): `review_regulation`·README "가지조문 누락 가능" 한계 고지를 지원 안내로 정정(byte-sync). C4 평면 admrul 항·호 structured 분해·개정 조문 발견성·목 structured parity는 scope 밖(가지조문도 content 전문 반환·평면 `article_structure.paragraphs`는 종전대로 빈 배열). 검색/랭킹/fallback/fan-out/transport/bootstrap/캐시·외부 URL·규정 수(52) 불변. provision_id 포맷 확장 + 응답 거동 → 0.9.0 → 0.10.0 |
 | **0.11.0** | 2026-07-08 | **minor bump** (패키지 **0.15.0**). 조문 개정 이력(공포일) 발견성(§5.12) — document-level `articles` 목록(§5.10) 항목·`get_provision_detail`(JO) 상세에 조문별 최신 이력 마커 `latest_history` 문자열 additive(예 `"개정 2025.12.30(공포)"`·`"본조신설 2026.6.30(공포)"`·`"삭제 2020.3.3(공포)"`), 마커 없으면 필드 생략. 소스=조문 content 꺾쇠 마커(`<개정 …>`·`<신설 …>`·삭제 무접두 `<날짜>`)+`조문참고자료` 대괄호 마커(`[본조신설 …]`·`[전문개정 …]`·`[제목개정 …]`)의 최신 공포일. ★조문참고자료는 접두 라벨 anchored만 추출(타법 개정 참조 `[법률 제N호(날짜)…]`·이동 재번호 날짜 오추출 배제·law 29문서 census). 값=공포일(시행일 아님)·유형은 마커 유형(개정 범위 아님)·필드 부재≠미개정 보증을 `_SERVER_INSTRUCTIONS`·docstring·프롬프트에 명시(신규 false-negative 차단). `live_api` 파서 3경로에 `조문참고자료` findtext 캡처(never-raise), main `_article_amendment_history` 추출(never-raise·verbatim·fabrication 0). law 트랙 한정(admrul 평면은 조문별 마커 0). 동기=v0.13.1 라이브 eval shortfall A(호스트가 개정 조문을 몰라 법률 개정 false-negative). 배포 전 law 29문서 전수 census(마커 형식 이상치 0)+size 실측(최악 doc-level 11,239자<16k·전 52규정 초과 0). 검색/랭킹/fallback/fan-out/transport/bootstrap/캐시·외부 URL·규정 수(52) 불변. 응답 schema 신규 필드 → 0.10.0 → 0.11.0 |
+| **0.12.0** | 2026-07-08 | **minor bump** (패키지 **0.16.0**). 검색 경로 개정 이력 노출(§5.13) — `search_provision` 결과의 law 조문(article) 매치에 §5.12 최신 이력 마커가 있으면 `latest_history` 문자열 additive(예 `"개정 2025.12.30(공포)"`), 마커 없는 매치·평면 admrul·별표(annex) 매치는 필드 생략. §5.12 문서레벨 노출과 동일 값·헬퍼(`_article_amendment_history`, never-raise)를 검색 article emit 분기에서 law 한정 재사용(`_build_match` 내부 미주입 → 별표 경로 오염 차단·추가 네트워크 0). `suggest_review_sources`는 `search_provision` 결과 dict를 `dict(m)`로 복사해 후보를 구성하므로 필드가 후보에 자동 전파. 동기=v0.15.0 라이브 eval 발견 #1(호스트 "최근 개정 조문?" 기본 본능이 키워드 검색이라 문서레벨 전용 latest_history를 1턴에 미발견) — 검색 경로 매칭 조문에 개정 신호를 결정론 데이터로 심어 해소(데이터 앵커 > 프롬프트). 검색 매치는 키워드 한정이라 개정 조문 전수 확인은 문서레벨 articles 목록임을 `_SERVER_INSTRUCTIONS`·docstring·프롬프트에 명시(README byte-sync). 개정 의도 note·document_provision_id는 scope 밖(backlog). 신규 필드 ~40자/매치·16k 예산 내 뒤쪽 절단(응답 초과·크래시 구조상 불가)·상수 불변. 파서·검색 매칭/랭킹/fallback/fan-out/transport/bootstrap/캐시·외부 URL·규정 수(52) 불변. 응답 schema 신규 필드 → 0.11.0 → 0.12.0 |
 
 - 도구 응답에 `contract_version` 필드 포함 권장 (search_provision·get_provision_detail·suggest_review_sources). 클라이언트가 호환 여부 확인 가능.
