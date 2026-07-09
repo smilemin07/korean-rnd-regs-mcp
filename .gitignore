@@ -29,6 +29,8 @@ uv.lock
 
 # Internal dev notes — not for public
 CLAUDE.md
+# CLAUDE.md 백업·아카이브류 (개편/rephrase 시 생성될 수 있음 — 2026-07-09 유지보수 원칙: 원칙은 repo 밖 보관, 본 패턴은 방어)
+CLAUDE.md.*
 .claude/
 
 # Working materials unrelated to the package (공모전 응모서·부처 보고서 초안 등) — never publish
