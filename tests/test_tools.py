@@ -543,7 +543,7 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
     """suggest 응답에 현행 contract_version(0.10.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.12.0"
+    assert result["contract_version"] == "0.13.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -868,7 +868,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.12.0"
+    assert result["contract_version"] == "0.13.0"
 
 
 # === _build_article_content  ===
@@ -2445,6 +2445,76 @@ def test_suggest_propagates_latest_history_v0160(mock_client):
     assert any(c.get("latest_history") == "개정 2025.12.30(공포)" for c in law_cands)
 
 
+# === v0.17.0: 개정 전/후 대조(redline) 최소형 (문서레벨 amendment_text·amendment_kind) ===
+def test_doc_level_amendment_text_and_kind_v0170(mock_client):
+    """v0.17.0: law 문서레벨 응답에 개정문(amendment_text)·제개정구분(amendment_kind) additive.
+    일부개정 규정은 둘 다 부착·verbatim."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "제개정구분": "일부개정",
+        "개정문내용": "제10조의 제목 중 \"출연\"을 \"지원\"으로 하고, 같은 조 제1항 중 ...",
+    }
+    result = asyncio.run(get_provision_detail("law:283849"))
+    assert result["amendment_kind"] == "일부개정"
+    assert result["amendment_text"].startswith("제10조의 제목 중")
+    assert "출연" in result["amendment_text"] and "지원" in result["amendment_text"]  # verbatim delta
+    assert "amendment_text_omitted" not in result  # 소형 → 통째 부착
+
+
+def test_doc_level_amendment_skip_when_제정_v0170(mock_client):
+    """v0.17.0: 제개정구분=='제정'이면 amendment_text skip(전체 신설 — blob 정체=서명부+부칙),
+    amendment_kind만 부착('제정' 신호로 호스트가 구분)."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "제개정구분": "제정",
+        "개정문내용": "국무회의의 심의를 거친 ... 대통령 ... 부칙 ...(서명부·부칙 blob)",
+    }
+    result = asyncio.run(get_provision_detail("law:283849"))
+    assert result["amendment_kind"] == "제정"
+    assert "amendment_text" not in result  # 제정 → skip
+    assert "amendment_text_omitted" not in result  # skip은 생략(omit)이 아님 — 플래그 미부착
+
+
+def test_doc_level_amendment_admrul_omitted_v0170(mock_client):
+    """v0.17.0: admrul 문서레벨은 amendment_text·amendment_kind 미부착(law-only 게이트).
+    get_admin_rule_detail은 개정문 필드 미파싱이라 detail에 키 자체가 없음."""
+    result = asyncio.run(get_provision_detail("admrul:2100000278740"))
+    assert "amendment_text" not in result
+    assert "amendment_kind" not in result
+    assert "amendment_text_omitted" not in result
+
+
+def test_doc_level_amendment_omitted_when_oversized_v0170(mock_client):
+    """v0.17.0: 개정문이 커서 예산 초과 시 whole-or-omit — amendment_text 통째 생략 +
+    amendment_text_omitted 플래그, ★articles(발견성)는 100% 보존(절단 금지)."""
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "제개정구분": "일부개정",
+        "개정문내용": "가" * 20000,  # 예산(16,000) 훨씬 초과
+    }
+    result = asyncio.run(get_provision_detail("law:283849"))
+    assert result["amendment_kind"] == "일부개정"  # 소형 kind는 부착
+    assert "amendment_text" not in result  # 통째 생략(절단 아님)
+    assert result["amendment_text_omitted"] is True
+    assert len(result["articles"]) == 2  # 원본 조문 2건 그대로 보존
+    assert any("생략" in w for w in result["warnings"])  # 안내 경고
+    import json as _json
+    assert len(_json.dumps(result, ensure_ascii=False)) <= 16000  # 최종 응답 예산 내
+
+
+def test_doc_level_amendment_absent_field_graceful_v0170(mock_client):
+    """v0.17.0: 개정문 필드가 없는 law 문서(예: OpenAPI 미반환)도 graceful — amendment 필드 미출현·무크래시.
+    (기본 mock은 개정문 키가 없어 부재 케이스를 그대로 검증)"""
+    result = asyncio.run(get_provision_detail("law:283849"))
+    assert "amendment_text" not in result
+    assert "amendment_kind" not in result
+    assert "amendment_text_omitted" not in result
+    assert "articles" in result  # 기존 응답 정상
+
+
 def test_doc_level_articles_truncation_backstop_v070(mock_client):
     """v0.7.0 size 백스톱: 다수의 짧은 조문(빈 제목 400건 — 적대검증 BLOCKING1 재현 케이스)으로 예산
     초과 시 절단 + articles_truncated + ★최종 직렬화(플래그·경고 포함)가 hard 한도(16,000) 이내.
@@ -3467,7 +3537,7 @@ def test_get_provision_detail_small_article_unchanged_v060(mock_client):
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None
     assert "content_available" not in result
-    assert result["contract_version"] == "0.12.0"
+    assert result["contract_version"] == "0.13.0"
 
 
 def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):

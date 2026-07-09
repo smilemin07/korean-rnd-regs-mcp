@@ -470,6 +470,14 @@ class LawApiClient:
                 "소관부처명": root.findtext(".//소관부처", ""),
                 "시행일자": root.findtext(".//시행일자", ""),
                 "공포일자": root.findtext(".//공포일자", ""),
+                # v0.17.0: 개정 전/후 대조(redline) 최소형 — 이미 받아오지만 버리던 개정문 필드 캡처(추가 네트워크 0).
+                # <개정문내용> = 최신 개정분의 개정지시문 산문("제N조 중 'A'를 'B'로 한다" 식 실질 delta),
+                # <제개정구분> = "일부개정"/"제정"/"타법개정" 등. 문서레벨 get_provision_detail(law)에서 amendment_text·
+                # amendment_kind로 additive 노출(main._attach_amendment_meta). findtext라 never-raise(검색 fan-out
+                # 공유 경로 안전 — 이 필드는 search가 소비하지 않아 blast radius 0). LIVE census: 단일 element·자식 0·
+                # HTML 이스케이프 0(unescape 불요)·개정문내용에 별지 서식 이미지 참조 <img> 태그가 포함될 수 있음(verbatim 유지).
+                "개정문내용": root.findtext(".//개정문내용", ""),
+                "제개정구분": root.findtext(".//제개정구분", ""),
                 "articles": articles,
                 "annexes": annexes,
                 "annex_parse_error": annex_parse_error,

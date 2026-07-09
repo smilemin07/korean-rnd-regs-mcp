@@ -70,6 +70,9 @@ _SERVER_INSTRUCTIONS = (
     "개정 조문 전수 확인은 문서레벨 articles 목록을 사용하십시오. "
     "이 값의 날짜는 공포일이며(값에 (공포) 표기) 시행일이 아니고, 유형(개정·신설·삭제 등)은 해당 날짜에 부착된 마커 유형일 뿐 개정 범위·중요도를 뜻하지 않습니다. "
     "latest_history가 없는 조문을 '개정되지 않았다'고 단정하지 마십시오(마커를 캡처하지 못한 것일 수 있음). "
+    "특정 법령이 '이번 개정으로 무엇이 바뀌었는지'를 물으면, 문서레벨 get_provision_detail(unit_id 없이) 응답의 amendment_text(개정문·공식 개정지시문 산문)와 amendment_kind로 답하십시오(law 한정). "
+    "amendment_text는 최신 개정분의 원 개정문 산문이며 조문별 완전 대조(clean diff)가 아니므로 조문별 완전 redline으로 과장하지 말고, "
+    "amendment_kind가 '제정'이면 전체 신설(개정문 미제공)이며, amendment_text가 없거나 amendment_text_omitted이면 document_source_url의 공식 원문에서 개정 내용을 확인하도록 안내하십시오. "
     "MCP에 등록되었거나 list_rule_sets·search_provision으로 검색·조회된 규정을 외부 검색에서 찾지 못했다는 이유만으로 "
     "존재하지 않는다고 단정하지 말고 get_provision_detail 결과와 응답이 제공한 공식 URL로 확인하십시오."
 )
@@ -926,6 +929,55 @@ def _article_amendment_history(art: dict) -> str | None:
         return None
 
 
+def _attach_amendment_meta(result: dict, detail: dict) -> None:
+    """v0.17.0: law 문서레벨 응답에 개정문(amendment_text)·제개정구분(amendment_kind)을 additive 부착.
+
+    「개정 전/후 대조(redline) 최소형」 — 사용자가 "이번 개정으로 무엇이 바뀌었나"를 물을 때 현행 원문+
+    latest_history 마커만으로는 못 답하던 갭을 해소. 데이터는 get_law_detail이 이미 받아온 <개정문내용>(개정지시문
+    산문)·<제개정구분>이라 추가 네트워크 0. law 트랙 한정은 호출부 게이트(pid.doc_type=="law")로 보장 —
+    admrul detail은 이 키가 없어(get_admin_rule_detail 미파싱) 진입해도 no-op이나, admrul 커버리지 불균일
+    (15/23만 개정문 보유·최대 사용처 '연구개발비 사용 기준' 부재군)·별도 파서 2경로라 admrul 확장은 후속 사이클.
+
+    - amendment_kind: <제개정구분>(예 "일부개정"/"제정"/"타법개정"). 존재 시 부착 — 작은 해석 가드(제정·전부개정
+      구분으로 호스트 오해석 방지). 극단 base-bloat 방어로 예산 초과 시엔 생략(정상 데이터 미발동).
+    - amendment_text: <개정문내용>. ★kind=="제정"이면 skip — LIVE census 실측상 제정건 blob(최대 10,410자)의
+      정체는 조문 본문이 아니라 서명부+부칙이라 redline 가치 낮음("전체 신설" 신호는 amendment_kind로 충분).
+      ★whole-or-omit(절단 cap 금지 — 개정문은 '무엇이 바뀌었나'의 목록이라 반쪽 절단 시 불완전 개정을 완전한 것으로
+      오답하는 false-completeness 유발·적대검증 R1 기각). 호출 시점은 articles 백스톱 *이후* → 실제 json.dumps
+      (필드 포함) 측정으로 예산(_ANNEX_DETAIL_CHAR_BUDGET) 내면 부착·초과면 통째 생략 + amendment_text_omitted
+      플래그(+가능 시 경고·법제처 원문 포인터). articles(v0.7.0 발견성 핵심)는 이 로직이 건드리지 않아 100% 보호.
+    - verbatim: 개정문 원문 그대로 노출 — census: HTML 이스케이프 잔존 0(html.unescape 불요)·raw <img> 서식
+      이미지 참조 태그 포함 가능(정규식 제거는 정상 표기 '<22>' 등 훼손 위험이라 미적용·docstring 고지로 갈음).
+    never-raise 불필요(findtext 결과 문자열 연산만·예외 원천 없음)이나 값 접근은 방어적으로 (x or "").strip().
+    """
+    kind = (detail.get("제개정구분") or "").strip()
+    if kind:
+        result["amendment_kind"] = kind
+        if len(json.dumps(result, ensure_ascii=False)) > _ANNEX_DETAIL_CHAR_BUDGET:
+            # base가 예산 한계라 kind(~25자)도 불가 — 생략(articles 백스톱이 이미 base를 예산 내로 맞췄으므로
+            # 정상 데이터에선 미발동. kind가 못 들어가면 text는 당연히 불가하므로 조기 반환).
+            del result["amendment_kind"]
+            return
+    text = (detail.get("개정문내용") or "").strip()
+    if not text or kind == "제정":
+        return
+    result["amendment_text"] = text
+    if len(json.dumps(result, ensure_ascii=False)) <= _ANNEX_DETAIL_CHAR_BUDGET:
+        return  # whole 부착 성공
+    # 초과 → 통째 생략(절단 금지) + 신호
+    del result["amendment_text"]
+    result["amendment_text_omitted"] = True
+    _warn = (
+        "개정문(amendment_text)이 응답 한도로 생략됨 — document_source_url의 "
+        "공식 원문(법제처)에서 이번 개정 내용을 확인할 것."
+    )
+    result["warnings"] = result["warnings"] + [_warn]
+    if len(json.dumps(result, ensure_ascii=False)) > _ANNEX_DETAIL_CHAR_BUDGET:
+        # 경고까지는 예산 밖 — 플래그만 유지(경고 되돌림). 플래그(~30자)는 모든 additive 필드가 공유하는
+        # pre-existing R5 base-bloat 클래스(별도 backlog·v0.7.0 빈 키 16자와 동형).
+        result["warnings"] = result["warnings"][:-1]
+
+
 def _is_deleted_annex_title(title: str) -> bool:
     """제목 기반 삭제 별표 판정 (v0.2.1).
 
@@ -1662,6 +1714,13 @@ async def get_provision_detail(provision_id: str) -> dict:
       조문을 발견하는 데 쓸 수 있음(JO 상세 응답에도 동반). ★날짜=공포일(값에 (공포) 표기·시행일 아님)·유형=해당
       날짜에 부착된 마커일 뿐 개정 범위를 뜻하지 않음·필드 부재는 미개정 보증이 아님(마커 미캡처일 수 있음). law
       트랙 한정(행정규칙 평면 schema는 조문별 개정 마커가 없어 미부착).
+      또한 law 문서레벨 응답에는 그 법령의 최신 개정 내용이 amendment_text(개정문 — "'출연'을 '지원'으로
+      한다" 식 공식 개정지시문 산문)와 amendment_kind(제개정구분 — "일부개정"/"제정"/"타법개정" 등)로 포함될
+      수 있음(v0.17.0·law 한정). "이번 개정으로 무엇이 바뀌었나"는 이 amendment_text로 답하되, ★이는 최신
+      개정분의 원 개정문 산문이지 조문별 완전 대조(clean diff)가 아니므로 조문별 완전 redline으로 과장하지 말 것.
+      amendment_kind가 "제정"이면 amendment_text는 미제공(전체 신설이라 개정문 blob이 서명부·부칙 중심).
+      응답 한도로 개정문이 생략되면 amendment_text_omitted=true·경고가 오니 document_source_url의 공식
+      원문에서 확인할 것. 개정문에는 별지 서식 개정을 가리키는 이미지 참조 태그(<img …>)가 포함될 수 있음.
     - unit_id가 JO… 면 조문 본문 + article_structure (v0.6.0 size-tiered — 대용량 조문은
       article_structure 생략 또는 본문 미수록 oversized_pointer), BP… 면 별표 본문 (행정규칙·법령
       시행령 모두, v0.2; size-tiered). BP는 4자리(본별표, 예: BP0001=별표 1) 또는 6자리(가지별표
@@ -1849,6 +1908,11 @@ async def get_provision_detail(provision_id: str) -> dict:
             if not _articles_list and len(json.dumps(result, ensure_ascii=False)) > _ANNEX_DETAIL_CHAR_BUDGET:
                 del result["articles_truncated"]
                 result["warnings"] = result["warnings"][:-1]  # 직전 append한 절단 경고만 제거(중복 문자열 안전)
+        # v0.17.0: 개정 전/후 대조(redline) 최소형 — law 문서레벨에만 개정문·제개정구분 additive.
+        # ★articles 백스톱 *이후* opportunistic 부착 → articles(v0.7.0 발견성) 100% 보호(개정문이 조문 목록을
+        #   밀어내지 않게 whole-or-omit). law 트랙 한정(admrul 커버리지 불균일·별도 파서 → 후속 사이클).
+        if pid.doc_type == "law":
+            _attach_amendment_meta(result, detail)
         return result
 
     # article (JO)
@@ -2048,6 +2112,7 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
    - 별표 번호나 가지번호가 불확실하면 BP provision_id를 추측해 호출하지 말 것. 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 annexes 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.
    - 조문(JO)도 마찬가지로, 특정 조문의 provision_id가 불확실하면 추측하지 말고 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 articles 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.
    - '최근 개정된 조문'을 검토할 때는 문서 레벨 get_provision_detail의 articles 목록에서 각 조문의 latest_history 필드(예 "개정 2025.12.30(공포)")로 최근 변경 조문을 찾아 그 조문을 조회할 것. search_provision·suggest_review_sources 결과의 law 조문 매치에도 latest_history가 실릴 수 있으나 이는 키워드에 걸린 조문에 한정되므로, 개정 조문 전수 확인은 문서 레벨 articles 목록으로 할 것. 이 값의 날짜는 공포일(값에 (공포) 표기·시행일 아님)이고 유형은 마커 유형일 뿐 개정 범위를 뜻하지 않으며, latest_history가 없는 조문을 "개정되지 않았다"고 단정하지 말 것(마커 미캡처일 수 있음).
+   - '이번 개정으로 무엇이 바뀌었는지'를 검토할 때는 문서 레벨 get_provision_detail(law)의 amendment_text(개정문·공식 개정지시문 산문)와 amendment_kind로 확인할 것(v0.17.0·law 한정). amendment_text는 최신 개정분의 원 개정문 산문이지 조문별 완전 대조(clean diff)가 아니므로 조문별 완전 redline으로 과장하지 말고, amendment_kind가 "제정"이면 전체 신설(개정문 미제공)이며, amendment_text가 없거나 amendment_text_omitted이면 document_source_url의 공식 원문에서 확인할 것.
    - 참조 조항 확인 없이 결론을 확정하지 말 것.
 
 6. 조문 요건 해석, 사실관계 분석, 상위 규정 우선 원칙

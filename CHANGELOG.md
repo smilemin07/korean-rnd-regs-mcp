@@ -3,6 +3,25 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.17.0] - 2026-07-09
+
+**개정 전/후 대조(redline) 최소형 — 문서레벨 amendment_text·amendment_kind** — 개정 발견성 테마(v0.14 가지조문 → v0.15 조문 개정이력 → v0.16 검색 경로 개정이력)의 자연 후속. v0.16.0 배포 후 브라우저 라이브 eval에서, 호스트가 "어느 조문이 개정됐나"를 1턴에 풀게 되자 곧이어 "그래서 **무엇이** 바뀌었나"(개정 전/후)를 물었는데 도구가 현행 원문+마커만 주고 diff를 못 줘 2회 아쉬워한 관찰을 해소한다. `live_api.get_law_detail`이 이미 받아오지만 버리던 `<개정문내용>`(개정지시문 산문·"'출연'을 '지원'으로 한다" 식 실질 delta)과 `<제개정구분>`을 findtext(never-raise)로 캡처해, **law 문서레벨 `get_provision_detail` 응답에 `amendment_text`·`amendment_kind`를 additive 노출**한다(**추가 네트워크 0** — 이미 fetch하는 XML 안에 있음). `contract_version` **0.12.0 → 0.13.0**(§5.14·응답 schema 신규 필드), 패키지 **major** bump(contract bump = 큰 변화: 가운데 +1·마지막 0, 0.16.0 → **0.17.0**). 지원 규정 수 **52개 불변**. **선정·검증**: ultracode 워크플로 12에이전트(dossier 8종 + 3렌즈 + 종합)가 redline 데이터 미확정으로 처음엔 defer했으나, `law-api-prober` LIVE census가 경량 실현(형태 A)을 확인 → `/disc` 3-AI(Claude+Codex+Gemini) R1 만장일치 R 채택 → LIVE 정밀 census(law 29 전건 + admrul 23 전수) → `/disc` R2 3-AI로 edge 4건 확정. **size 안전**: whole-or-omit(절단 금지=false-completeness 방지)·기존 articles 백스톱 이후 opportunistic 부착으로 **articles(v0.7.0 발견성) 100% 보호**. **outage 회피**: 부팅/HTTP transport/health/캐시-bootstrap·검색 매칭/랭킹/fallback/fan-out 예산 비의존(get_law_detail findtext + 문서레벨 응답 build만 변경)·검색 fan-out은 신규 필드 미소비(blast radius 0)·롤백 먼저.
+
+### Added
+
+- **개정문 필드 캡처**(`live_api.py` `get_law_detail`): 응답 root의 `<개정문내용>`·`<제개정구분>`을 findtext로 캡처(never-raise·검색 fan-out 공유 경로 안전 — 이 필드는 search가 소비하지 않아 blast radius 0). LIVE census: 단일 element·자식 0·HTML 이스케이프 0(unescape 불요).
+- **`_attach_amendment_meta` 헬퍼 + law 문서레벨 부착**(`main.py`): `amendment_kind`(제개정구분·해석 가드)·`amendment_text`(개정문). ★`amendment_kind=="제정"`이면 amendment_text skip(census: 제정건 blob 정체=서명부+부칙·redline 가치 낮음). ★whole-or-omit — articles 백스톱 *이후* 실 `json.dumps` 측정으로 예산(16,000) 내면 부착·초과 시 통째 생략 + `amendment_text_omitted`(+가능 시 경고·`document_source_url` 포인터). law 트랙 한정(호출부 `pid.doc_type=="law"` 게이트). verbatim 노출(별지 서식 개정 `<img>` 참조 태그 포함 가능·정규식 제거는 원문 훼손 위험이라 미적용).
+- **테스트**(`tests/test_tools.py`): law 문서레벨 amendment_text·amendment_kind 부착·제정 skip·admrul 문서레벨 미부착(law-only 게이트)·oversized base 통째 생략(amendment_text_omitted·articles 보존)·필드 부재 graceful. contract 0.13.0/패키지 0.17.0 잠금. 테스트 339 → **345**.
+- **acceptance spec**(`tests/acceptance/v0_17_0.py`): law 문서레벨 amendment_text·amendment_kind 존재(일부개정 규정)·제정 규정 amendment_text 부재·산업기술 시행령(285891) 생략 경로·무회귀 '연구개발비' returned ≥ 10.
+
+### Changed
+
+- **정직 framing**(`_SERVER_INSTRUCTIONS`·`get_provision_detail` docstring·`review_regulation` 프롬프트·README byte-sync): "이번 개정으로 무엇이 바뀌었나"는 문서레벨 `amendment_text`로 답하되 최신 개정분의 원 개정문 산문이지 조문별 완전 대조(clean diff)가 아니므로 과장 금지·`amendment_kind=="제정"`은 전체 신설·`amendment_text_omitted`/부재 시 `document_source_url` 확인·law 한정.
+
+### Deferred (scope 밖·backlog)
+
+- 형태 B(신구조문대비표 `target=oldAndNew` 구조화 2열 diff·신규 네트워크+파서)·조문별 slice·과거 개정 이력·`amendment_reason`(제개정이유)·admrul redline 확장(개정문 15/23만 보유·별도 파서 2경로).
+
 ## [0.16.0] - 2026-07-08
 
 **검색 경로 개정 이력 발견성 노출 — search_provision/suggest 결과의 law 조문에 latest_history** — 직전 v0.15.0이 조문 개정 이력(공포일) `latest_history`를 **문서 레벨 조회 전용**으로 넣었으나, 배포 후 브라우저 라이브 eval(claude.ai·Sonnet 5 High) **발견 #1**: 호스트의 "최근 개정 조문?" 기본 본능이 키워드 검색(`search_provision`)이라, 문서레벨 전용 신호를 1턴에 만나지 못하고 사용자 nudge 후 2턴에야 문서레벨 순회로 정답 도달. 검색 경로(검색 결과·추천 후보)에 개정 신호가 0이었다. 이를 `search_provision` 결과의 **law 조문(article) 매치에 `latest_history`를 additive 노출**(v0.15.0 §5.12와 동일 값·헬퍼)하여 검색-first 경로에서 개정 신호를 결정론 데이터로 즉시 인지하게 해소한다(데이터 앵커 > 프롬프트, v0.5.0 원칙). `suggest_review_sources`가 검색 결과 dict를 그대로 복사(`dict(m)`)해 후보를 구성하므로 이 필드가 **추천 후보에도 자동 전파**된다(코드 확인). `contract_version` **0.11.0 → 0.12.0**(§5.13·응답 schema 신규 필드), 패키지 **major** bump(contract bump = 큰 변화: 가운데 +1·마지막 0, 0.15.0 → **0.16.0**·최근 규칙 패턴 contract bump ⟺ major 정합). 지원 규정 수 **52개 불변**. **최소형(leg1 단독)** — 개정 의도 질의 유도 note·`document_provision_id` 노출 두 leg은 **`/disc` 3-AI(Claude+Codex+Gemini) R1 만장일치로 gold-plating 판정·드롭**(note는 이미 있는 서버 안내와 동일한 Level-B 프롬프트 레버라 중복 + base_size 산입 복잡도 위험 / `document_provision_id`는 매치 `provision_id`에서 파생 가능·응답 크기 지배 항·scope creep → backlog 이월). **outage 회피**: 부팅/HTTP transport/health/캐시-bootstrap·파서(live_api)·검색 매칭/랭킹/fallback/fan-out 예산 비의존(응답 build만 변경)·`_article_amendment_history` never-raise 재사용(추가 네트워크 0·CPU regex만)·16k char 예산 내 뒤쪽 절단(응답 초과·크래시 구조상 불가)·롤백 먼저.
