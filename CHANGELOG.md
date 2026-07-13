@@ -3,7 +3,7 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
-## [0.17.1] - 2026-07-10
+## [0.17.1] - 2026-07-13
 
 **개정 전/후 대조(redline) 소비 품질 프롬프트 보강 — v0.17.0 eval host-side minor 3건 대응** — v0.17.0 배포 후 브라우저 라이브 eval(claude.ai·Sonnet 4.6)에서 기능은 end-to-end 작동(fabrication 0)했으나 호스트 LLM의 amendment_text 소비 행동에서 minor 3건이 관찰됐다(모두 서버 데이터는 완전·순수 소비 품질 문제): (1) 개정문 개정항목 6개 중 5개만 다루고 가지조문(제27조의2제2항)을 통째 누락(선택적 초점), (2) 제정 법령 답변에서 도구 미검증 전신 법령명·연혁을 단정 서술, (3) 개정후 대체문 인용 시 근거 법률 인용(법명·조문 번호)을 기관명 요약으로 탈락. 세 실패 모두 **서버 코드 결함이 아니라 amendment 소비 가이드 공백**이라, 프롬프트 표면 3곳(`_SERVER_INSTRUCTIONS`·`get_provision_detail` docstring·`review_regulation` 프롬프트[README byte-sync])에 동일 취지 3지시를 **기존 amendment 문단 내 최소 증분으로 삽입**(새 섹션 append 아님)하여 대응한다. **코드 로직 무변경·순수 프롬프트 문자열 상수 교체** → `contract_version` **0.13.0 유지**·응답 schema/필드/shape 불변·패키지 **patch** bump(0.17.0 → **0.17.1**). 지원 규정 수 **52개 불변**. **선정·검증**: 차기 패키지 선정 `/disc` 3-AI 3/3 "수정 후 GO"(형태 B redline·admrul 확장 등 backlog는 신규 네트워크·파서 동반 = 중위험이라 이번 최소·안전 patch 후순위) → 문구 초안 `/disc` 3-AI 3/3 "수정 후 GO"(문구 정제 3건 채택: "명시된 항목만" 앵커·"기관명만으로 축약하지 말고"·"도구 응답으로 확인되지 않은"; scope creep 1건[용어 치환 금지] 기각). **outage 회피**: 부팅/HTTP transport/health/미들웨어/검색 fan-out 전부 무접촉(문자열 상수만 변경).
 
