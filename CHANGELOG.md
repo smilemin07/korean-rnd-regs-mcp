@@ -3,6 +3,19 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.17.1] - 2026-07-10
+
+**개정 전/후 대조(redline) 소비 품질 프롬프트 보강 — v0.17.0 eval host-side minor 3건 대응** — v0.17.0 배포 후 브라우저 라이브 eval(claude.ai·Sonnet 4.6)에서 기능은 end-to-end 작동(fabrication 0)했으나 호스트 LLM의 amendment_text 소비 행동에서 minor 3건이 관찰됐다(모두 서버 데이터는 완전·순수 소비 품질 문제): (1) 개정문 개정항목 6개 중 5개만 다루고 가지조문(제27조의2제2항)을 통째 누락(선택적 초점), (2) 제정 법령 답변에서 도구 미검증 전신 법령명·연혁을 단정 서술, (3) 개정후 대체문 인용 시 근거 법률 인용(법명·조문 번호)을 기관명 요약으로 탈락. 세 실패 모두 **서버 코드 결함이 아니라 amendment 소비 가이드 공백**이라, 프롬프트 표면 3곳(`_SERVER_INSTRUCTIONS`·`get_provision_detail` docstring·`review_regulation` 프롬프트[README byte-sync])에 동일 취지 3지시를 **기존 amendment 문단 내 최소 증분으로 삽입**(새 섹션 append 아님)하여 대응한다. **코드 로직 무변경·순수 프롬프트 문자열 상수 교체** → `contract_version` **0.13.0 유지**·응답 schema/필드/shape 불변·패키지 **patch** bump(0.17.0 → **0.17.1**). 지원 규정 수 **52개 불변**. **선정·검증**: 차기 패키지 선정 `/disc` 3-AI 3/3 "수정 후 GO"(형태 B redline·admrul 확장 등 backlog는 신규 네트워크·파서 동반 = 중위험이라 이번 최소·안전 patch 후순위) → 문구 초안 `/disc` 3-AI 3/3 "수정 후 GO"(문구 정제 3건 채택: "명시된 항목만" 앵커·"기관명만으로 축약하지 말고"·"도구 응답으로 확인되지 않은"; scope creep 1건[용어 치환 금지] 기각). **outage 회피**: 부팅/HTTP transport/health/미들웨어/검색 fan-out 전부 무접촉(문자열 상수만 변경).
+
+### Changed
+
+- **amendment 소비 가이드 3지시 추가**(`main.py` `_SERVER_INSTRUCTIONS`·`get_provision_detail` docstring·`_REVIEW_PROMPT_TEMPLATE` + `README.md` byte-sync): ① 개정 전/후 정리 시 amendment_text에 명시된 개정 지시 항목을 가지조문(제N조의M) 포함 빠짐없이 점검·분량상 줄일 때는 다룬 범위·생략 항목 명시(임의 누락 금지) ② 개정후 대체문 인용 시 근거 법률 인용(법명·조문 번호)을 기관명만으로 축약 금지·보존 ③ 제정·타법개정 배경으로 도구 응답 미확인 전신 법령명·연혁 단정 금지(추정 표시 또는 생략). 기존 "clean diff 과장 금지" 가드 등 v0.17.0 framing 보존.
+
+### Added
+
+- **테스트**(`tests/test_tools.py`): surface-consistency 회귀 — 3지시 핵심 토큰이 3개 프롬프트 표면 전부에 존재하고 "clean diff 과장 금지" 가드가 보존됐는지 공백 정규화 후 검증. 패키지 0.17.1 잠금.
+- **acceptance spec**(`tests/acceptance/v0_17_1.py`): 무회귀 '연구개발비' returned ≥ 10(프롬프트 변경은 응답 데이터 무변). Level-B(호스트 소비 행동) 3건은 자동 검증 불가라 배포 후 수동 eval 프롬프트로 출력(redline 전수 열거·제정 연혁 자제·citation 보존). 테스트 345 → **347**(surface-consistency +1·acceptance spec parametrize +1).
+
 ## [0.17.0] - 2026-07-09
 
 **개정 전/후 대조(redline) 최소형 — 문서레벨 amendment_text·amendment_kind** — 개정 발견성 테마(v0.14 가지조문 → v0.15 조문 개정이력 → v0.16 검색 경로 개정이력)의 자연 후속. v0.16.0 배포 후 브라우저 라이브 eval에서, 호스트가 "어느 조문이 개정됐나"를 1턴에 풀게 되자 곧이어 "그래서 **무엇이** 바뀌었나"(개정 전/후)를 물었는데 도구가 현행 원문+마커만 주고 diff를 못 줘 2회 아쉬워한 관찰을 해소한다. `live_api.get_law_detail`이 이미 받아오지만 버리던 `<개정문내용>`(개정지시문 산문·"'출연'을 '지원'으로 한다" 식 실질 delta)과 `<제개정구분>`을 findtext(never-raise)로 캡처해, **law 문서레벨 `get_provision_detail` 응답에 `amendment_text`·`amendment_kind`를 additive 노출**한다(**추가 네트워크 0** — 이미 fetch하는 XML 안에 있음). `contract_version` **0.12.0 → 0.13.0**(§5.14·응답 schema 신규 필드), 패키지 **major** bump(contract bump = 큰 변화: 가운데 +1·마지막 0, 0.16.0 → **0.17.0**). 지원 규정 수 **52개 불변**. **선정·검증**: ultracode 워크플로 12에이전트(dossier 8종 + 3렌즈 + 종합)가 redline 데이터 미확정으로 처음엔 defer했으나, `law-api-prober` LIVE census가 경량 실현(형태 A)을 확인 → `/disc` 3-AI(Claude+Codex+Gemini) R1 만장일치 R 채택 → LIVE 정밀 census(law 29 전건 + admrul 23 전수) → `/disc` R2 3-AI로 edge 4건 확정. **size 안전**: whole-or-omit(절단 금지=false-completeness 방지)·기존 articles 백스톱 이후 opportunistic 부착으로 **articles(v0.7.0 발견성) 100% 보호**. **outage 회피**: 부팅/HTTP transport/health/캐시-bootstrap·검색 매칭/랭킹/fallback/fan-out 예산 비의존(get_law_detail findtext + 문서레벨 응답 build만 변경)·검색 fan-out은 신규 필드 미소비(blast radius 0)·롤백 먼저.

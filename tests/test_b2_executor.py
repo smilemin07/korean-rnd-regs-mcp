@@ -70,12 +70,13 @@ def test_cache_lock_never_wraps_network_or_parse():
 
 def test_contract_version_0_13_0():
     """v0.17.0: 개정 전/후 대조(redline) 최소형 — get_provision_detail law 문서레벨 응답에 amendment_text·
-    amendment_kind 필드 추가(응답 schema 신규 필드) → contract 0.12.0 → 0.13.0 minor bump."""
+    amendment_kind 필드 추가(응답 schema 신규 필드) → contract 0.12.0 → 0.13.0 minor bump.
+    v0.17.1(프롬프트 소비 품질 보강)은 응답 schema 무변 → contract 0.13.0 유지."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
     assert CONTRACT_VERSION == "0.13.0"
 
 
-def test_package_version_0_17_0():
-    """패키지 버전 0.17.0(major=큰 변화: 가운데 +1·마지막 0 — 개정 전/후 대조 redline 최소형, contract bump ⟺ major)."""
+def test_package_version_0_17_1():
+    """패키지 버전 0.17.1(patch — v0.17.0 redline 소비 품질 프롬프트 보강, 코드 로직·응답 schema 무변)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.17.0"
+    assert __version__ == "0.17.1"

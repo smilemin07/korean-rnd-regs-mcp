@@ -2515,6 +2515,36 @@ def test_doc_level_amendment_absent_field_graceful_v0170(mock_client):
     assert "articles" in result  # 기존 응답 정상
 
 
+# === v0.17.1: redline 소비 품질 프롬프트 보강 (3표면 일관성 가드) ===
+def test_amendment_consumption_guidance_present_all_surfaces_v0171():
+    """v0.17.1: v0.17.0 eval host-side minor 3건(전수 열거 누락·미검증 연혁 단정·citation 탈락) 대응
+    프롬프트 3지시가 3개 표면(_SERVER_INSTRUCTIONS·get_provision_detail docstring·review 프롬프트)에
+    모두 실렸고, 기존 'clean diff 과장 금지' 가드가 보존됐는지 검증(surface-consistency gate).
+    docstring은 줄바꿈으로 wrap되므로 공백 정규화 후 토큰 매칭."""
+    import re
+
+    def _norm(s: str) -> str:
+        return re.sub(r"\s+", " ", s or "")
+
+    surfaces = {
+        "SERVER_INSTRUCTIONS": main_module._SERVER_INSTRUCTIONS,
+        "REVIEW_PROMPT": main_module._REVIEW_PROMPT_TEMPLATE,
+        "DOCSTRING": get_provision_detail.__doc__,
+    }
+    # 3지시 각각의 핵심 토큰(1: 전수 점검, 2: citation 보존, 3: 미검증 연혁 자제)
+    instruction_tokens = [
+        "빠짐없이 점검",           # 지시1 — 가지조문 포함 전수 점검
+        "기관명만으로 축약하지 말고",  # 지시2 — 근거 법률 인용 보존
+        "전신 법령명·연혁은 단정하지",  # 지시3 — 미검증 연혁 자제
+    ]
+    for surface_name, text in surfaces.items():
+        norm = _norm(text)
+        for tok in instruction_tokens:
+            assert tok in norm, f"{surface_name}에 v0.17.1 지시 토큰 '{tok}' 누락 — 3표면 동기화 필요"
+        # 기존 v0.17.0 가드 보존(과장 금지·삭제 금지)
+        assert "clean diff" in norm, f"{surface_name}에서 'clean diff 과장 금지' 가드가 사라짐"
+
+
 def test_doc_level_articles_truncation_backstop_v070(mock_client):
     """v0.7.0 size 백스톱: 다수의 짧은 조문(빈 제목 400건 — 적대검증 BLOCKING1 재현 케이스)으로 예산
     초과 시 절단 + articles_truncated + ★최종 직렬화(플래그·경고 포함)가 hard 한도(16,000) 이내.
