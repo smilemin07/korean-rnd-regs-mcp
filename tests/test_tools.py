@@ -543,7 +543,7 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
     """suggest 응답에 현행 contract_version(0.10.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.13.0"
+    assert result["contract_version"] == "0.14.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -868,7 +868,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.13.0"
+    assert result["contract_version"] == "0.14.0"
 
 
 # === _build_article_content  ===
@@ -2545,6 +2545,240 @@ def test_amendment_consumption_guidance_present_all_surfaces_v0171():
         assert "clean diff" in norm, f"{surface_name}에서 'clean diff 과장 금지' 가드가 사라짐"
 
 
+# === v0.18.0: 형태 B redline — 신구조문대비표(old_and_new) opt-in (law 문서레벨) ===
+_OAN_SAMPLE = {
+    "available": True,
+    "old": {"법령일련번호": "277123", "공포일자": "20240109", "공포번호": "19990",
+            "시행일자": "20240710", "현행여부": "N"},
+    "new": {"법령일련번호": "281987", "공포일자": "20251230", "공포번호": "21289",
+            "시행일자": "20260701", "현행여부": "Y"},
+    "old_rows": ["제10조<P>(기술혁신 중소기업자에 대한 출연)</P> ① … <P>출연할</P> 수 있다.", "② (생  략)"],
+    "new_rows": ["제10조<P>(기술혁신 중소기업자에 대한 지원)</P> ① … <P>지원할</P> 수 있다.", "② (현행과 같음)"],
+}
+
+
+def test_doc_level_old_and_new_opt_in_v0180(mock_client):
+    """v0.18.0: include_old_and_new=true + law 문서레벨 → old_and_new 블록 부착
+    (2열 pairing·verbatim·데이터 앵커 basis/old/new·markers_note)."""
+    mock_client.get_old_and_new.return_value = dict(_OAN_SAMPLE)
+    result = asyncio.run(get_provision_detail("law:283849", include_old_and_new=True))
+    block = result["old_and_new"]
+    assert block["available"] is True
+    assert "직전 공포 연혁" in block["basis"]  # diff 기준 데이터 앵커(현행 대비 아님)
+    assert "<P>" in block["markers_note"]  # 마커 의미 고지
+    assert block["old"]["promulgation_date"] == "20240109"
+    assert block["new"]["enforcement_date"] == "20260701"
+    assert block["new"]["current"] == "Y"
+    rows = block["rows"]
+    assert [r["no"] for r in rows] == [1, 2]
+    assert "출연" in rows[0]["old"] and "지원" in rows[0]["new"]  # verbatim 2열 pair
+    assert "row_count_mismatch" not in block
+    assert "articles" in result  # 기존 필드 보존
+
+
+def test_doc_level_old_and_new_default_off_v0180(mock_client):
+    """v0.18.0: 기본(미지정=false) 시 old_and_new 미출현 + get_old_and_new 미호출
+    (네트워크 0 — opt-in 격리가 outage 회피의 핵심)."""
+    result = asyncio.run(get_provision_detail("law:283849"))
+    assert "old_and_new" not in result
+    assert "old_and_new_omitted" not in result
+    mock_client.get_old_and_new.assert_not_called()
+
+
+def test_doc_level_old_and_new_unit_level_ignored_v0180(mock_client):
+    """v0.18.0: unit(JO) 조회에서는 opt-in 무시(문서레벨 전용·docstring 고지) — 네트워크 미발생·무크래시."""
+    result = asyncio.run(get_provision_detail("law:283849:JO0015", include_old_and_new=True))
+    assert "old_and_new" not in result
+    mock_client.get_old_and_new.assert_not_called()
+
+
+def test_doc_level_old_and_new_not_provided_v0180(mock_client):
+    """v0.18.0: 대비표 부재(신구법존재여부=N) → available=false·reason=not_provided +
+    ★'부재 ≠ 무개정' 데이터 앵커 note(일부개정인데 부재 2건[286879·262117] LIVE 실측 대응)."""
+    mock_client.get_old_and_new.return_value = {"available": False}
+    result = asyncio.run(get_provision_detail("law:283849", include_old_and_new=True))
+    block = result["old_and_new"]
+    assert block["available"] is False
+    assert block["reason"] == "not_provided"
+    assert "무개정을 의미하지 않음" in block["note"]
+
+
+def test_doc_level_old_and_new_fetch_failed_never_raise_v0180(mock_client):
+    """v0.18.0: 조회 실패(LawApiError)에도 본문 응답은 정상(never-raise) —
+    old_and_new만 available=false·reason=fetch_failed(부재와 구분)."""
+    mock_client.get_old_and_new.side_effect = LawApiError("parse_failed", "fail")
+    result = asyncio.run(get_provision_detail("law:283849", include_old_and_new=True))
+    assert result["old_and_new"]["available"] is False
+    assert result["old_and_new"]["reason"] == "fetch_failed"
+    assert "articles" in result and result["articles_count"] == 2  # 본문 응답 무손상
+    assert not result.get("errors")
+
+
+def test_doc_level_old_and_new_rows_omitted_when_oversized_v0180(mock_client):
+    """v0.18.0: 대형 대비표(LIVE 실측 최대 26.5k자) → rows만 통째 생략(rows_omitted·절단 금지)·
+    old/new 메타 앵커 유지·articles 100% 보존·최종 직렬화 예산(16,000) 내."""
+    big = dict(_OAN_SAMPLE)
+    big["old_rows"] = ["구" * 100 for _ in range(150)]
+    big["new_rows"] = ["신" * 100 for _ in range(150)]
+    mock_client.get_old_and_new.return_value = big
+    result = asyncio.run(get_provision_detail("law:283849", include_old_and_new=True))
+    block = result["old_and_new"]
+    assert block["available"] is True
+    assert block["rows_omitted"] is True
+    assert "rows" not in block
+    assert block["old"]["doc_id"] == "277123"  # 메타 앵커 유지
+    assert "생략" in block["note"]
+    assert len(result["articles"]) == 2  # articles 100% 보존
+    import json as _json
+    assert len(_json.dumps(result, ensure_ascii=False)) <= 16000
+
+
+def test_doc_level_old_and_new_row_mismatch_min_zip_v0180(mock_client):
+    """v0.18.0: 양측 행 수 불일치(실측 0건·방어) → min-zip + row_count_mismatch 플래그."""
+    oan = dict(_OAN_SAMPLE)
+    oan["old_rows"] = ["a", "b", "c"]
+    oan["new_rows"] = ["x", "y"]
+    mock_client.get_old_and_new.return_value = oan
+    result = asyncio.run(get_provision_detail("law:283849", include_old_and_new=True))
+    block = result["old_and_new"]
+    assert len(block["rows"]) == 2
+    assert block["row_count_mismatch"] is True
+
+
+def test_doc_level_old_and_new_admrul_warning_v0180(mock_client):
+    """v0.18.0: admrul 문서레벨 + opt-in → 블록 미부착 + 미지원 정직 경고 1줄(네트워크 미발생 —
+    LIVE 실측: oldAndNew는 admrul 미지원 '일치하는 신구법 없습니다')."""
+    result = asyncio.run(get_provision_detail("admrul:2100000278740", include_old_and_new=True))
+    assert "old_and_new" not in result
+    assert any("include_old_and_new" in w for w in result["warnings"])
+    mock_client.get_old_and_new.assert_not_called()
+
+
+def test_old_and_new_guidance_present_all_surfaces_v0180():
+    """v0.18.0 surface-consistency: 신구조문대비표 소비 가이드 핵심 토큰이 3개 프롬프트 표면
+    (_SERVER_INSTRUCTIONS·get_provision_detail docstring·review 프롬프트) 전부에 존재."""
+    import re
+
+    def _norm(s: str) -> str:
+        return re.sub(r"\s+", " ", s or "")
+
+    surfaces = {
+        "SERVER_INSTRUCTIONS": main_module._SERVER_INSTRUCTIONS,
+        "REVIEW_PROMPT": main_module._REVIEW_PROMPT_TEMPLATE,
+        "DOCSTRING": get_provision_detail.__doc__,
+    }
+    tokens = [
+        "include_old_and_new",  # opt-in 파라미터 유도
+        "신구조문대비표",  # 기능 명칭
+        "직전 공포 연혁",  # diff 기준(현행 대비 아님)
+        "무개정",  # 부재 ≠ 무개정
+    ]
+    for name, text in surfaces.items():
+        norm = _norm(text)
+        for tok in tokens:
+            assert tok in norm, f"{name}에 v0.18.0 가이드 토큰 '{tok}' 누락 — 3표면 동기화 필요"
+
+
+def test_get_old_and_new_parses_two_columns_v0180(monkeypatch):
+    """v0.18.0: live_api.get_old_and_new — 기본정보 5필드 + 구/신 목록 <조문 no=N> 파싱·no 순번 정렬
+    (의도적으로 뒤섞은 순서 입력)·이스케이프된 <P> 마커는 verbatim 텍스트로 보존."""
+    import requests as requests_mod
+
+    fake_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<OldAndNewService>
+  <구조문_기본정보>
+    <법령일련번호>277123</법령일련번호>
+    <공포일자>20240109</공포일자>
+    <공포번호>19990</공포번호>
+    <시행일자>20240710</시행일자>
+    <현행여부>N</현행여부>
+  </구조문_기본정보>
+  <신조문_기본정보>
+    <법령일련번호>281987</법령일련번호>
+    <공포일자>20251230</공포일자>
+    <공포번호>21289</공포번호>
+    <시행일자>20260701</시행일자>
+    <현행여부>Y</현행여부>
+  </신조문_기본정보>
+  <구조문목록>
+    <조문 no="2">② (생  략)</조문>
+    <조문 no="1">제10조&lt;P&gt;(기술혁신 중소기업자에 대한 출연)&lt;/P&gt; ① … &lt;P&gt;출연할&lt;/P&gt; 수 있다.</조문>
+  </구조문목록>
+  <신조문목록>
+    <조문 no="1">제10조&lt;P&gt;(기술혁신 중소기업자에 대한 지원)&lt;/P&gt; ① … &lt;P&gt;지원할&lt;/P&gt; 수 있다.</조문>
+    <조문 no="2">② (현행과 같음)</조문>
+  </신조문목록>
+</OldAndNewService>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_xml
+        headers = {"Content-Type": "application/xml"}
+
+    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    result = client.get_old_and_new("281987")
+    assert result["available"] is True
+    assert result["old"]["공포일자"] == "20240109" and result["old"]["현행여부"] == "N"
+    assert result["new"]["시행일자"] == "20260701" and result["new"]["현행여부"] == "Y"
+    # no 순번 정렬 — 뒤섞인 구조문목록이 1,2 순으로 재정렬
+    assert result["old_rows"][0].startswith("제10조<P>(기술혁신")
+    assert result["old_rows"][1] == "② (생  략)"
+    assert result["new_rows"][1] == "② (현행과 같음)"
+    assert "<P>출연할</P>" in result["old_rows"][0]  # 이스케이프 해제된 마커 verbatim
+
+
+def test_get_old_and_new_absent_flag_v0180(monkeypatch):
+    """v0.18.0: 대비표 부재 응답(신구법존재여부=N·목록 부재) → available=False (결정론 판별 —
+    ★일부개정인데도 부재인 문서 실재[286879·262117]라 제개정구분으로 예측 불가)."""
+    import requests as requests_mod
+
+    fake_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<OldAndNewService>
+  <구조문_기본정보><법령일련번호>0</법령일련번호><현행여부>null</현행여부></구조문_기본정보>
+  <신구법존재여부>N</신구법존재여부>
+</OldAndNewService>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_xml
+        headers = {"Content-Type": "application/xml"}
+
+    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    result = client.get_old_and_new("282915")
+    assert result == {"available": False}
+
+
+def test_get_old_and_new_empty_body_single_retry_v0180(monkeypatch):
+    """v0.18.0: HTTP 200 + 빈 body(LIVE 프로브 1회 관측) → 1회만 재조회 후 정상 파싱."""
+    import requests as requests_mod
+
+    fake_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<OldAndNewService>
+  <구조문_기본정보><법령일련번호>1</법령일련번호></구조문_기본정보>
+  <신구법존재여부>N</신구법존재여부>
+</OldAndNewService>"""
+    calls = {"n": 0}
+
+    class FakeResponse:
+        status_code = 200
+        headers = {"Content-Type": "application/xml"}
+
+        def __init__(self, text):
+            self.text = text
+
+    def _fake_get(*a, **kw):
+        calls["n"] += 1
+        return FakeResponse("" if calls["n"] == 1 else fake_xml)
+
+    monkeypatch.setattr(requests_mod, "get", _fake_get)
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    result = client.get_old_and_new("281987")
+    assert result == {"available": False}
+    assert calls["n"] == 2  # 빈 body 1회 + 재조회 1회
+
+
 def test_doc_level_articles_truncation_backstop_v070(mock_client):
     """v0.7.0 size 백스톱: 다수의 짧은 조문(빈 제목 400건 — 적대검증 BLOCKING1 재현 케이스)으로 예산
     초과 시 절단 + articles_truncated + ★최종 직렬화(플래그·경고 포함)가 hard 한도(16,000) 이내.
@@ -3567,7 +3801,7 @@ def test_get_provision_detail_small_article_unchanged_v060(mock_client):
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None
     assert "content_available" not in result
-    assert result["contract_version"] == "0.13.0"
+    assert result["contract_version"] == "0.14.0"
 
 
 def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):

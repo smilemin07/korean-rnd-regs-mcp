@@ -76,6 +76,12 @@ _SERVER_INSTRUCTIONS = (
     "개정 전/후를 정리할 때는 amendment_text에 명시된 개정 지시 항목을 가지조문(제N조의M) 포함 빠짐없이 점검하고, 분량상 줄일 때는 다룬 범위와 생략한 항목을 밝히십시오(임의 누락 금지). "
     "개정후 대체문을 인용할 때는 그 안의 근거 법률 인용(법명·조문 번호)을 기관명만으로 축약하지 말고 보존하십시오. "
     "제정·타법개정의 배경으로 도구 응답으로 확인되지 않은 전신 법령명·연혁은 단정하지 마십시오(미확인 배경은 일반지식 추정임을 밝히거나 생략). "
+    "개정 전/후를 조문 원문 2열로 대조해야 하면 law 문서레벨 get_provision_detail에 include_old_and_new=true를 지정해 "
+    "신구조문대비표(old_and_new)를 받으십시오(law 한정·기본 미조회). 대비표는 직전 공포 연혁 대비이며 현행 대비가 아니고"
+    "(구조문이 아직 미시행인 분리시행분일 수 있어 old/new의 공포일자·시행일자·현행여부로 확인), "
+    "rows 텍스트의 <P>는 변경 구간, '(생 략)'/'(현행과 같음)'은 무변경부 축약, '<신 설>'은 신설 표시입니다. "
+    "available=false(부재)는 무개정을 의미하지 않으며(일부개정에도 부재 사례 있음), "
+    "rows가 생략(rows_omitted)되면 document_source_url의 공식 원문에서 대비표를 확인하도록 안내하십시오. "
     "MCP에 등록되었거나 list_rule_sets·search_provision으로 검색·조회된 규정을 외부 검색에서 찾지 못했다는 이유만으로 "
     "존재하지 않는다고 단정하지 말고 get_provision_detail 결과와 응답이 제공한 공식 URL로 확인하십시오."
 )
@@ -981,6 +987,92 @@ def _attach_amendment_meta(result: dict, detail: dict) -> None:
         result["warnings"] = result["warnings"][:-1]
 
 
+def _attach_old_and_new(result: dict, oan: dict | None) -> None:
+    """v0.18.0: law 문서레벨 opt-in 응답에 신구조문대비표(old_and_new)를 additive 부착.
+
+    「형태 B redline 최소형」 — "개정 전/후를 조문 원문 2열로 대조"하는 수요(v0.16.0 eval 실관측 —
+    v0.17.0 amendment_text는 개정지시문 산문까지만)를 해소. include_old_and_new=true일 때만 호출부가
+    live_api.get_old_and_new(+1 네트워크)를 부르고 본 헬퍼가 부착 — 기본(false) 경로·검색 fan-out·
+    부팅/transport는 완전 무접촉(outage 격리). /disc 3-AI 3/3 GO(2026-07-14) 설계.
+
+    - oan=None(조회 실패): available=false·reason="fetch_failed" — 부재(not_provided)와 구분(실패는
+      존재 여부 판단 불가). 본문·articles 등 기존 응답은 정상 반환(호출부 try/except never-raise).
+    - available=false·reason="not_provided": ★대비표 부재 ≠ 무개정 — 일부개정인데 부재 2건 LIVE 실측
+      (286879·262117), 제개정구분으로 예측 불가 → note에 데이터 앵커로 명시(프롬프트 가드보다 근본).
+    - available=true: old/new 기본정보(doc_id·공포일자·공포번호·시행일자·현행여부)를 데이터 앵커로
+      노출 — diff 기준이 "직전 공포 연혁 대비"(현행 대비 아님)이고 구조문이 미시행 분리시행분일 수
+      있어(혁신법 283849 실측: 구=283413 시행 미도래) basis 문구+양측 날짜로 오독 방어. rows는
+      no 순번 2열 pair {no, old, new}·verbatim(<P> 하이라이트·"(생  략)"/"(현행과 같음)" 축약·
+      "<신  설>" placeholder 원문 유지 — markers_note로 의미 고지). 양측 행 수 불일치(실측 0건)는
+      min-zip + row_count_mismatch 방어.
+    - 크기: whole-or-omit 3단(절단 cap 금지 — 반쪽 대비표를 완전한 것으로 오답하는 false-completeness
+      방지·amendment_text와 동일 사상) — ①전체 부착(예산 내) ②rows만 통째 생략(rows_omitted·메타
+      앵커 유지) ③극단 base-bloat면 블록 제거+old_and_new_omitted 플래그만(~30자·amendment_text_omitted
+      와 동형·pre-existing R5 클래스). articles(v0.7.0 발견성)는 본 헬퍼가 건드리지 않아 100% 보호
+      (호출부가 articles 백스톱·amendment 부착 이후 마지막에 호출).
+    """
+    if not oan:
+        result["old_and_new"] = {
+            "available": False,
+            "reason": "fetch_failed",
+            "note": "신구조문대비표 조회 실패 — 대비표 존재 여부를 판단할 수 없음. "
+                    "document_source_url의 공식 원문에서 확인할 것.",
+        }
+    elif not oan.get("available"):
+        result["old_and_new"] = {
+            "available": False,
+            "reason": "not_provided",
+            "note": "이 문서에는 신구조문대비표가 제공되지 않음 — 대비표 부재는 무개정을 의미하지 "
+                    "않음(일부개정인데도 부재인 문서 실재). 개정 내용은 amendment_text 또는 "
+                    "document_source_url의 공식 원문에서 확인할 것.",
+        }
+    else:
+        def _side(info: dict | None) -> dict:
+            info = info or {}
+            return {
+                "doc_id": info.get("법령일련번호", ""),
+                "promulgation_date": info.get("공포일자", ""),
+                "promulgation_no": info.get("공포번호", ""),
+                "enforcement_date": info.get("시행일자", ""),
+                "current": info.get("현행여부", ""),
+            }
+
+        old_rows = oan.get("old_rows") or []
+        new_rows = oan.get("new_rows") or []
+        n = min(len(old_rows), len(new_rows))
+        block: dict = {
+            "available": True,
+            "basis": "직전 공포 연혁 대비(현행 대비 아님) — 구조문이 아직 미시행인 분리시행분일 수 "
+                     "있으니 old/new의 공포일자·시행일자·현행여부(current)로 확인할 것.",
+            "markers_note": "rows 텍스트의 <P>…</P>는 변경 구간 하이라이트, '(생  략)'/'(현행과 같음)'은 "
+                            "무변경부 축약, '<신  설>'은 신설 표시(원문 그대로).",
+            "old": _side(oan.get("old")),
+            "new": _side(oan.get("new")),
+            "rows": [{"no": i + 1, "old": old_rows[i], "new": new_rows[i]} for i in range(n)],
+        }
+        if len(old_rows) != len(new_rows):
+            block["row_count_mismatch"] = True
+        result["old_and_new"] = block
+        if len(json.dumps(result, ensure_ascii=False)) <= _ANNEX_DETAIL_CHAR_BUDGET:
+            return
+        # 예산 초과 → rows만 통째 생략(절단 금지) — 메타 앵커(old/new·basis)는 유지.
+        del block["rows"]
+        block.pop("markers_note", None)
+        block["rows_omitted"] = True
+        block["note"] = (
+            "대비표 rows가 응답 한도로 생략됨 — document_source_url의 공식 원문(법제처)에서 "
+            "신구조문대비표를 확인할 것."
+        )
+    if len(json.dumps(result, ensure_ascii=False)) <= _ANNEX_DETAIL_CHAR_BUDGET:
+        return
+    # 극단 base-bloat: 블록 자체가 예산 밖 — 제거 + 플래그만(모든 분기 공통 마지막 방어선).
+    # 플래그(~30자)는 재측정하지 않고 유지 — 정직성 신호를 침묵 생략하지 않기 위함이며, base가
+    # 예산-30자 근처인 극단에서 그만큼 미세 초과할 수 있는 것은 모든 additive 필드가 공유하는
+    # pre-existing R5 base-bloat 클래스(v0.17.0 amendment_text_omitted 플래그와 동형·별도 backlog).
+    del result["old_and_new"]
+    result["old_and_new_omitted"] = True
+
+
 def _is_deleted_annex_title(title: str) -> bool:
     """제목 기반 삭제 별표 판정 (v0.2.1).
 
@@ -1697,7 +1789,7 @@ async def suggest_review_sources(
 
 
 @mcp.tool()
-async def get_provision_detail(provision_id: str) -> dict:
+async def get_provision_detail(provision_id: str, include_old_and_new: bool = False) -> dict:
     """사용 시점: search_provision 또는 suggest_review_sources가 반환한 provision_id의 원문·삭제 여부·현행 내용을 확인할 때 호출하십시오. provision_id 없이 조문 내용을 추측하지 마십시오. 이 도구의 content가 규정 조문·별표 본문의 권위 출처이므로, 본문은 외부 웹(law.go.kr 직접 열람·웹검색 결과)에서 가져오지 말고 이 도구로 확인하십시오. content_format이 plain_text_verbatim이 아니면 응답이 제공한 attached_file_url·document_source_url의 공식 원문을 확인하십시오. 행정규칙(admrul) 응답에는 발령번호·종류가 issuance_number·regulation_kind·version_label 필드로 포함되니 이를 사용하되, 이 값은 조회된 규정의 것이며 현행임을 보증하지 않으므로(검색 실패 시 등록 버전일 수 있음) 현행 여부 단정이 필요하면 1차 출처에서 확인하고, 응답에 없는 고시·예규 번호 등은 외부 값으로 단정하지 마십시오.
 
     provision_id로 단일 조문/별표 본문 재조회 — 응답은 법령 원문 verbatim.
@@ -1728,6 +1820,14 @@ async def get_provision_detail(provision_id: str) -> dict:
       amendment_kind가 "제정"이면 amendment_text는 미제공(전체 신설이라 개정문 blob이 서명부·부칙 중심).
       응답 한도로 개정문이 생략되면 amendment_text_omitted=true·경고가 오니 document_source_url의 공식
       원문에서 확인할 것. 개정문에는 별지 서식 개정을 가리키는 이미지 참조 태그(<img …>)가 포함될 수 있음.
+      개정 전/후를 조문 원문 2열로 대조할 필요가 있으면 include_old_and_new=true로 문서레벨(law)을
+      조회해 신구조문대비표(old_and_new: old/new 메타 + rows 2열)를 받을 것(v0.18.0·law 한정·기본
+      false — 그 외 대상에서는 무시됨). ★대비표는 직전 공포 연혁 대비(현행 대비 아님)이며 구조문이
+      아직 미시행인 분리시행분일 수 있으니 old/new의 공포일자·시행일자·현행여부(current)로 확인할 것.
+      rows 텍스트의 <P>…</P>는 변경 구간 하이라이트·'(생 략)'/'(현행과 같음)'은 무변경부 축약·
+      '<신 설>'은 신설 표시. available=false는 대비표 부재(reason="not_provided") 또는 조회 실패
+      (reason="fetch_failed")일 뿐 무개정 보증이 아니며(일부개정에도 부재 사례 있음), rows_omitted=true면
+      응답 한도로 rows가 생략된 것이니 document_source_url의 공식 원문에서 확인할 것.
     - unit_id가 JO… 면 조문 본문 + article_structure (v0.6.0 size-tiered — 대용량 조문은
       article_structure 생략 또는 본문 미수록 oversized_pointer), BP… 면 별표 본문 (행정규칙·법령
       시행령 모두, v0.2; size-tiered). BP는 4자리(본별표, 예: BP0001=별표 1) 또는 6자리(가지별표
@@ -1920,6 +2020,20 @@ async def get_provision_detail(provision_id: str) -> dict:
         #   밀어내지 않게 whole-or-omit). law 트랙 한정(admrul 커버리지 불균일·별도 파서 → 후속 사이클).
         if pid.doc_type == "law":
             _attach_amendment_meta(result, detail)
+            # v0.18.0: 신구조문대비표(형태 B redline) — opt-in일 때만 +1 네트워크(기본 경로 완전 무접촉).
+            # 부착 우선순위 최하위(articles 백스톱·amendment 부착 이후) → 기존 필드 100% 보호.
+            if include_old_and_new:
+                try:
+                    _oan = await _run_offloaded(client.get_old_and_new, doc_id)
+                except Exception:  # noqa: BLE001 — LawApiError 포함 어떤 실패도 본문 응답을 깨지 않음(never-raise)
+                    _oan = None
+                _attach_old_and_new(result, _oan)
+        elif include_old_and_new:
+            # admrul 문서레벨 + opt-in — 미지원 정직 고지(LIVE 실측: oldAndNew는 admrul 미지원
+            # "일치하는 신구법 없습니다"). 네트워크 미발생.
+            result["warnings"] = result["warnings"] + [
+                "include_old_and_new는 law 문서레벨 조회에서만 지원 — 행정규칙(admrul)은 신구조문대비표 미제공."
+            ]
         return result
 
     # article (JO)
@@ -2120,6 +2234,7 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
    - 조문(JO)도 마찬가지로, 특정 조문의 provision_id가 불확실하면 추측하지 말고 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 articles 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.
    - '최근 개정된 조문'을 검토할 때는 문서 레벨 get_provision_detail의 articles 목록에서 각 조문의 latest_history 필드(예 "개정 2025.12.30(공포)")로 최근 변경 조문을 찾아 그 조문을 조회할 것. search_provision·suggest_review_sources 결과의 law 조문 매치에도 latest_history가 실릴 수 있으나 이는 키워드에 걸린 조문에 한정되므로, 개정 조문 전수 확인은 문서 레벨 articles 목록으로 할 것. 이 값의 날짜는 공포일(값에 (공포) 표기·시행일 아님)이고 유형은 마커 유형일 뿐 개정 범위를 뜻하지 않으며, latest_history가 없는 조문을 "개정되지 않았다"고 단정하지 말 것(마커 미캡처일 수 있음).
    - '이번 개정으로 무엇이 바뀌었는지'를 검토할 때는 문서 레벨 get_provision_detail(law)의 amendment_text(개정문·공식 개정지시문 산문)와 amendment_kind로 확인할 것(v0.17.0·law 한정). amendment_text는 최신 개정분의 원 개정문 산문이지 조문별 완전 대조(clean diff)가 아니므로 조문별 완전 redline으로 과장하지 말고, amendment_kind가 "제정"이면 전체 신설(개정문 미제공)이며, amendment_text가 없거나 amendment_text_omitted이면 document_source_url의 공식 원문에서 확인할 것. 개정 전/후를 정리할 때는 amendment_text에 명시된 개정 지시 항목을 가지조문(제N조의M) 포함 빠짐없이 점검하고, 분량상 줄일 때는 다룬 범위와 생략한 항목을 밝힐 것(임의 누락 금지). 개정후 대체문을 인용할 때는 그 안의 근거 법률 인용(법명·조문 번호)을 기관명만으로 축약하지 말고 보존할 것. 제정·타법개정의 배경으로 도구 응답으로 확인되지 않은 전신 법령명·연혁은 단정하지 말 것(미확인 배경은 추정임을 밝히거나 생략).
+   - 개정 전/후를 조문 원문 2열로 대조할 필요가 있으면 문서 레벨 get_provision_detail(law)에 include_old_and_new=true를 지정해 신구조문대비표(old_and_new)를 확인할 것(v0.18.0·law 한정·기본 미조회). 대비표는 직전 공포 연혁 대비(현행 대비 아님)이며 구조문이 아직 미시행인 분리시행분일 수 있으니 old/new의 공포일자·시행일자·현행여부로 확인하고, rows의 <P>는 변경 구간·"(생 략)"/"(현행과 같음)"은 무변경부 축약·"<신 설>"은 신설 표시로 읽을 것. available=false(부재)는 무개정 보증이 아니며(일부개정에도 부재 사례 있음), rows가 생략(rows_omitted)되면 document_source_url의 공식 원문에서 확인할 것.
    - 참조 조항 확인 없이 결론을 확정하지 말 것.
 
 6. 조문 요건 해석, 사실관계 분석, 상위 규정 우선 원칙

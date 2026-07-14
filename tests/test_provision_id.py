@@ -33,8 +33,8 @@ def test_contract_version_pinned():
     #          동형)·_UNIT_PATTERN 협소화(JO 4/6자리·가지 01~99)·검색/doc-level articles/상세에 가지조문 유입
     #          (거동 변경·신규 provision_id 의미 추가) → minor bump.
     # 0.12.0 = 검색 경로 개정 이력 노출(v0.16.0) — search_provision/suggest 결과의 law 조문 매치에 latest_history additive(§5.13) → minor bump.
-    # 0.13.0 = 개정 전/후 대조(redline) 최소형(v0.17.0) — get_provision_detail law 문서레벨 응답에 amendment_text·amendment_kind additive(§5.14) → minor bump.
-    assert CONTRACT_VERSION == "0.13.0"
+    # 0.14.0 = 형태 B redline(v0.18.0) — get_provision_detail optional include_old_and_new + law 문서레벨 old_and_new 블록 additive(§5.15) → minor bump.
+    assert CONTRACT_VERSION == "0.14.0"
 
 
 # === unit_label (v0.1.8 — overflow_candidates label용) ===

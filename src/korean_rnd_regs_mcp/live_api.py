@@ -313,7 +313,11 @@ class LawApiClient:
         self._failure_cache: TTLCache = TTLCache(maxsize=200, ttl=300)
         self._id_resolution_cache: TTLCache = TTLCache(maxsize=64, ttl=86400)  # v0.4.0: 50→64 (detail cache와 동상 — 단일 fan-out이 규정당 1엔트리 생성)
         self._id_resolution_failure_cache: TTLCache = TTLCache(maxsize=50, ttl=300)
-        # v0.9.1(B2): TTLCache 5종은 thread-safe 아님(in/get/[] read도 expire+링크 변경=mutation).
+        # v0.18.0: 신구조문대비표(oldAndNew) 전용 소형 캐시 — opt-in 상세 경로 한정이라 소형으로 충분.
+        # _detail_cache(maxsize 64·검색 fan-out warm-hit 상주)와 분리해, 대비표 조회가 detail warm
+        # 엔트리를 축출해 cold fan-out latency를 되돌리는 간섭을 원천 차단.
+        self._old_and_new_cache: TTLCache = TTLCache(maxsize=16, ttl=86400)
+        # v0.9.1(B2): TTLCache 6종은 thread-safe 아님(in/get/[] read도 expire+링크 변경=mutation).
         # B2가 fan-out 동시성을 8→32로 키워 같은 client 캐시에 동시 접근이 늘므로, 캐시 touch를
         # 이 Lock으로 직렬화해 내부 링크 corruption을 막는다. ★Lock은 cache 접근에만 — network
         # (_request_with_retry)·XML 파싱은 절대 lock 밖(그 안에 들어가면 최악 ~82s 점유로 전체
@@ -486,6 +490,93 @@ class LawApiClient:
                 raise LawApiError(ERROR_NOT_FOUND, f"법령 상세 결과 없음: MST={mst}")
             with self._cache_lock:  # v0.9.1(B2): 캐시 write 직렬화
                 self._detail_cache[cache_key] = result
+            return result
+        except LawApiError as e:
+            self._record_failure(cache_key, e)
+            raise
+
+    # --- 신구조문대비표 (v0.18.0) ---
+    def get_old_and_new(self, mst: str) -> dict:
+        """법령 신구조문대비표(oldAndNew) 조회 — 개정 전/후 조문 원문 2열 대조 (law 전용).
+
+        ★lawService만 사용: lawSearch.do?target=oldAndNew(검색 변형)는 응답 행의 신구법상세링크
+        필드에 OC 인증키 원문이 포함되어 반환됨(2026-07-14 LIVE 실측) — 어떤 이유로도 사용 금지.
+        lawService(상세) 응답에는 링크 필드가 없어 안전.
+
+        LIVE 실측(2026-07-14·manifest law 29건 전수 sweep):
+        - root <OldAndNewService> = 구조문_기본정보/신조문_기본정보(공포일자·공포번호·시행일자·
+          현행여부 등) + 구조문목록/신조문목록(<조문 no="N"> 평면 행 나열·양측 행 수 항상 동일
+          13/13…135/135 → no 순번 정렬 2열 표). 행 단위는 조문이 아니라 표 행(조문 헤더·항·호
+          혼재)이며 조문별 그룹핑은 하지 않는다(v0.18.0 최소형 — "제N조" 접두 재구성은 파서
+          위험·scope 증가로 기각, /disc 3-AI 합의). 변경 구간은 텍스트 내 이스케이프된 <P> 마커,
+          무변경부는 "(생  략)"/"(현행과 같음)" 축약, 신설 행은 "<신  설>" placeholder — verbatim 유지.
+        - 대비표 부재 시 <신구법존재여부>N + 목록 부재(HTTP 200 유지) — 결정론 판별 신호.
+          ★부재 ≠ 무개정(일부개정인데 부재 2건 실측: 286879·262117). 제개정구분으로 존재를 예측하지 말 것.
+        - diff 기준은 "직전 공포 연혁 vs 해당 MST"(현행 대비 아님) — 구조문이 미시행 분리시행분일 수
+          있음(혁신법 283849 실측: 구조문=283413·시행 20260820 미도래). 기본정보를 그대로 반환해
+          호출부(main)가 데이터 앵커로 노출하게 한다.
+        - admrul 미지원("일치하는 신구법 없습니다") — law 게이트는 호출부(main) 책임.
+        반환: {"available": bool[, "old"/"new": 기본정보 dict(Korean key), "old_rows"/"new_rows": [str]]}.
+        """
+        self._require_key()
+        cache_key = ("get_old_and_new", mst)
+        cached = self._check_caches(cache_key, self._old_and_new_cache)
+        if cached is not None:
+            return cached
+        url = f"{self.base_url}/lawService.do"
+        params = {"OC": self.api_key, "target": "oldAndNew", "type": "XML", "MST": mst}
+        try:
+            response = _request_with_retry(url, params)
+            if not (response.text or "").strip():
+                # LIVE 프로브 중 1회 관측된 HTTP 200 + 빈 body — 1회만 재조회(그래도 비면 _parse_xml이
+                # parse_failed로 표면화). opt-in 경로라 재조회 1회의 latency 추가는 수용 범위.
+                response = _request_with_retry(url, params)
+            root = _parse_xml(response)
+            old_list = root.find(".//구조문목록")
+            new_list = root.find(".//신조문목록")
+            exists_flag = (root.findtext(".//신구법존재여부") or "").strip()
+            if exists_flag == "N" or old_list is None or new_list is None:
+                result: dict = {"available": False}
+            else:
+                def _basic_info(tag: str) -> dict:
+                    el = root.find(f".//{tag}")
+
+                    def _get(name: str) -> str:
+                        return (el.findtext(name) or "").strip() if el is not None else ""
+
+                    return {
+                        "법령일련번호": _get("법령일련번호"),
+                        "공포일자": _get("공포일자"),
+                        "공포번호": _get("공포번호"),
+                        "시행일자": _get("시행일자"),
+                        "현행여부": _get("현행여부"),
+                    }
+
+                def _rows(parent: ET.Element) -> list[str]:
+                    # no 속성은 실측 전건 1..N 순번이나 방어적으로: 전건 유효 정수일 때만 no 정렬,
+                    # 아니면 문서 순서 유지(행 순서가 곧 표 순서). isascii 가드는 상위첨자 '²'
+                    # (isdigit=True) 함정 회피 — 조문번호 처리(main)와 동일 방침.
+                    # 양측 no 시퀀스 교차 대조는 하지 않음(의도적 최소형): no는 표 행 인덱스라
+                    # 정렬 후 positional pairing이 곧 표 의미론이고, 한쪽 행 결손은 행 수 차이로
+                    # 표면화되어 main의 min-zip + row_count_mismatch가 방어(LIVE 실측 전건 동수).
+                    entries = []
+                    for row in parent.findall("조문"):
+                        no_raw = (row.get("no") or "").strip()
+                        no = int(no_raw) if (no_raw.isascii() and no_raw.isdigit()) else None
+                        entries.append((no, (row.text or "").strip()))
+                    if entries and all(no is not None for no, _ in entries):
+                        entries.sort(key=lambda x: x[0])
+                    return [text for _, text in entries]
+
+                result = {
+                    "available": True,
+                    "old": _basic_info("구조문_기본정보"),
+                    "new": _basic_info("신조문_기본정보"),
+                    "old_rows": _rows(old_list),
+                    "new_rows": _rows(new_list),
+                }
+            with self._cache_lock:  # v0.9.1(B2): 캐시 write 직렬화
+                self._old_and_new_cache[cache_key] = result
             return result
         except LawApiError as e:
             self._record_failure(cache_key, e)

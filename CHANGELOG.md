@@ -3,6 +3,25 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.18.0] - 2026-07-14
+
+**형태 B redline — 신구조문대비표(oldAndNew) opt-in 노출 (law 한정)** — redline 테마(v0.14 가지조문 → v0.15 조문 개정이력 → v0.16 검색 경로 → v0.17.0 amendment_text 개정지시문 산문 → v0.17.1 소비 가이드)의 다음 단계로, v0.16.0 eval에서 관측된 "무엇이 바뀌었나"(개정 전/후 원문 대조) 수요의 마지막 조각을 해소한다. 국가법령정보 OpenAPI의 신구조문대비표(`lawService.do?target=oldAndNew` — 개정 전/후 조문 원문 2열)를 `get_provision_detail`의 **optional 파라미터 `include_old_and_new`(기본 false)** 로 노출: true + law 문서레벨일 때만 **+1 요청**으로 조회해 `old_and_new` 블록(old/new 데이터 앵커·rows 2열 verbatim)을 additive 부착한다. **기본(false) 경로·검색 fan-out·부팅/transport 완전 무접촉**(outage 격리). `contract_version` **0.13.0 → 0.14.0**(§5.15·입력 파라미터+응답 schema 신규 필드), 패키지 **major** bump(contract bump = 큰 변화: 가운데 +1·마지막 0, 0.17.1 → **0.18.0**). 지원 규정 수 **52개 불변**. **선정·설계**: 배포 전 `law-api-prober` LIVE 실측(law 29건 전수 sweep — 대비표 실재 23/29·결정론 부재 신호 `신구법존재여부=N`·최대 26,553자·★일부개정인데 부재 2건[286879·262117]·★검색 변형 `lawSearch`는 응답에 OC 키 원문 포함이라 사용 금지) → `/disc` 3-AI(Claude+Codex+Gemini) 3/3 GO(설계 3안 중 opt-in 파라미터 채택 — 항상 부착은 전 문서레벨 +1 네트워크·크기 압박, 신규 도구는 표면 파편화; 조문별 그룹핑은 파서 위험·scope 증가로 기각). **outage 회피**: opt-in 격리·never-raise(조회 실패 시 `old_and_new`만 fetch_failed·본문 응답 정상)·whole-or-omit 3단(절단 금지)·전용 캐시 분리(detail warm-hit 무간섭)·롤백 먼저.
+
+### Added
+
+- **`live_api.get_old_and_new`**: `lawService.do?target=oldAndNew&MST=` XML 파싱 — 구/신 기본정보(공포일자·공포번호·시행일자·현행여부) + 구조문목록/신조문목록(`<조문 no=N>` 평면 행·no 순번 정렬·양측 행 수 동일 실측). 부재는 `신구법존재여부=N`/목록 부재로 결정론 판별(`available: false`). 빈 body(HTTP 200) 1회 재조회 방어(LIVE 프로브 1회 관측). ★`lawSearch.do?target=oldAndNew` 사용 금지(응답 `신구법상세링크`에 OC 인증키 원문 포함 — LIVE 실측). 전용 `_old_and_new_cache`(maxsize 16·ttl 24h)로 `_detail_cache`(fan-out warm-hit) 간섭 차단.
+- **`get_provision_detail(provision_id, include_old_and_new=false)`** + **`_attach_old_and_new` 헬퍼**(`main.py`): true + law 문서레벨일 때만 `old_and_new` 블록 부착 — `available`·`basis`(★직전 공포 연혁 대비·현행 대비 아님 — 구조문이 미시행 분리시행분일 수 있어 old/new 날짜·현행여부 데이터 앵커로 방어)·`markers_note`(`<P>` 변경 하이라이트·"(생  략)"/"(현행과 같음)" 무변경 축약·"<신  설>" placeholder)·`old`/`new`(doc_id·공포일자·공포번호·시행일자·현행여부)·`rows`(no 순번 2열 pair·verbatim·조문별 그룹핑 없음). `available=false`는 `reason`으로 구분: `not_provided`(★부재 ≠ 무개정 — 일부개정인데 부재인 문서 실재를 note에 데이터 앵커로 명시) / `fetch_failed`(never-raise — 본문 응답 정상 유지). 크기는 whole-or-omit 3단: 예산(16,000) 내 전체 부착 → `rows`만 통째 생략(`rows_omitted`·메타 앵커 유지) → 블록 제거+`old_and_new_omitted` 플래그. articles·amendment_text는 100% 보호(최하위 우선순위 부착). unit(JO/BP) 조회에서는 무시, admrul 문서레벨은 미지원 정직 경고 1줄(네트워크 미발생).
+- **테스트**(`tests/test_tools.py`·`tests/test_b2_executor.py`): opt-in 부착(2열 pairing·데이터 앵커)·기본 false 미조회(네트워크 0)·not_provided 정직 note·fetch_failed never-raise·oversized rows 생략(articles 보존·최종 직렬화 예산 내)·행 수 불일치 min-zip·admrul 경고·JO 무시·live_api 파서(2열 정렬·부재 플래그·빈 body 재조회)·surface-consistency(3표면 소비 가이드 토큰)·contract 0.14.0/패키지 0.18.0 잠금.
+- **acceptance spec**(`tests/acceptance/v0_18_0.py`): 중기법(281987) opt-in 대비표 available·제정 시행령(282915) not_provided·기본 경로 무회귀(amendment_kind 유지)·무회귀 '연구개발비' returned ≥ 10. Level-B(호스트 2열 대조 소비·부재 정직 안내)는 배포 후 수동 eval 프롬프트로 출력.
+
+### Changed
+
+- **소비 가이드**(`_SERVER_INSTRUCTIONS`·`get_provision_detail` docstring·`review_regulation` 프롬프트 + `README.md` byte-sync): 개정 전/후 조문 원문 2열 대조가 필요하면 law 문서레벨에 `include_old_and_new=true` 지정 → `old_and_new` 확인. ★직전 공포 연혁 대비(현행 대비 아님)·마커 의미(`<P>`/"(생 략)"/"(현행과 같음)"/"<신 설>")·부재(available=false) ≠ 무개정·`rows_omitted` 시 `document_source_url` 확인. 기존 v0.17.0~0.17.1 amendment framing 보존.
+
+### Deferred (scope 밖·backlog)
+
+- 조문별 그룹핑("제N조" 접두 재구성)·조문별 선별 반환·과거 연혁 MST 지정(특정 개정분 대비표)·admrul redline 확장(개정문 15/23·별도 파서 2경로)·structured 목 parity.
+
 ## [0.17.1] - 2026-07-13
 
 **개정 전/후 대조(redline) 소비 품질 프롬프트 보강 — v0.17.0 eval host-side minor 3건 대응** — v0.17.0 배포 후 브라우저 라이브 eval(claude.ai·Sonnet 4.6)에서 기능은 end-to-end 작동(fabrication 0)했으나 호스트 LLM의 amendment_text 소비 행동에서 minor 3건이 관찰됐다(모두 서버 데이터는 완전·순수 소비 품질 문제): (1) 개정문 개정항목 6개 중 5개만 다루고 가지조문(제27조의2제2항)을 통째 누락(선택적 초점), (2) 제정 법령 답변에서 도구 미검증 전신 법령명·연혁을 단정 서술, (3) 개정후 대체문 인용 시 근거 법률 인용(법명·조문 번호)을 기관명 요약으로 탈락. 세 실패 모두 **서버 코드 결함이 아니라 amendment 소비 가이드 공백**이라, 프롬프트 표면 3곳(`_SERVER_INSTRUCTIONS`·`get_provision_detail` docstring·`review_regulation` 프롬프트[README byte-sync])에 동일 취지 3지시를 **기존 amendment 문단 내 최소 증분으로 삽입**(새 섹션 append 아님)하여 대응한다. **코드 로직 무변경·순수 프롬프트 문자열 상수 교체** → `contract_version` **0.13.0 유지**·응답 schema/필드/shape 불변·패키지 **patch** bump(0.17.0 → **0.17.1**). 지원 규정 수 **52개 불변**. **선정·검증**: 차기 패키지 선정 `/disc` 3-AI 3/3 "수정 후 GO"(형태 B redline·admrul 확장 등 backlog는 신규 네트워크·파서 동반 = 중위험이라 이번 최소·안전 patch 후순위) → 문구 초안 `/disc` 3-AI 3/3 "수정 후 GO"(문구 정제 3건 채택: "명시된 항목만" 앵커·"기관명만으로 축약하지 말고"·"도구 응답으로 확인되지 않은"; scope creep 1건[용어 치환 금지] 기각). **outage 회피**: 부팅/HTTP transport/health/미들웨어/검색 fan-out 전부 무접촉(문자열 상수만 변경).
