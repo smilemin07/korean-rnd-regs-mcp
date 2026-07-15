@@ -650,6 +650,18 @@ class LawApiClient:
                 # (LIVE 19건 실측). findtext+strip만 — 누락 시 "" (예외 없음·검색 fan-out 공유 안전).
                 "발령번호": (root.findtext(".//발령번호") or "").strip(),
                 "행정규칙종류": (root.findtext(".//행정규칙종류") or "").strip(),
+                # v0.19.0: admrul redline 확장 — law(get_law_detail)와 동일하게 <개정문내용> 캡처.
+                # LIVE 전수(2026-07-15·admrul 23건): 존재 15/부재 8(부재=태그 자체 부재라 "" — 결정론)·
+                # 전건 <개정문> wrapper 아래 단일 text node(root 직속 아님 → .//필수)·복수 출현 0·
+                # 최대 3,836자·HTML 이스케이프/<img> 0. ★부재≠무개정(연구개발비 사용 기준이 일부개정인데
+                # 부재 — 소비 가이드는 프롬프트 표면). findtext never-raise(검색 fan-out 공유 경로 안전 —
+                # search는 이 필드를 소비하지 않아 blast radius 0).
+                "개정문내용": root.findtext(".//개정문내용", ""),
+                # v0.19.0: ★admrul XML엔 law의 <제개정구분> 태그가 없음(LIVE 23건 전건) — <제개정구분명>
+                # (값 "일부개정" 18/"제정" 4/"전부개정" 1·전건 존재)을 law와 같은 "제개정구분" 키로 정규화
+                # 저장해 main._attach_amendment_meta를 무변경 재사용. 동반 <제개정구분코드>는 소비 가치
+                # 없어 미캡처(스코프 최소화).
+                "제개정구분": (root.findtext(".//제개정구분명") or "").strip(),
                 "articles": articles,
                 "annexes": annexes,
             }

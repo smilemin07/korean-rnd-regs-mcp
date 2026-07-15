@@ -543,7 +543,7 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
     """suggest 응답에 현행 contract_version(0.10.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.14.0"
+    assert result["contract_version"] == "0.15.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -868,7 +868,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.14.0"
+    assert result["contract_version"] == "0.15.0"
 
 
 # === _build_article_content  ===
@@ -2477,9 +2477,10 @@ def test_doc_level_amendment_skip_when_제정_v0170(mock_client):
     assert "amendment_text_omitted" not in result  # skip은 생략(omit)이 아님 — 플래그 미부착
 
 
-def test_doc_level_amendment_admrul_omitted_v0170(mock_client):
-    """v0.17.0: admrul 문서레벨은 amendment_text·amendment_kind 미부착(law-only 게이트).
-    get_admin_rule_detail은 개정문 필드 미파싱이라 detail에 키 자체가 없음."""
+def test_doc_level_amendment_admrul_absent_graceful_v0170_v0190(mock_client):
+    """v0.17.0 law-only 게이트 테스트를 v0.19.0에서 대체: admrul 문서레벨도 amendment 부착 대상
+    (게이트 완화)이나, 개정문 부재 문서(LIVE 8/23 — 태그 자체 부재)와 동형인 기본 mock(개정문 키 없음)은
+    필드 미출현·무크래시(★부재≠무개정 — 소비 가이드는 프롬프트 표면·kind는 detail 제공 시에만 부착)."""
     result = asyncio.run(get_provision_detail("admrul:2100000278740"))
     assert "amendment_text" not in result
     assert "amendment_kind" not in result
@@ -3801,7 +3802,7 @@ def test_get_provision_detail_small_article_unchanged_v060(mock_client):
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None
     assert "content_available" not in result
-    assert result["contract_version"] == "0.14.0"
+    assert result["contract_version"] == "0.15.0"
 
 
 def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):
@@ -3820,3 +3821,193 @@ def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_cl
     assert result["content_format"] == "oversized_pointer"                       # 강등됨
     assert len(json.dumps(result, ensure_ascii=False)) <= _ANNEX_DETAIL_CHAR_BUDGET  # airtight
     assert result["version_label"] == "예규 제179호"                              # version 유지
+
+
+# === v0.19.0: admrul redline 확장 — 행정규칙 문서레벨 amendment_text·amendment_kind ===
+def test_admrul_doc_level_amendment_attached_v0190(mock_client):
+    """v0.19.0: admrul 문서레벨 응답에 amendment_text·amendment_kind additive 부착 —
+    detail이 정규화 키("제개정구분"·"개정문내용")를 제공하면 law용 _attach_amendment_meta가
+    무변경 재사용됨(게이트 완화·추가 네트워크 0)."""
+    base = mock_client.get_admin_rule_detail.return_value
+    mock_client.get_admin_rule_detail.return_value = {
+        **base,
+        "제개정구분": "일부개정",
+        "개정문내용": "제5조제4항제3호 중 \"제19조제3항\"을 \"제19조제4항\"으로 한다.",
+    }
+    result = asyncio.run(get_provision_detail("admrul:2100000278740"))
+    assert result["amendment_kind"] == "일부개정"
+    assert result["amendment_text"].startswith("제5조제4항제3호")  # verbatim
+    assert "amendment_text_omitted" not in result  # 소형(admrul 최대 3,836자 실측) → 통째 부착
+
+
+def test_admrul_amendment_jeojeong_skip_v0190(mock_client):
+    """v0.19.0: admrul 제정 4건은 개정문이 실재(law와 반대 거동)하나 내용이 발령 헤더+"[본문 생략]"+
+    부칙 등 발령 메타(개정 delta 아님·LIVE 실측) → law와 동일 skip 유지로 amendment_text 의미
+    ("이번 개정의 지시문 산문")를 양 트랙 동일 보존(/disc 3/3 합의)·kind만 부착."""
+    base = mock_client.get_admin_rule_detail.return_value
+    mock_client.get_admin_rule_detail.return_value = {
+        **base,
+        "제개정구분": "제정",
+        "개정문내용": "⊙과학기술정보통신부고시 제2020-38호 … [본문 생략] … 부칙 …(발령 메타)",
+    }
+    result = asyncio.run(get_provision_detail("admrul:2100000278740"))
+    assert result["amendment_kind"] == "제정"
+    assert "amendment_text" not in result  # 제정 → skip(개정문이 존재해도 미노출)
+    assert "amendment_text_omitted" not in result  # skip ≠ 생략(omit) — 플래그 미부착
+
+
+def test_admrul_amendment_kind_only_when_text_absent_v0190(mock_client):
+    """v0.19.0: 개정문 부재 + 제개정구분만 존재(LIVE 부재군 8건 — 연구개발비 사용 기준 '일부개정'·
+    연구윤리 지침 '전부개정' 등) → kind만 부착·text 미출현(★부재≠무개정 데이터 그대로 반영)."""
+    base = mock_client.get_admin_rule_detail.return_value
+    mock_client.get_admin_rule_detail.return_value = {
+        **base,
+        "제개정구분": "전부개정",
+        "개정문내용": "",
+    }
+    result = asyncio.run(get_provision_detail("admrul:2100000278740"))
+    assert result["amendment_kind"] == "전부개정"
+    assert "amendment_text" not in result
+    assert "amendment_text_omitted" not in result
+
+
+def test_admrul_amendment_omitted_when_oversized_v0190(mock_client):
+    """v0.19.0: whole-or-omit이 admrul 경로에도 그대로 — 예산 초과 시 통째 생략(절단 금지) +
+    amendment_text_omitted 플래그, 기존 응답(annexes 등)은 보존·최종 직렬화 예산 내."""
+    base = mock_client.get_admin_rule_detail.return_value
+    mock_client.get_admin_rule_detail.return_value = {
+        **base,
+        "제개정구분": "일부개정",
+        "개정문내용": "가" * 20000,  # 예산(16,000) 초과 — 실측 최대 3,836자의 방어적 극단
+    }
+    result = asyncio.run(get_provision_detail("admrul:2100000278740"))
+    assert result["amendment_kind"] == "일부개정"  # 소형 kind는 부착
+    assert "amendment_text" not in result  # 통째 생략(절단 아님)
+    assert result["amendment_text_omitted"] is True
+    assert result["annexes"], "기존 annexes 목록 보존"
+    assert len(json.dumps(result, ensure_ascii=False)) <= 16000  # 최종 응답 예산 내
+
+
+def test_admrul_opt_in_old_and_new_gate_separation_v0190(mock_client):
+    """v0.19.0 게이트 분리 잠금: admrul + include_old_and_new=True여도 get_old_and_new 미호출
+    (oldAndNew API는 admrul 미지원 — 게이트 완화가 oldAndNew로 번지는 오호출 원천 차단)·
+    미지원 정직 경고 유지·amendment 부착과 양립."""
+    base = mock_client.get_admin_rule_detail.return_value
+    mock_client.get_admin_rule_detail.return_value = {
+        **base,
+        "제개정구분": "일부개정",
+        "개정문내용": "제2조제5호 및 제6호를 각각 삭제한다.",
+    }
+    result = asyncio.run(get_provision_detail("admrul:2100000278740", include_old_and_new=True))
+    mock_client.get_old_and_new.assert_not_called()
+    assert "old_and_new" not in result
+    assert any("신구조문대비표 미제공" in w for w in result["warnings"])
+    assert result["amendment_kind"] == "일부개정"  # amendment는 정상 부착(두 게이트 독립)
+    assert result["amendment_text"].startswith("제2조제5호")
+
+
+def test_amendment_admrul_guidance_present_all_surfaces_v0190():
+    """v0.19.0 surface-consistency: admrul 확장·★부재≠무개정 소비 가이드 토큰이 3개 프롬프트 표면
+    전부에 존재하고, 구 'law 한정' 표기가 amendment 안내 문장에 잔존하지 않는지 검증
+    (기존 v0.17.x 지시·clean diff 가드 보존은 별도 테스트가 검증)."""
+    import re
+
+    def _norm(s: str) -> str:
+        return re.sub(r"\s+", " ", s or "")
+
+    surfaces = {
+        "SERVER_INSTRUCTIONS": main_module._SERVER_INSTRUCTIONS,
+        "REVIEW_PROMPT": main_module._REVIEW_PROMPT_TEMPLATE,
+        "DOCSTRING": get_provision_detail.__doc__,
+    }
+    tokens = [
+        "개정문이 제공되지 않는 문서가 있",  # ★부재≠무개정 admrul 가이드
+        "admrul",  # 양 트랙 확장 신호
+    ]
+    for name, text in surfaces.items():
+        norm = _norm(text)
+        for tok in tokens:
+            assert tok in norm, f"{name}에 v0.19.0 가이드 토큰 '{tok}' 누락 — 3표면 동기화 필요"
+        # 구 표기("…amendment_kind로 답하십시오(law 한정)")가 남아 admrul 확장과 모순되지 않는지
+        assert "amendment_kind로 답하십시오(law 한정)" not in norm
+
+
+def test_admin_rule_detail_parses_amendment_fields_v0190(monkeypatch):
+    """v0.19.0(live_api): get_admin_rule_detail이 <개정문><개정문내용>(wrapper 1단 아래 — .//필수)과
+    <제개정구분명>을 캡처. ★후자는 law와 태그명이 다름(admrul XML에 <제개정구분> 태그 없음) —
+    "제개정구분" 키로 정규화 저장해 main 헬퍼 무변경 재사용(제개정구분코드는 미캡처)."""
+    import requests as requests_mod
+
+    fake_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<AdmRulService>
+  <행정규칙기본정보>
+    <행정규칙ID>73978</행정규칙ID>
+    <행정규칙명>테스트 고시</행정규칙명>
+    <제개정구분코드>200403</제개정구분코드>
+    <제개정구분명>일부개정</제개정구분명>
+    <발령번호>25</발령번호>
+    <행정규칙종류>고시</행정규칙종류>
+  </행정규칙기본정보>
+  <조문내용>제1조(목적) 이 고시는 시험을 위한 규정이다.</조문내용>
+  <개정문>
+    <개정문내용>제5조제4항제3호 중 "제19조제3항"을 "제19조제4항"으로 한다.</개정문내용>
+  </개정문>
+</AdmRulService>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_xml
+        headers = {"Content-Type": "application/xml"}
+
+    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    detail = client.get_admin_rule_detail("2100000278230")
+    assert detail["개정문내용"].startswith("제5조제4항제3호")
+    assert detail["제개정구분"] == "일부개정"  # <제개정구분명> → "제개정구분" 정규화 키
+    assert "제개정구분명" not in detail and "제개정구분코드" not in detail  # 원 태그명·코드 비노출
+
+
+def test_admin_rule_detail_amendment_absent_v0190(monkeypatch):
+    """v0.19.0(live_api): 개정문 태그 자체 부재(LIVE 부재군 8/23과 동형 — 빈 값 케이스 0) →
+    개정문내용 빈 문자열(결정론·never-raise)·제개정구분명은 전건 존재라 kind는 캡처됨."""
+    import requests as requests_mod
+
+    fake_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<AdmRulService>
+  <행정규칙기본정보>
+    <행정규칙명>부재 케이스 고시</행정규칙명>
+    <제개정구분명>일부개정</제개정구분명>
+  </행정규칙기본정보>
+  <조문내용>제1조(목적) 이 고시는 시험을 위한 규정이다.</조문내용>
+</AdmRulService>"""
+
+    class FakeResponse:
+        status_code = 200
+        text = fake_xml
+        headers = {"Content-Type": "application/xml"}
+
+    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    detail = client.get_admin_rule_detail("2100000278740")
+    assert detail["개정문내용"] == ""
+    assert detail["제개정구분"] == "일부개정"
+
+
+def test_admrul_unit_level_amendment_not_attached_v0190(mock_client):
+    """v0.19.0 잠금(적대검증 Codex 제안): amendment 부착은 문서레벨 한정 — admrul 조문(JO) 상세는
+    detail dict에 개정문 키가 있어도 미부착(law JO와 동일 거동·조문 응답 크기 오염 방지)."""
+    base = mock_client.get_admin_rule_detail.return_value
+    mock_client.get_admin_rule_detail.return_value = {
+        **base,
+        "articles": [
+            {"조문번호": "1", "조문제목": "목적", "조문내용": "제1조(목적) 이 규정은 시험을 위한 것이다.",
+             "structured": {"title": "제1조(목적)", "paragraphs": []}},
+        ],
+        "제개정구분": "일부개정",
+        "개정문내용": "제1조 중 \"A\"를 \"B\"로 한다.",
+    }
+    result = asyncio.run(get_provision_detail("admrul:2100000278740:JO0001"))
+    assert result.get("content"), "조문 상세 정상 도달"
+    assert "amendment_text" not in result
+    assert "amendment_kind" not in result
+    assert "amendment_text_omitted" not in result

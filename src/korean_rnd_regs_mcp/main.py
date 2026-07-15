@@ -70,9 +70,10 @@ _SERVER_INSTRUCTIONS = (
     "개정 조문 전수 확인은 문서레벨 articles 목록을 사용하십시오. "
     "이 값의 날짜는 공포일이며(값에 (공포) 표기) 시행일이 아니고, 유형(개정·신설·삭제 등)은 해당 날짜에 부착된 마커 유형일 뿐 개정 범위·중요도를 뜻하지 않습니다. "
     "latest_history가 없는 조문을 '개정되지 않았다'고 단정하지 마십시오(마커를 캡처하지 못한 것일 수 있음). "
-    "특정 법령이 '이번 개정으로 무엇이 바뀌었는지'를 물으면, 문서레벨 get_provision_detail(unit_id 없이) 응답의 amendment_text(개정문·공식 개정지시문 산문)와 amendment_kind로 답하십시오(law 한정). "
+    "특정 법령·행정규칙이 '이번 개정으로 무엇이 바뀌었는지'를 물으면, 문서레벨 get_provision_detail(unit_id 없이) 응답의 amendment_text(개정문·공식 개정지시문 산문)와 amendment_kind로 답하십시오(law·admrul 양 트랙). "
     "amendment_text는 최신 개정분의 원 개정문 산문이며 조문별 완전 대조(clean diff)가 아니므로 조문별 완전 redline으로 과장하지 말고, "
-    "amendment_kind가 '제정'이면 전체 신설(개정문 미제공)이며, amendment_text가 없거나 amendment_text_omitted이면 document_source_url의 공식 원문에서 개정 내용을 확인하도록 안내하십시오. "
+    "amendment_kind가 '제정'이면 전체 신설이라 amendment_text를 제공하지 않으며, amendment_text가 없거나 amendment_text_omitted이면 document_source_url의 공식 원문에서 개정 내용을 확인하도록 안내하십시오. "
+    "특히 행정규칙(admrul)은 개정문이 제공되지 않는 문서가 있으며(일부개정인데도 부재 실재) amendment_text 부재는 무개정을 의미하지 않습니다. "
     "개정 전/후를 정리할 때는 amendment_text에 명시된 개정 지시 항목을 가지조문(제N조의M) 포함 빠짐없이 점검하고, 분량상 줄일 때는 다룬 범위와 생략한 항목을 밝히십시오(임의 누락 금지). "
     "개정후 대체문을 인용할 때는 그 안의 근거 법률 인용(법명·조문 번호)을 기관명만으로 축약하지 말고 보존하십시오. "
     "제정·타법개정의 배경으로 도구 응답으로 확인되지 않은 전신 법령명·연혁은 단정하지 마십시오(미확인 배경은 일반지식 추정임을 밝히거나 생략). "
@@ -939,18 +940,22 @@ def _article_amendment_history(art: dict) -> str | None:
 
 
 def _attach_amendment_meta(result: dict, detail: dict) -> None:
-    """v0.17.0: law 문서레벨 응답에 개정문(amendment_text)·제개정구분(amendment_kind)을 additive 부착.
+    """v0.17.0(law)·v0.19.0(admrul): 문서레벨 응답에 개정문(amendment_text)·제개정구분(amendment_kind)을 additive 부착.
 
     「개정 전/후 대조(redline) 최소형」 — 사용자가 "이번 개정으로 무엇이 바뀌었나"를 물을 때 현행 원문+
-    latest_history 마커만으로는 못 답하던 갭을 해소. 데이터는 get_law_detail이 이미 받아온 <개정문내용>(개정지시문
-    산문)·<제개정구분>이라 추가 네트워크 0. law 트랙 한정은 호출부 게이트(pid.doc_type=="law")로 보장 —
-    admrul detail은 이 키가 없어(get_admin_rule_detail 미파싱) 진입해도 no-op이나, admrul 커버리지 불균일
-    (15/23만 개정문 보유·최대 사용처 '연구개발비 사용 기준' 부재군)·별도 파서 2경로라 admrul 확장은 후속 사이클.
+    latest_history 마커만으로는 못 답하던 갭을 해소. 데이터는 get_law_detail/get_admin_rule_detail이 이미
+    받아온 <개정문내용>·제개정구분(law=<제개정구분>·admrul=<제개정구분명>을 live_api가 같은 키로 정규화)이라
+    추가 네트워크 0. v0.19.0부터 호출부 게이트 없이 law·admrul 문서레벨 양쪽에서 호출(본 헬퍼는 detail 키만
+    읽는 범용 구현이라 무변경 재사용). ★admrul 커버리지는 불균일(LIVE 15/23만 개정문 보유·최대 사용처
+    '연구개발비 사용 기준'이 일부개정인데 부재) — 부재 시 kind만 부착되며 부재≠무개정 소비 가이드는 프롬프트 표면.
 
-    - amendment_kind: <제개정구분>(예 "일부개정"/"제정"/"타법개정"). 존재 시 부착 — 작은 해석 가드(제정·전부개정
-      구분으로 호스트 오해석 방지). 극단 base-bloat 방어로 예산 초과 시엔 생략(정상 데이터 미발동).
-    - amendment_text: <개정문내용>. ★kind=="제정"이면 skip — LIVE census 실측상 제정건 blob(최대 10,410자)의
+    - amendment_kind: 제개정구분(예 "일부개정"/"제정"/"타법개정"/"전부개정"). 존재 시 부착 — 작은 해석 가드(제정·
+      전부개정 구분으로 호스트 오해석 방지). 극단 base-bloat 방어로 예산 초과 시엔 생략(정상 데이터 미발동).
+    - amendment_text: <개정문내용>. ★kind=="제정"이면 skip — law LIVE census 실측상 제정건 blob(최대 10,410자)의
       정체는 조문 본문이 아니라 서명부+부칙이라 redline 가치 낮음("전체 신설" 신호는 amendment_kind로 충분).
+      admrul 제정 4건은 개정문이 실재하나(law와 달리 미제공 아님) 내용이 발령 헤더+"[본문 생략]"+부칙 등 발령
+      메타라 개정 delta가 아님(LIVE 실측) — 같은 skip을 유지해 amendment_text 의미("이번 개정의 지시문 산문")를
+      양 트랙에서 동일하게 보존(/disc 3/3 합의 2026-07-15).
       ★whole-or-omit(절단 cap 금지 — 개정문은 '무엇이 바뀌었나'의 목록이라 반쪽 절단 시 불완전 개정을 완전한 것으로
       오답하는 false-completeness 유발·적대검증 R1 기각). 호출 시점은 articles 백스톱 *이후* → 실제 json.dumps
       (필드 포함) 측정으로 예산(_ANNEX_DETAIL_CHAR_BUDGET) 내면 부착·초과면 통째 생략 + amendment_text_omitted
@@ -1809,15 +1814,17 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
       조문을 발견하는 데 쓸 수 있음(JO 상세 응답에도 동반). ★날짜=공포일(값에 (공포) 표기·시행일 아님)·유형=해당
       날짜에 부착된 마커일 뿐 개정 범위를 뜻하지 않음·필드 부재는 미개정 보증이 아님(마커 미캡처일 수 있음). law
       트랙 한정(행정규칙 평면 schema는 조문별 개정 마커가 없어 미부착).
-      또한 law 문서레벨 응답에는 그 법령의 최신 개정 내용이 amendment_text(개정문 — "'출연'을 '지원'으로
-      한다" 식 공식 개정지시문 산문)와 amendment_kind(제개정구분 — "일부개정"/"제정"/"타법개정" 등)로 포함될
-      수 있음(v0.17.0·law 한정). "이번 개정으로 무엇이 바뀌었나"는 이 amendment_text로 답하되, ★이는 최신
+      또한 문서레벨 응답에는 그 법령·행정규칙의 최신 개정 내용이 amendment_text(개정문 — "'출연'을 '지원'으로
+      한다" 식 공식 개정지시문 산문)와 amendment_kind(제개정구분 — "일부개정"/"제정"/"타법개정"/"전부개정" 등)로
+      포함될 수 있음(v0.17.0 law·v0.19.0 admrul). "이번 개정으로 무엇이 바뀌었나"는 이 amendment_text로 답하되, ★이는 최신
       개정분의 원 개정문 산문이지 조문별 완전 대조(clean diff)가 아니므로 조문별 완전 redline으로 과장하지 말 것.
       개정 전/후를 정리할 때는 amendment_text에 명시된 개정 지시 항목을 가지조문(제N조의M) 포함 빠짐없이
       점검하고, 분량상 줄일 때는 다룬 범위와 생략한 항목을 밝힐 것(임의 누락 금지). 개정후 대체문 인용 시
       그 안의 근거 법률 인용(법명·조문 번호)을 기관명만으로 축약하지 말고 보존할 것. 제정·타법개정의 배경으로
       도구 응답으로 확인되지 않은 전신 법령명·연혁은 단정하지 말 것(미확인 배경은 추정임을 밝히거나 생략).
-      amendment_kind가 "제정"이면 amendment_text는 미제공(전체 신설이라 개정문 blob이 서명부·부칙 중심).
+      amendment_kind가 "제정"이면 amendment_text는 미제공(전체 신설이라 개정문이 delta 아닌 서명부·부칙·
+      발령 메타 중심). ★행정규칙(admrul)은 개정문이 제공되지 않는 문서가 있어(일부개정인데도 부재 실재)
+      amendment_text 부재는 무개정을 의미하지 않음 — 부재 시 document_source_url의 공식 원문에서 확인할 것.
       응답 한도로 개정문이 생략되면 amendment_text_omitted=true·경고가 오니 document_source_url의 공식
       원문에서 확인할 것. 개정문에는 별지 서식 개정을 가리키는 이미지 참조 태그(<img …>)가 포함될 수 있음.
       개정 전/후를 조문 원문 2열로 대조할 필요가 있으면 include_old_and_new=true로 문서레벨(law)을
@@ -2015,11 +2022,14 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
             if not _articles_list and len(json.dumps(result, ensure_ascii=False)) > _ANNEX_DETAIL_CHAR_BUDGET:
                 del result["articles_truncated"]
                 result["warnings"] = result["warnings"][:-1]  # 직전 append한 절단 경고만 제거(중복 문자열 안전)
-        # v0.17.0: 개정 전/후 대조(redline) 최소형 — law 문서레벨에만 개정문·제개정구분 additive.
+        # v0.17.0(law)→v0.19.0(admrul 확장): 개정 전/후 대조(redline) — 문서레벨에 개정문·제개정구분 additive.
         # ★articles 백스톱 *이후* opportunistic 부착 → articles(v0.7.0 발견성) 100% 보호(개정문이 조문 목록을
-        #   밀어내지 않게 whole-or-omit). law 트랙 한정(admrul 커버리지 불균일·별도 파서 → 후속 사이클).
+        #   밀어내지 않게 whole-or-omit). doc_type은 parse()가 law/admrul만 통과시키므로 무게이트 호출 —
+        #   admrul detail도 v0.19.0부터 같은 키("개정문내용"·"제개정구분"[<제개정구분명> 정규화])를 제공.
+        _attach_amendment_meta(result, detail)
+        # ★게이트 분리(v0.19.0 적대검증 반영): amendment 부착은 law+admrul, old_and_new는 계속 law 전용 —
+        #   oldAndNew API 자체가 admrul 미지원이므로 아래 doc_type 게이트를 amendment와 합치지 말 것(오호출 금지).
         if pid.doc_type == "law":
-            _attach_amendment_meta(result, detail)
             # v0.18.0: 신구조문대비표(형태 B redline) — opt-in일 때만 +1 네트워크(기본 경로 완전 무접촉).
             # 부착 우선순위 최하위(articles 백스톱·amendment 부착 이후) → 기존 필드 100% 보호.
             if include_old_and_new:
@@ -2233,7 +2243,7 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
    - 별표 번호나 가지번호가 불확실하면 BP provision_id를 추측해 호출하지 말 것. 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 annexes 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.
    - 조문(JO)도 마찬가지로, 특정 조문의 provision_id가 불확실하면 추측하지 말고 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 articles 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.
    - '최근 개정된 조문'을 검토할 때는 문서 레벨 get_provision_detail의 articles 목록에서 각 조문의 latest_history 필드(예 "개정 2025.12.30(공포)")로 최근 변경 조문을 찾아 그 조문을 조회할 것. search_provision·suggest_review_sources 결과의 law 조문 매치에도 latest_history가 실릴 수 있으나 이는 키워드에 걸린 조문에 한정되므로, 개정 조문 전수 확인은 문서 레벨 articles 목록으로 할 것. 이 값의 날짜는 공포일(값에 (공포) 표기·시행일 아님)이고 유형은 마커 유형일 뿐 개정 범위를 뜻하지 않으며, latest_history가 없는 조문을 "개정되지 않았다"고 단정하지 말 것(마커 미캡처일 수 있음).
-   - '이번 개정으로 무엇이 바뀌었는지'를 검토할 때는 문서 레벨 get_provision_detail(law)의 amendment_text(개정문·공식 개정지시문 산문)와 amendment_kind로 확인할 것(v0.17.0·law 한정). amendment_text는 최신 개정분의 원 개정문 산문이지 조문별 완전 대조(clean diff)가 아니므로 조문별 완전 redline으로 과장하지 말고, amendment_kind가 "제정"이면 전체 신설(개정문 미제공)이며, amendment_text가 없거나 amendment_text_omitted이면 document_source_url의 공식 원문에서 확인할 것. 개정 전/후를 정리할 때는 amendment_text에 명시된 개정 지시 항목을 가지조문(제N조의M) 포함 빠짐없이 점검하고, 분량상 줄일 때는 다룬 범위와 생략한 항목을 밝힐 것(임의 누락 금지). 개정후 대체문을 인용할 때는 그 안의 근거 법률 인용(법명·조문 번호)을 기관명만으로 축약하지 말고 보존할 것. 제정·타법개정의 배경으로 도구 응답으로 확인되지 않은 전신 법령명·연혁은 단정하지 말 것(미확인 배경은 추정임을 밝히거나 생략).
+   - '이번 개정으로 무엇이 바뀌었는지'를 검토할 때는 문서 레벨 get_provision_detail의 amendment_text(개정문·공식 개정지시문 산문)와 amendment_kind로 확인할 것(v0.17.0 law·v0.19.0 admrul — 양 트랙). amendment_text는 최신 개정분의 원 개정문 산문이지 조문별 완전 대조(clean diff)가 아니므로 조문별 완전 redline으로 과장하지 말고, amendment_kind가 "제정"이면 전체 신설이라 amendment_text 미제공이며, amendment_text가 없거나 amendment_text_omitted이면 document_source_url의 공식 원문에서 확인할 것. ★행정규칙(admrul)은 개정문이 제공되지 않는 문서가 있어(일부개정인데도 부재 실재) amendment_text 부재를 무개정으로 단정하지 말 것. 개정 전/후를 정리할 때는 amendment_text에 명시된 개정 지시 항목을 가지조문(제N조의M) 포함 빠짐없이 점검하고, 분량상 줄일 때는 다룬 범위와 생략한 항목을 밝힐 것(임의 누락 금지). 개정후 대체문을 인용할 때는 그 안의 근거 법률 인용(법명·조문 번호)을 기관명만으로 축약하지 말고 보존할 것. 제정·타법개정의 배경으로 도구 응답으로 확인되지 않은 전신 법령명·연혁은 단정하지 말 것(미확인 배경은 추정임을 밝히거나 생략).
    - 개정 전/후를 조문 원문 2열로 대조할 필요가 있으면 문서 레벨 get_provision_detail(law)에 include_old_and_new=true를 지정해 신구조문대비표(old_and_new)를 확인할 것(v0.18.0·law 한정·기본 미조회). 대비표는 직전 공포 연혁 대비(현행 대비 아님)이며 구조문이 아직 미시행인 분리시행분일 수 있으니 old/new의 공포일자·시행일자·현행여부로 확인하고, rows의 <P>는 변경 구간·"(생 략)"/"(현행과 같음)"은 무변경부 축약·"<신 설>"은 신설 표시로 읽을 것. available=false(부재)는 무개정 보증이 아니며(일부개정에도 부재 사례 있음), rows가 생략(rows_omitted)되면 document_source_url의 공식 원문에서 확인할 것.
    - 참조 조항 확인 없이 결론을 확정하지 말 것.
 

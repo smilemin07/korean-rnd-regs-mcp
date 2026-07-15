@@ -3,6 +3,25 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.19.0] - 2026-07-15
+
+**admrul redline 확장 — 행정규칙 문서레벨 amendment_text·amendment_kind** — redline 테마(v0.17.0 amendment_text[law] → v0.17.1 소비 가이드 → v0.18.0 신구조문대비표 opt-in[law])가 law 트랙만 커버해, 행정규칙(고시·예규·훈령 — R&D 실무에서 개정이 가장 잦은 트랙)의 "이번 개정으로 무엇이 바뀌었나"에 서버가 아무 데이터도 못 주던 갭을 해소한다. `get_admin_rule_detail`이 `<개정문내용>`과 `<제개정구분명>`을 findtext로 캡처(추가 네트워크 0)해, **admrul 문서레벨 `get_provision_detail` 응답에도 `amendment_text`·`amendment_kind`를 additive 노출**한다(기존 law용 `_attach_amendment_meta` 헬퍼 무변경 재사용). ★admrul XML에는 law의 `<제개정구분>` 태그가 없어 `<제개정구분명>`을 `"제개정구분"` 키로 정규화 저장한다(태그명 함정 — LIVE 전수 실측). **입력 스키마 무변**(응답 additive만 — v0.18.0 같은 클라이언트 재연결 이슈 없음). `contract_version` **0.14.0 → 0.15.0**(§5.16·응답 schema 신규 출현), 패키지 **major** bump(contract bump = 큰 변화: 가운데 +1·마지막 0, 0.18.0 → **0.19.0**). 지원 규정 수 **52개 불변**. **선정·검증**: `law-api-prober` LIVE 전수(admrul 23건 — 존재 15/부재 8[태그 자체 부재·결정론]·최대 3,836자·제개정구분명 전건 존재·이스케이프/`<img>` 0) → `/disc` 3-AI(Claude+Codex+Gemini) 3/3 GO(제정 skip 유지·태그 정규화 위치·제개정구분코드 제외·게이트 분리 전부 합의). **outage 회피**: 부팅/HTTP transport/health/캐시-bootstrap·검색 매칭/랭킹/fallback/fan-out 예산 비의존(검색 fan-out 공유 파서 접촉은 never-raise findtext 2건뿐 — v0.15.0 조문참고자료 선례와 동형·검색은 신규 필드 미소비라 blast radius 0)·whole-or-omit(articles 100% 보호)·롤백 먼저.
+
+### Added
+
+- **`live_api.get_admin_rule_detail`**: `<개정문내용>`(`.//개정문내용` — LIVE 전수 실측상 전건 `<개정문>` wrapper 아래 단일 text node·복수 출현 0) + `<제개정구분명>`(값 "일부개정" 18·"제정" 4·"전부개정" 1 — `"제개정구분"` 키로 정규화·`<제개정구분코드>`는 소비 가치 없어 미캡처) findtext 캡처. 부재 시 빈 문자열(태그 자체 부재 = 결정론·never-raise).
+- **admrul 문서레벨 `amendment_text`·`amendment_kind`**(`main.py`): 부착 게이트를 law 한정에서 law+admrul 문서레벨로 완화(★amendment 게이트와 `include_old_and_new` 게이트는 분리 유지 — oldAndNew API가 admrul 미지원이므로 오호출 원천 차단). 제정 skip 유지: admrul 제정 4건은 개정문이 실재하나(law와 달리) 내용이 발령 헤더+"[본문 생략]"+부칙 등 발령 메타(개정 delta 아님·LIVE 실측)라 skip으로 amendment_text 의미를 양 트랙 동일 보존. whole-or-omit(articles 백스톱 이후 부착·초과 시 통째 생략+`amendment_text_omitted`) 그대로 — admrul 개정문 최대 3,836자라 생략 발동 가능성 낮음.
+- **테스트**(`tests/test_tools.py`·`tests/test_b2_executor.py`): admrul 문서레벨 부착·제정 skip·부재 graceful(kind만 부착)·oversized 통째 생략·제개정구분명 정규화 파싱(live_api 2종)·admrul opt-in 시 oldAndNew 미호출(게이트 분리 잠금)·admrul 조문(JO) 상세 미부착 잠금(문서레벨 한정 — diff 적대검증 반영)·surface-consistency(3표면 admrul 확장·부재≠무개정 토큰·구 "law 한정" 문구 잔존 금지)·contract 0.15.0/패키지 0.19.0 잠금. 테스트 360 → **370**.
+- **acceptance spec**(`tests/acceptance/v0_19_0.py`): 시설장비 표준지침(개정문 최대 건) amendment_text 부착·연구개발비 사용 기준 kind=일부개정+text 부재(부재≠무개정 데이터 앵커)·law 무회귀(혁신법 amendment_kind 유지)·무회귀 '연구개발비' returned ≥ 10.
+
+### Changed
+
+- **소비 가이드**(`_SERVER_INSTRUCTIONS`·`get_provision_detail` docstring·`review_regulation` 프롬프트 + `README.md` byte-sync): amendment_text·amendment_kind 안내를 "law 한정"에서 law·admrul 양 트랙으로 갱신 + ★행정규칙은 개정문이 제공되지 않는 문서가 있어(일부개정인데도 부재 실재) **amendment_text 부재를 무개정으로 단정 금지** 지시 추가. 기존 v0.17.x amendment framing(전수 열거·citation 보존·전신 연혁 단정 금지·clean diff 과장 금지) 보존.
+
+### Deferred (scope 밖·backlog)
+
+- structured 목 parity·평면 admrul 항·호 정규식 파싱(C4)·R5 길이상한/B3 연결풀·`제개정구분코드` 노출·admrul용 신구조문대비표(oldAndNew API 자체가 admrul 미지원 — 불가).
+
 ## [0.18.0] - 2026-07-14
 
 **형태 B redline — 신구조문대비표(oldAndNew) opt-in 노출 (law 한정)** — redline 테마(v0.14 가지조문 → v0.15 조문 개정이력 → v0.16 검색 경로 → v0.17.0 amendment_text 개정지시문 산문 → v0.17.1 소비 가이드)의 다음 단계로, v0.16.0 eval에서 관측된 "무엇이 바뀌었나"(개정 전/후 원문 대조) 수요의 마지막 조각을 해소한다. 국가법령정보 OpenAPI의 신구조문대비표(`lawService.do?target=oldAndNew` — 개정 전/후 조문 원문 2열)를 `get_provision_detail`의 **optional 파라미터 `include_old_and_new`(기본 false)** 로 노출: true + law 문서레벨일 때만 **+1 요청**으로 조회해 `old_and_new` 블록(old/new 데이터 앵커·rows 2열 verbatim)을 additive 부착한다. **기본(false) 경로·검색 fan-out·부팅/transport 완전 무접촉**(outage 격리). `contract_version` **0.13.0 → 0.14.0**(§5.15·입력 파라미터+응답 schema 신규 필드), 패키지 **major** bump(contract bump = 큰 변화: 가운데 +1·마지막 0, 0.17.1 → **0.18.0**). 지원 규정 수 **52개 불변**. **선정·설계**: 배포 전 `law-api-prober` LIVE 실측(law 29건 전수 sweep — 대비표 실재 23/29·결정론 부재 신호 `신구법존재여부=N`·최대 26,553자·★일부개정인데 부재 2건[286879·262117]·★검색 변형 `lawSearch`는 응답에 OC 키 원문 포함이라 사용 금지) → `/disc` 3-AI(Claude+Codex+Gemini) 3/3 GO(설계 3안 중 opt-in 파라미터 채택 — 항상 부착은 전 문서레벨 +1 네트워크·크기 압박, 신규 도구는 표면 파편화; 조문별 그룹핑은 파서 위험·scope 증가로 기각). **outage 회피**: opt-in 격리·never-raise(조회 실패 시 `old_and_new`만 fetch_failed·본문 응답 정상)·whole-or-omit 3단(절단 금지)·전용 캐시 분리(detail warm-hit 무간섭)·롤백 먼저.

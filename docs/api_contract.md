@@ -1,6 +1,6 @@
 # korean-rnd-regs-mcp API Contract
 
-- contract_version: **0.14.0** (0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 → 0.12.0 → 0.13.0 → 0.14.0 minor bump, §6 변경 이력 참조)
+- contract_version: **0.15.0** (0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 → 0.12.0 → 0.13.0 → 0.14.0 → 0.15.0 minor bump, §6 변경 이력 참조)
 - 작성일: 2026-05-24 (0.2.0 개정: 2026-06-04, 0.3.0 개정: 2026-06-07, 0.4.0 개정: 2026-06-09, 0.5.0 개정: 2026-06-10, 0.6.0 개정: 2026-06-13, 0.7.0 개정: 2026-06-21, 0.8.0 개정: 2026-06-21, 0.9.0 개정: 2026-06-22, 0.10.0 개정: 2026-07-07)
 - semver 정책: 0.x.x 대역은 unstable signal — minor bump(0.1.0 → 0.2.0)도 breaking change 허용. v0.2 가지조문 확장 시 0.2.0 minor bump로 자연스럽게 처리 (1.0.x 유지 시 2.0 major bump 필요했음)
 - 변경 정책: 본 문서 변경은 외부 사용자 코드·Claude Desktop 캐시·README 예시를 깰 수 있으므로 0.1.0 publish 이후 신중히 (§6 참조)
@@ -254,7 +254,7 @@ law:189938:BP000102              # 법령 별표 1의2 형식 (가지별표 인�
 - **`amendment_kind` 필드** (additive·law 문서레벨 한정): 그 법령 최신 개정의 제개정구분(`<제개정구분>` — 예 `"일부개정"`·`"제정"`·`"타법개정"`). `get_law_detail`이 이미 받아오지만 버리던 root 필드를 findtext로 캡처(추가 네트워크 0). 값이 있으면 부착(작은 해석 가드 — 제정·전부개정 구분).
 - **`amendment_text` 필드** (additive·law 문서레벨 한정): 최신 개정분의 개정문(`<개정문내용>` — 개정지시문 산문, 예 "제10조 … 중 '출연'을 '지원'으로 하고 …"). 사용자의 "이번 개정으로 무엇이 바뀌었나" 질의에 답하는 실질 redline delta. ★조문별 완전 대조(clean diff)가 아니라 법령 전체를 조문 단위로 서술한 원 개정문 산문이며(호스트가 조문별 완전 redline으로 과장 금지), verbatim 노출(별지 서식 개정 이미지 참조 `<img>` 태그 포함 가능). **`amendment_kind == "제정"`이면 amendment_text 미제공** — LIVE census상 제정건 blob(최대 10,410자)의 정체가 조문 본문이 아니라 서명부+부칙이라 redline 가치가 낮음("전체 신설" 신호는 amendment_kind로 충분).
 - **크기·거동**: whole-or-omit(절단 금지 — 개정문은 개정 목록이라 반쪽 절단 시 불완전 개정을 완전한 것으로 오답하는 false-completeness 유발). 기존 문서레벨 articles 백스톱(§5.10) *이후* 실제 `json.dumps`(필드 포함) 측정으로 예산(`_ANNEX_DETAIL_CHAR_BUDGET` 16,000) 내면 부착, 초과 시 amendment_text를 **통째 생략** + `amendment_text_omitted: true`(+가능 시 경고·`document_source_url` 포인터). articles(v0.7.0 발견성 핵심)는 이 로직이 건드리지 않아 100% 보호(개정문이 조문 목록을 밀어내지 않음). LIVE 실측(law 29문서): 부착 25 / 제정 skip 3 / 생략 1(산업기술 시행령 285891 — base 최대라 예산 초과).
-- **범위·게이트**: **law 트랙 한정**(admrul은 개정문 필드가 15/23만 존재·최대 사용처 '연구개발비 사용 기준' 부재군·별도 파서 2경로 → 후속 사이클). `get_admin_rule_detail`은 이 필드 미파싱이라 admrul 문서레벨에 미출현. 호출부 게이트 `pid.doc_type == "law"`.
+- **범위·게이트**: **law 트랙 한정**(admrul은 개정문 필드가 15/23만 존재·최대 사용처 '연구개발비 사용 기준' 부재군·별도 파서 2경로 → 후속 사이클). `get_admin_rule_detail`은 이 필드 미파싱이라 admrul 문서레벨에 미출현. 호출부 게이트 `pid.doc_type == "law"`. **(0.15.0에서 admrul 트랙으로 확장 — §5.16)**
 - **동기**: v0.16.0 라이브 eval — 개정 발견성(v0.14~0.16)으로 호스트가 어느 조문이 개정됐는지 1턴에 식별하게 되자, 후속으로 "그래서 무엇이 바뀌었나"(개정 전/후)를 답하려다 도구가 현행 원문+마커만 줘 2회 아쉬워한 관찰. 응답 schema 신규 필드 → contract_version **0.13.0**(0.12.0 → 0.13.0). 파서(개정문 findtext)·검색 매칭/랭킹/fallback/fan-out 알고리즘·transport·외부 URL·규정 수(52) 불변. 형태 B(신구조문대비표 `target=oldAndNew` 2열 diff)·조문별 slice·과거 이력·`amendment_reason`(제개정이유)·admrul 확장은 별도 의도(scope 밖·backlog).
 
 ### 5.15 형태 B redline — 신구조문대비표 opt-in 노출 old_and_new (0.14.0 minor — 입력 optional 파라미터 + 응답 additive 필드)
@@ -268,9 +268,19 @@ law:189938:BP000102              # 법령 별표 1의2 형식 (가지별표 인�
 - **캐시**: 전용 `_old_and_new_cache`(TTLCache maxsize 16·ttl 24h) — `_detail_cache`(fan-out warm-hit 상주)와 분리해 대비표 조회가 detail warm 엔트리를 축출하는 간섭 차단. 빈 body(HTTP 200) 1회 재조회 방어(LIVE 프로브 1회 관측).
 - **동기**: v0.16.0 eval 관측 수요("무엇이 바뀌었나" 2열 원문 대조)의 마지막 조각 — v0.17.0 amendment_text(개정지시문 산문)에 이어 개정 전/후 조문 원문 2열까지 제공. 입력 파라미터 + 응답 schema 신규 필드 → contract_version **0.14.0**(0.13.0 → 0.14.0). 선정·설계 `/disc` 3-AI 3/3 GO(2026-07-14·opt-in 파라미터 > 항상 부착[전 문서레벨 +1 네트워크·크기 압박] > 신규 도구[표면 파편화]). 조문별 그룹핑("제N조" 접두 재구성)·조문별 선별 반환·과거 연혁 MST 지정·admrul redline은 별도 의도(scope 밖·backlog). 검색/랭킹/fallback/fan-out 알고리즘·transport·외부 URL·규정 수(52) 불변.
 
+### 5.16 admrul redline 확장 — 행정규칙 문서레벨 amendment_text·amendment_kind (0.15.0 minor — 응답 additive 필드)
+
+- **범위 확장**: §5.14의 `amendment_text`·`amendment_kind`가 **admrul(행정규칙) 문서레벨** 응답에도 부착된다(0.14.0까지는 law 한정). 입력 파라미터 무변(입력 스키마 변경 없음 — 클라이언트 tools/list 재조회 불요). unit(JO/BP) 조회 미부착은 law와 동일.
+- **데이터원·파싱**: `get_admin_rule_detail`이 `<개정문내용>`(`.//개정문내용` — LIVE 전수 실측상 전건 `<개정문>` wrapper 아래 단일 text node)과 **`<제개정구분명>`**을 findtext 캡처(추가 네트워크 0·검색 fan-out 공유 파서에서 never-raise). ★admrul XML에는 law의 `<제개정구분>` 태그가 없어 `<제개정구분명>`(값 "일부개정"/"제정"/"전부개정")을 detail dict의 `"제개정구분"` 키로 **정규화 저장** — `main._attach_amendment_meta`를 무변경 재사용. 동반 `<제개정구분코드>`는 미캡처(소비 가치 없음·스코프 최소화).
+- **커버리지·부재 의미**: LIVE 전수(2026-07-15·admrul 23건) — 개정문 존재 15/부재 8(부재는 태그 자체 부재로 결정론·빈 값 0). ★**부재 ≠ 무개정**: 최대 사용처 '연구개발비 사용 기준'(2100000278740)이 일부개정인데 부재·전부개정 1건(연구윤리 확보를 위한 지침)도 부재 — 부재 시 `amendment_kind`만 부착되며, 프롬프트 3표면에 "amendment_text 부재를 무개정으로 단정 금지" 소비 가이드 명문화.
+- **제정 skip 유지**: `amendment_kind == "제정"`이면 amendment_text 미부착 — law와 달리 admrul 제정 4건은 개정문이 실재하나, LIVE 실측상 내용이 발령 헤더+"[본문 생략]"+부칙 등 발령 메타(개정 delta 아님)라 skip을 유지해 amendment_text 의미("이번 개정의 지시문 산문")를 양 트랙에서 동일하게 보존(/disc 3-AI 3/3 합의).
+- **크기·거동**: §5.14의 whole-or-omit(articles 백스톱 이후 실 `json.dumps` 측정·초과 시 통째 생략+`amendment_text_omitted`) 그대로 — admrul 개정문 최대 3,836자(최소 209·중앙 492)라 생략 발동 가능성 낮음. articles·annexes·version 메타(§5.8) 100% 보호.
+- **게이트 분리(안전 가드)**: amendment 부착은 law+admrul 문서레벨(무게이트 — `parse()`가 doc_type을 law/admrul로 한정), `include_old_and_new`(§5.15)는 계속 **law 전용** 게이트 유지 — oldAndNew API가 admrul 미지원이므로 두 게이트를 합치지 않는다(admrul 오호출 금지). admrul+opt-in의 미지원 정직 경고(§5.15)도 불변.
+- **동기**: redline 테마(§5.14~5.15)가 law만 커버해 행정규칙(고시·예규 — R&D 실무에서 개정이 가장 잦은 트랙)의 "이번 개정으로 무엇이 바뀌었나"에 서버가 데이터를 못 주던 갭 해소. 응답 schema additive 필드(admrul 문서레벨에 신규 출현) → contract_version **0.15.0**(0.14.0 → 0.15.0). 검색/랭킹/fallback/fan-out 알고리즘·transport·부팅·외부 URL·규정 수(52) 불변. 선정·설계 `/disc` 3-AI 3/3 GO(2026-07-15).
+
 ## 6. contract_version 관리
 
-- 본 문서 contract_version: **0.14.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 → 0.12.0 → 0.13.0 → 0.14.0 minor)
+- 본 문서 contract_version: **0.15.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 → 0.12.0 → 0.13.0 → 0.14.0 → 0.15.0 minor)
 - 코드 상수: `korean_rnd_regs_mcp.provision_id.CONTRACT_VERSION`
 - 변경 정책 (0.x.x — unstable signal):
 
@@ -284,6 +294,7 @@ law:189938:BP000102              # 법령 별표 1의2 형식 (가지별표 인�
 
 | 버전 | 일자 | 변경 |
 |---|---|---|
+| **0.15.0** | 2026-07-15 | **minor bump** (패키지 **0.19.0**). admrul redline 확장(§5.16) — §5.14의 `amendment_text`·`amendment_kind`를 행정규칙(admrul) 문서레벨 응답으로 확장. `get_admin_rule_detail`이 `<개정문내용>`·`<제개정구분명>`(★law와 태그명 다름 — `"제개정구분"` 키로 정규화해 `_attach_amendment_meta` 무변경 재사용) findtext 캡처(추가 네트워크 0·never-raise). 입력 스키마 무변(재연결 불요). LIVE 전수(23건): 존재 15/부재 8(태그 자체 부재·결정론)·최대 3,836자·제개정구분명 전건 존재(일부개정 18·제정 4·전부개정 1). ★부재≠무개정('연구개발비 사용 기준' 일부개정인데 부재) — 프롬프트 3표면에 소비 가이드. 제정 skip 유지(admrul 제정문=발령 메타·delta 아님). 게이트 분리: old_and_new(§5.15)는 계속 law 전용(oldAndNew API가 admrul 미지원 — 오호출 금지). whole-or-omit·articles 보호 §5.14 그대로. 검색/랭킹/fallback/fan-out·transport·외부 URL·규정 수(52) 불변 → 0.14.0 → 0.15.0 |
 | **0.14.0** | 2026-07-14 | **minor bump** (패키지 **0.18.0**). 형태 B redline — 신구조문대비표 opt-in 노출(§5.15). `get_provision_detail`에 optional 입력 `include_old_and_new`(기본 false) 추가, true+law 문서레벨일 때만 `lawService.do?target=oldAndNew` +1 요청으로 `old_and_new` 블록(basis·markers_note·old/new 데이터 앵커[공포·시행일자·현행여부]·rows 2열 verbatim) additive 부착. available=false는 `reason`(not_provided/fetch_failed)로 구분 — ★대비표 부재 ≠ 무개정(일부개정 부재 2건 실측). whole-or-omit 3단(rows 통째 생략 `rows_omitted`→블록 제거 `old_and_new_omitted`·절단 금지)·articles/amendment 100% 보호. ★lawSearch 변형 사용 금지(신구법상세링크에 OC 키 원문 — LIVE 실측). 전용 캐시(maxsize 16) 분리로 detail warm-hit 무간섭. 기본(false) 경로·검색 fan-out·transport·외부 URL·규정 수(52) 불변. 부수(계약 외): `_SERVER_INSTRUCTIONS`·docstring·`review_regulation` 프롬프트(README byte-sync)에 소비 가이드(직전 연혁 기준·마커 의미·부재≠무개정). 조문별 그룹핑·선별 반환·과거 연혁 MST·admrul redline은 scope 밖 → 0.13.0 → 0.14.0 |
 | **0.13.0** | 2026-07-09 | **minor bump** (패키지 **0.17.0**). 개정 전/후 대조(redline) 최소형(§5.14) — `get_provision_detail` law 문서레벨 응답에 `amendment_text`(개정문 `<개정문내용>`·개정지시문 산문)·`amendment_kind`(제개정구분) additive 노출(law 트랙 한정·호출부 `pid.doc_type=="law"` 게이트). `live_api.get_law_detail`이 이미 받아오지만 버리던 root 필드를 findtext 캡처(추가 네트워크 0·검색 fan-out 무접촉). whole-or-omit(articles 백스톱 이후 실 `json.dumps` 측정으로 예산 내면 부착·초과 시 통째 생략+`amendment_text_omitted`·절단 금지=false-completeness 방지)로 articles(§5.10 발견성) 100% 보호. `amendment_kind=="제정"`이면 amendment_text skip(census: blob 정체=서명부+부칙). LIVE census(law 29): 부착 25·제정 skip 3·생략 1. 부수(계약 외): `_SERVER_INSTRUCTIONS`·`get_provision_detail` docstring·`review_regulation` 프롬프트(README byte-sync)에 "무엇이 바뀌었나→amendment_text·조문별 clean diff 아님" framing. 형태 B(oldAndNew 2열)·조문별 slice·`amendment_reason`·admrul 확장은 scope 밖. 검색/랭킹/fallback/fan-out/transport·외부 URL·규정 수(52) 불변 → 0.12.0 → 0.13.0 |
 | 0.1.0 | 2026-05-24 | **첫 publish version**. 국가법령정보 OpenAPI 기반 13 rule set 지원 (Tier 1 혁신법 family 3개, Tier 2 핵심 행정규칙 4개, Supplementary 6개). 5 MCP tools + 1 MCP prompt(`review_regulation`), JO(조문)/BP(별표) provision_id, 표준 오류 코드 6종, 행정규칙 XML schema 2종 지원(표준 + 평면 fallback) |
