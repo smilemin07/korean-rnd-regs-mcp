@@ -3932,6 +3932,35 @@ def test_amendment_admrul_guidance_present_all_surfaces_v0190():
         assert "amendment_kind로 답하십시오(law 한정)" not in norm
 
 
+def test_specific_value_and_history_routing_guidance_present_all_surfaces_v0191():
+    """v0.19.1 surface-consistency: v0.19.0 eval 근본원인 2건(P4 원문에 없는 임의 예시 구체값 출력 ·
+    P3 '개정 이력·연혁' 표현 질의의 웹-first) 대응 지시가 3개 프롬프트 표면에 모두 실렸는지 검증.
+    토큰 4종 = P4 도구 유래 수치 인용 허용(over-blocking 방지) · P4 임의 예시 구체값 단정 금지 ·
+    P3 전체 연혁 미제공(최신 제·개정 1건만) 한계 고지 · P3 kind=='제정' 정합(없는 개정 이력 날조 금지).
+    docstring은 줄바꿈으로 wrap되므로 공백 정규화 후 토큰 매칭. README 미러 동기화는
+    test_readme_embedded_prompt_matches_template가 별도 강제."""
+    import re
+
+    def _norm(s: str) -> str:
+        return re.sub(r"\s+", " ", s or "")
+
+    surfaces = {
+        "SERVER_INSTRUCTIONS": main_module._SERVER_INSTRUCTIONS,
+        "REVIEW_PROMPT": main_module._REVIEW_PROMPT_TEMPLATE,
+        "DOCSTRING": get_provision_detail.__doc__,
+    }
+    tokens = [
+        "값은 그대로 인용",  # P4 — 원문 실재 수치는 적극 인용(위축 방지)
+        "임의 예시로라도 단정하지",  # P4 — 원문에 없는 기한·금액·비율·수치 임의 예시 금지
+        "전체 연혁 목록은 제공하지 않",  # P3 — 최신 제·개정 1건만·전체 연혁 미제공 한계 고지
+        "제정 이후 개정 이력이 없는",  # P3 — 서버가 반환한 최신 제·개정구분 기준 정합
+    ]
+    for name, text in surfaces.items():
+        norm = _norm(text)
+        for tok in tokens:
+            assert tok in norm, f"{name}에 v0.19.1 가이드 토큰 '{tok}' 누락 — 3표면 동기화 필요"
+
+
 def test_admin_rule_detail_parses_amendment_fields_v0190(monkeypatch):
     """v0.19.0(live_api): get_admin_rule_detail이 <개정문><개정문내용>(wrapper 1단 아래 — .//필수)과
     <제개정구분명>을 캡처. ★후자는 law와 태그명이 다름(admrul XML에 <제개정구분> 태그 없음) —

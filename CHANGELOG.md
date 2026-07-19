@@ -3,6 +3,23 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.19.1] - 2026-07-19
+
+**eval 근본원인 프롬프트 가이드 보강 — 구체값 단정 금지 확장 + '개정 이력·연혁' 질의 라우팅** — v0.19.0 배포 후 브라우저 라이브 eval(2026-07-16·PASS_WITH_MINOR·서버 결함 0)에서 도출된 호스트 소비 품질 근본원인 2건을 해소하는 **프롬프트 문자열-only patch**(v0.17.1과 동형). ① P4(유일 minor): 호스트가 검증 조문 원문에 없는 "처리기한(예: 15일 이내 통보)" 임의 예시 구체값을 출력 — 기존 가드가 식별자(고시·예규 번호)만 커버하던 사각을 기한·금액·비율·수치 등 구체값(임의 예시 포함)으로 확장. ★over-blocking 방지를 위해 "도구 응답 원문에 있는 값은 그대로 인용" 허용문을 병기(인용 허용/금지 양립 — `/disc` 3-AI 반영). ② P3(관찰): "어떤 개정 이력이 있어?" 표현에 호스트가 MCP 미호출·웹-first — 라우팅 트리거를 '개정 이력'·'개정 내역'·'개정 경과'·'연혁' 등으로 확장하고, 본 서버는 최신 제·개정 1건만 제공(전체 연혁 목록 미제공)이라는 한계 고지 후 1차 출처 보강 분기 + amendment_kind="제정"이면 서버가 반환한 최신 제·개정구분 기준으로 제정 이후 개정 이력이 없다는 정합 지시를 명문화(무조건 도구 강제는 환각 위험으로 기각 유지). 코드 로직·응답 schema·입력 스키마 무변 — `contract_version` **0.15.0 유지**, 패키지 patch bump(0.19.0 → **0.19.1**), 지원 규정 수 **52개 불변**. **선정·문구**: read-only 에이전트 3개 실측(LIVE 52규정 전수 감사·프롬프트 4표면 census·backlog 6건 위험 평가) → 패키지 선정 `/disc` 3-AI 3/3 수정후 GO → 문구 초안 `/disc` 3-AI GO(Codex 수정 2건 채택: 트리거 표현 확장·"서버가 반환한 최신 제·개정구분 기준" 정밀화). **outage 회피**: 부팅/transport/검색 fan-out/공유 파서/캐시 완전 무접촉(프롬프트 문자열만).
+
+### Changed
+
+- **소비 가이드**(`_SERVER_INSTRUCTIONS`·`get_provision_detail` docstring·`review_regulation` 프롬프트 + `README.md` byte-sync): 위 2지시 삽입(표면당 ~350자). 기존 잠금 문구(식별자 단정 금지·부재≠무개정·clean diff 과장 금지 등) 전부 무수정 보존(append/신규 bullet만).
+
+### Added
+
+- **테스트**(`tests/test_tools.py`·`tests/test_b2_executor.py`): v0.19.1 surface-consistency(3표면 토큰 4종 — 인용 허용·임의 예시 금지·전체 연혁 미제공 고지·제정 정합)·패키지 0.19.1 잠금. 테스트 370 → **372**.
+- **acceptance spec**(`tests/acceptance/v0_19_1.py`): Level A는 무회귀만(프롬프트-only라 응답 데이터 무변 — amendment_kind 부착·제정 skip·'연구개발비' returned ≥ 10 유지). 개선 2건은 Level-B 프롬프트(P4 재현·P3 재현·over-blocking 확인·기존 지시 무회귀)로 배포 후 수동 eval.
+
+### Deferred (scope 밖·backlog)
+
+- manifest fallback 현행화(국토부 운영규정 2100000235502→2100000282288 — 2026-07-19 LIVE 전수 감사에서 유일 CHANGED·평시 실영향 0[전 52건 resolve 성공]·차기 실질 릴리스에 동반, `/disc` 3/3)·structured 목 parity·평면 admrul 항·호 파싱(C4)·R5/B3.
+
 ## [0.19.0] - 2026-07-15
 
 **admrul redline 확장 — 행정규칙 문서레벨 amendment_text·amendment_kind** — redline 테마(v0.17.0 amendment_text[law] → v0.17.1 소비 가이드 → v0.18.0 신구조문대비표 opt-in[law])가 law 트랙만 커버해, 행정규칙(고시·예규·훈령 — R&D 실무에서 개정이 가장 잦은 트랙)의 "이번 개정으로 무엇이 바뀌었나"에 서버가 아무 데이터도 못 주던 갭을 해소한다. `get_admin_rule_detail`이 `<개정문내용>`과 `<제개정구분명>`을 findtext로 캡처(추가 네트워크 0)해, **admrul 문서레벨 `get_provision_detail` 응답에도 `amendment_text`·`amendment_kind`를 additive 노출**한다(기존 law용 `_attach_amendment_meta` 헬퍼 무변경 재사용). ★admrul XML에는 law의 `<제개정구분>` 태그가 없어 `<제개정구분명>`을 `"제개정구분"` 키로 정규화 저장한다(태그명 함정 — LIVE 전수 실측). **입력 스키마 무변**(응답 additive만 — v0.18.0 같은 클라이언트 재연결 이슈 없음). `contract_version` **0.14.0 → 0.15.0**(§5.16·응답 schema 신규 출현), 패키지 **major** bump(contract bump = 큰 변화: 가운데 +1·마지막 0, 0.18.0 → **0.19.0**). 지원 규정 수 **52개 불변**. **선정·검증**: `law-api-prober` LIVE 전수(admrul 23건 — 존재 15/부재 8[태그 자체 부재·결정론]·최대 3,836자·제개정구분명 전건 존재·이스케이프/`<img>` 0) → `/disc` 3-AI(Claude+Codex+Gemini) 3/3 GO(제정 skip 유지·태그 정규화 위치·제개정구분코드 제외·게이트 분리 전부 합의). **outage 회피**: 부팅/HTTP transport/health/캐시-bootstrap·검색 매칭/랭킹/fallback/fan-out 예산 비의존(검색 fan-out 공유 파서 접촉은 never-raise findtext 2건뿐 — v0.15.0 조문참고자료 선례와 동형·검색은 신규 필드 미소비라 blast radius 0)·whole-or-omit(articles 100% 보호)·롤백 먼저.

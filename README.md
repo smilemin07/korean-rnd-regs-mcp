@@ -111,6 +111,7 @@
      - 단, content_format이 plain_text_verbatim이 아닌 경우(예: oversized_pointer, external_file_only)에는 그 content가 규정 원문이 아니라 안내 텍스트이므로 근거로 인용하지 말고, attached_file_url·document_source_url의 공식 원문을 확인할 것.
    - 규정의 조문·별표 본문은 임의 웹검색 결과나 law.go.kr 직접 열람 등 외부 웹에서 가져와 대체·보충하지 말고 get_provision_detail이 반환한 content로 확인할 것. content_format이 plain_text_verbatim이 아닌 경우에만 위 예외에 따라 응답이 제공한 attached_file_url·document_source_url의 공식 원문을 확인할 것이며, search_provision·suggest_review_sources로 규정의 존재만 확인하고 본문을 외부에서 채우지 말 것.
    - 고시·예규 번호처럼 MCP 응답(content·effective_date 등 제공 필드)에 없는 현행 식별자는 외부 웹에서 가져와 단정하지 말고 "MCP 응답에서 확인되지 않음"으로 표시할 것.
+   - 기한·금액·비율·수치 등 구체값도 마찬가지로, 조회한 원문에 있는 값은 그대로 인용하되 원문에서 확인되지 않은 값은 흐름을 매끄럽게 만들기 위한 임의 예시로라도 단정하지 말고 "MCP 응답에서 확인되지 않음"으로 표시할 것.
    - 둘 이상의 규정·조문을 비교할 때에도 비교 대상마다 근거로 쓸 모든 provision_id를 get_provision_detail로 조회하고, 같은 provision_id는 이미 받은 결과를 재사용하여 중복 호출하지 말 것.
 
 5. 참조 조항 추적
@@ -121,6 +122,7 @@
    - 조문(JO)도 마찬가지로, 특정 조문의 provision_id가 불확실하면 추측하지 말고 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 articles 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.
    - '최근 개정된 조문'을 검토할 때는 문서 레벨 get_provision_detail의 articles 목록에서 각 조문의 latest_history 필드(예 "개정 2025.12.30(공포)")로 최근 변경 조문을 찾아 그 조문을 조회할 것. search_provision·suggest_review_sources 결과의 law 조문 매치에도 latest_history가 실릴 수 있으나 이는 키워드에 걸린 조문에 한정되므로, 개정 조문 전수 확인은 문서 레벨 articles 목록으로 할 것. 이 값의 날짜는 공포일(값에 (공포) 표기·시행일 아님)이고 유형은 마커 유형일 뿐 개정 범위를 뜻하지 않으며, latest_history가 없는 조문을 "개정되지 않았다"고 단정하지 말 것(마커 미캡처일 수 있음).
    - '이번 개정으로 무엇이 바뀌었는지'를 검토할 때는 문서 레벨 get_provision_detail의 amendment_text(개정문·공식 개정지시문 산문)와 amendment_kind로 확인할 것(v0.17.0 law·v0.19.0 admrul — 양 트랙). amendment_text는 최신 개정분의 원 개정문 산문이지 조문별 완전 대조(clean diff)가 아니므로 조문별 완전 redline으로 과장하지 말고, amendment_kind가 "제정"이면 전체 신설이라 amendment_text 미제공이며, amendment_text가 없거나 amendment_text_omitted이면 document_source_url의 공식 원문에서 확인할 것. ★행정규칙(admrul)은 개정문이 제공되지 않는 문서가 있어(일부개정인데도 부재 실재) amendment_text 부재를 무개정으로 단정하지 말 것. 개정 전/후를 정리할 때는 amendment_text에 명시된 개정 지시 항목을 가지조문(제N조의M) 포함 빠짐없이 점검하고, 분량상 줄일 때는 다룬 범위와 생략한 항목을 밝힐 것(임의 누락 금지). 개정후 대체문을 인용할 때는 그 안의 근거 법률 인용(법명·조문 번호)을 기관명만으로 축약하지 말고 보존할 것. 제정·타법개정의 배경으로 도구 응답으로 확인되지 않은 전신 법령명·연혁은 단정하지 말 것(미확인 배경은 추정임을 밝히거나 생략).
+   - '개정 이력'·'개정 내역'·'개정 경과'·'연혁' 등을 검토할 때도 외부 웹으로 먼저 답하지 말고 위 latest_history·amendment_kind·amendment_text로 확인 가능한 범위를 먼저 확인할 것. 서버는 최신 제·개정 1건만 제공하며 과거 전체 연혁 목록은 제공하지 않으므로, 전체 연혁이 필요하면 이 한계를 밝히고 1차 출처(국가법령정보센터 등)의 연혁 정보에서 확인하도록 안내할 것. amendment_kind가 "제정"이면 서버가 반환한 최신 제·개정구분 기준으로 제정 이후 개정 이력이 없는 것이므로 없는 개정 이력을 만들지 말 것.
    - 개정 전/후를 조문 원문 2열로 대조할 필요가 있으면 문서 레벨 get_provision_detail(law)에 include_old_and_new=true를 지정해 신구조문대비표(old_and_new)를 확인할 것(v0.18.0·law 한정·기본 미조회). 대비표는 직전 공포 연혁 대비(현행 대비 아님)이며 구조문이 아직 미시행인 분리시행분일 수 있으니 old/new의 공포일자·시행일자·현행여부로 확인하고, rows의 <P>는 변경 구간·"(생 략)"/"(현행과 같음)"은 무변경부 축약·"<신 설>"은 신설 표시로 읽을 것. available=false(부재)는 무개정 보증이 아니며(일부개정에도 부재 사례 있음), rows가 생략(rows_omitted)되면 document_source_url의 공식 원문에서 확인할 것.
    - 참조 조항 확인 없이 결론을 확정하지 말 것.
 

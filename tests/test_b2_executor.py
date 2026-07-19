@@ -77,7 +77,8 @@ def test_contract_version_0_15_0():
     assert CONTRACT_VERSION == "0.15.0"
 
 
-def test_package_version_0_19_0():
-    """패키지 버전 0.19.0(major — admrul redline 확장, contract 0.15.0 동반)."""
+def test_package_version_0_19_1():
+    """패키지 버전 0.19.1(patch — eval 근본원인 프롬프트 가이드 보강: 구체값 단정 금지 확장 +
+    '개정 이력·연혁' 질의 라우팅. 프롬프트 문자열만 — contract 0.15.0 유지·입력 스키마 무변)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.19.0"
+    assert __version__ == "0.19.1"
