@@ -68,17 +68,17 @@ def test_cache_lock_never_wraps_network_or_parse():
     assert lock_blocks >= 8, f"_cache_lock 블록이 {lock_blocks}개뿐 — 캐시 touch 직렬화 누락 의심"
 
 
-def test_contract_version_0_15_0():
-    """v0.19.0: admrul redline 확장 — 행정규칙 문서레벨에도 amendment_text·amendment_kind additive(§5.16).
-    직전 v0.18.0: 형태 B redline — get_provision_detail에 optional 입력 include_old_and_new +
-    law 문서레벨 응답에 old_and_new 블록 추가(입력 파라미터+응답 schema 신규 필드) →
-    contract 0.13.0 → 0.14.0 → 0.15.0 minor bump."""
+def test_contract_version_0_16_0():
+    """v0.20.0: 대용량 별표 본문 청크 조회(§5.17) — get_provision_detail에 optional 입력
+    annex_chunk + oversized 별표 응답에 청크(부분성 메타)·chunk_count additive(입력 파라미터+
+    응답 schema 신규 필드) → contract 0.15.0 → 0.16.0 minor bump.
+    직전 v0.19.0: admrul redline 확장(§5.16 — 0.14.0 → 0.15.0)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.15.0"
+    assert CONTRACT_VERSION == "0.16.0"
 
 
-def test_package_version_0_19_1():
-    """패키지 버전 0.19.1(patch — eval 근본원인 프롬프트 가이드 보강: 구체값 단정 금지 확장 +
-    '개정 이력·연혁' 질의 라우팅. 프롬프트 문자열만 — contract 0.15.0 유지·입력 스키마 무변)."""
+def test_package_version_0_20_0():
+    """패키지 버전 0.20.0(major — 대용량 별표 본문 청크 조회 opt-in. contract 0.16.0·
+    ★입력 스키마 변경 릴리스[배포 후 웹 커넥터 재연결 안내]·manifest 국토부 운영규정 현행화 동반)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.19.1"
+    assert __version__ == "0.20.0"

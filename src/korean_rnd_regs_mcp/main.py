@@ -64,6 +64,11 @@ _SERVER_INSTRUCTIONS = (
     "기한·금액·비율·수치 등 구체값도 마찬가지로, 도구 응답 원문에 있는 값은 그대로 인용하되 "
     "원문에서 확인되지 않은 값은 설명을 매끄럽게 하기 위한 임의 예시로라도 단정하지 말고, "
     "필요하면 해당 값이 확인되지 않았음을 명시하십시오. "
+    "대용량 별표는 get_provision_detail(BP) 응답이 oversized_pointer면 본문이 미수록된 것이니, "
+    "전문 확인이 필요하면 응답의 chunk_count를 확인해 annex_chunk=1..chunk_count로 재호출하여 "
+    "별표 본문을 줄 경계 분할 청크(원문 그대로)로 나눠 확인하십시오(별표 BP 전용·청크 경계는 개정 시 달라질 수 있음). "
+    "검색 발췌·청크는 부분 본문이므로 별표 전체로 오인하지 말고, 발췌나 청크에 없는 문구·수치는 "
+    "그 응답으로 확인된 것이 아니므로 확인 불가로 표시하거나 다른 청크·공식 원문에서 확인하십시오. "
     "행정규칙(고시·예규·훈령)의 발령번호·종류는 get_provision_detail 응답의 "
     "issuance_number·regulation_kind·version_label 필드로 확인하되, 이 값은 조회된 규정의 것이며 현행임을 보증하지 않습니다"
     "(검색 실패 시 등록(manifest) 버전일 수 있고 개정 안내가 없어도 현행이라는 뜻은 아니므로, 현행 여부 단정이 필요하면 1차 출처에서 확인). "
@@ -1123,8 +1128,65 @@ _ANNEX_DETAIL_HEADROOM = 300
 # 절단 pop(O(k²)) 직렬화·메모리를 bound (입력 articles 순회 자체는 전체; 초과분은 size 백스톱이 truncated 처리).
 _DOC_ARTICLES_MAX = 600
 
+# v0.20.0: 대용량 별표 청크 조회 — 청크당 content 직렬화(JSON escaped) 예산. 청크 응답의 나머지
+# 오버헤드(기본 필드·warnings·청크 메타 — tier-1 실측 최대 ~2.5k) + 사후주입(version 메타·revision
+# ~200자)을 감안해도 최종 직렬화가 _ANNEX_DETAIL_CHAR_BUDGET(16,000)에 ≥1k 여유로 수렴하는 보수값.
+_ANNEX_CHUNK_CONTENT_BUDGET = 12000
 
-def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date: str, force_oversized: bool = False) -> dict:
+
+def _json_escaped_len(s: str) -> int:
+    """문자열의 JSON 직렬화 본문 길이(감싸는 따옴표 2자 제외). JSON escape는 문자 단위 독립이라
+    escaped_len(a+b) == escaped_len(a)+escaped_len(b) — 청크 분할 예산 판정의 정확한 가산 단위."""
+    return len(json.dumps(s, ensure_ascii=False)) - 2
+
+
+def _annex_chunk_texts(content: str) -> list[str]:
+    """oversized 별표 본문을 줄 경계 청크로 결정론 분할 (v0.20.0).
+
+    - 각 청크는 원문의 연속 substring(개행 포함 splitlines(keepends=True) 세그먼트 조합)이라
+      "".join(chunks) == content 가 항상 성립(verbatim 무손실 — 재조립 가드 테스트로 잠금).
+    - 각 청크의 escaped 길이 ≤ _ANNEX_CHUNK_CONTENT_BUDGET 보장(응답 직렬화 예산의 정확 상한).
+    - 예산 초과 단일 줄(개행 없는 초장문 — 정상 별표 데이터에선 미관측)은 문자 단위 강제 분할로
+      진행 보장(이때도 substring 연속성·재조립 무손실 유지).
+    - 순수 함수(같은 content → 같은 분할). 단 content가 개정되면 경계가 달라질 수 있으므로
+      응답에 effective_date 앵커·경계 변동 경고를 동반한다.
+    """
+    budget = _ANNEX_CHUNK_CONTENT_BUDGET
+    segments = content.splitlines(keepends=True) or [content]
+    pieces: list[str] = []
+    for seg in segments:
+        if _json_escaped_len(seg) <= budget:
+            pieces.append(seg)
+            continue
+        buf: list[str] = []
+        cost = 0
+        for ch in seg:
+            c = _json_escaped_len(ch)
+            if buf and cost + c > budget:
+                pieces.append("".join(buf))
+                buf, cost = [ch], c
+            else:
+                buf.append(ch)
+                cost += c
+        if buf:
+            pieces.append("".join(buf))
+    chunks: list[str] = []
+    cur: list[str] = []
+    cur_cost = 0
+    for p in pieces:
+        c = _json_escaped_len(p)
+        if cur and cur_cost + c > budget:
+            chunks.append("".join(cur))
+            cur, cur_cost = [p], c
+        else:
+            cur.append(p)
+            cur_cost += c
+    if cur:
+        chunks.append("".join(cur))
+    return chunks
+
+
+def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date: str, force_oversized: bool = False, annex_chunk: int | None = None) -> dict:
     """별표 단위 상세 응답 (v0.2, size-tiered + verbatim 정확성 가드).
 
     force_oversized=True면 전문 분기를 건너뛰고 oversized_pointer로 강등(v0.5.0 — 호출부가 사후주입(version 메타·
@@ -1137,6 +1199,12 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
       4) 초과 → 본문 미수록 명시 notice + oversized_pointer (인용 금지·공식 링크·search 안내).
     content_format != plain_text_verbatim 이면 verbatim_quote_allowed=False — 호스트는 그 content를
     규정 원문으로 인용하지 말고 공식 원문을 확인해야 한다 (프롬프트에 동일 규칙 명문화).
+
+    v0.20.0 annex_chunk(opt-in): 분기 4(oversized)에서만 유효 — 지정 시 해당 번호의 줄 경계
+    청크를 원문 그대로(plain_text_verbatim·부분성 메타 동반) 반환하고, 미지정 시 포인터 응답에
+    chunk_count·재호출 안내를 additive로만 노출(기존 안내 content 문자열 무변). 분기 1~3에서는
+    본문이 없거나 전문이 이미 수록되므로 무시 + 정직 경고 1줄. force_oversized(사후주입 초과
+    백스톱 재호출)일 때는 청크 응답도 포인터로 강등해 예산 초과를 airtight 차단.
     """
     title = (ann.get("별표제목") or "").strip()
     content = (ann.get("별표내용") or "").strip()
@@ -1175,6 +1243,8 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
             "required_action": "attached_file_url 또는 document_source_url의 공식 원문 확인",
             "warnings": base["warnings"] + ["별표 본문이 텍스트로 제공되지 않습니다 — 첨부파일·공식 원문 직접 확인 필수."],
         })
+        if annex_chunk is not None:
+            base["warnings"] = base["warnings"] + ["annex_chunk 무시 — 본 별표는 본문 텍스트가 없어 청크 조회 대상이 아닙니다."]
         return base
     # 2) 삭제 stub — 개정 삭제 표기('삭제 <날짜>')로 한정. 동사 '삭제한다'를 담은 짧은 활성 별표 오탐 방지.
     #    v0.2.1: 제목 기반 보조 판정 추가 — admrul 삭제 별표는 content가 '<삭 제>'(공백형·60자 초과)라
@@ -1188,6 +1258,8 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
             "verbatim_quote_allowed": True,
             "warnings": base["warnings"] + ["본 별표는 삭제된 별표입니다 — 활성 규정으로 적용하지 마십시오."],
         })
+        if annex_chunk is not None:
+            base["warnings"] = base["warnings"] + ["annex_chunk 무시 — 삭제 별표 스텁 전문이 이미 수록되어 청크 조회가 불필요합니다."]
         return base
     # 3) 전문 시도 — 직렬화 JSON 길이로 예산 판정
     full = dict(base)
@@ -1201,8 +1273,51 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
     # 호출부가 사후 추가하는 revision_notice·version 메타 등을 고려해 헤드룸만큼 차감한 보수 예산으로 판정.
     # force_oversized면(사후주입 포함 최종이 예산 초과한 백스톱 재호출) 전문 분기를 건너뛴다.
     if not force_oversized and len(json.dumps(full, ensure_ascii=False)) <= _ANNEX_DETAIL_CHAR_BUDGET - _ANNEX_DETAIL_HEADROOM:
+        if annex_chunk is not None:
+            full["warnings"] = full["warnings"] + ["annex_chunk 무시 — 본 별표는 전문이 응답 예산 내라 전체 본문을 반환했습니다(청크 조회 불필요)."]
         return full
-    # 4) 초과 → 본문 미수록 포인터
+    # 4) 초과 — v0.20.0: 줄 경계 청크 분할(결정론)을 선계산해 청크 조회·안내에 공용.
+    _chunks = _annex_chunk_texts(content)
+    _chunk_count = len(_chunks)
+    if annex_chunk is not None and not force_oversized:
+        # 4a) 유효 청크 요청 → 해당 구간 원문 그대로(부분성 메타 동반). force_oversized(사후주입
+        #     포함 최종이 예산을 넘긴 백스톱 재호출)면 이 분기를 건너뛰고 포인터로 강등(airtight).
+        if not (1 <= annex_chunk <= _chunk_count):
+            return {
+                "errors": [{
+                    "code": "not_found",
+                    "message": (
+                        f"annex_chunk={annex_chunk}는 범위 밖 — 본 별표({unit_id})의 청크는 1..{_chunk_count}. "
+                        "annex_chunk 없이 호출하면 chunk_count와 청크 안내를 확인할 수 있음"
+                    ),
+                }],
+                "chunk_count": _chunk_count,
+                "contract_version": CONTRACT_VERSION,
+                "disclaimer": _DISCLAIMER,
+            }
+        chunk_text = _chunks[annex_chunk - 1]
+        base.update({
+            "content": chunk_text,
+            "content_available": True,
+            "content_format": "plain_text_verbatim",
+            "verbatim_quote_allowed": True,
+            "format_instructions": _VERBATIM_INSTRUCTIONS,
+            "is_complete": False,
+            "chunk_index": annex_chunk,
+            "chunk_count": _chunk_count,
+            "total_char_count": len(content),
+            "chunk_note": (
+                f"본 별표 전문(약 {len(content):,}자)을 줄 경계로 분할한 {_chunk_count}개 청크 중 "
+                f"{annex_chunk}번째 — content는 해당 구간 원문 그대로이나 별표 전체가 아닙니다. "
+                "다른 구간은 annex_chunk 값을 바꿔 조회하고, 청크 경계는 개정 시 달라질 수 있으므로 "
+                "effective_date가 다른 응답의 청크 번호를 혼용하지 마십시오."
+            ),
+            "warnings": base["warnings"] + [
+                f"본 응답은 별표 전문이 아니라 {_chunk_count}청크 중 {annex_chunk}번째 부분 본문입니다 — 별표 전체 인용·전체 확인으로 오인 금지."
+            ],
+        })
+        return base
+    # 4b) 본문 미수록 포인터 (+ v0.20.0: chunk_count·재호출 안내 additive — 기존 안내 content 무변)
     base.update({
         "content": (
             f"[본문 생략: 별표 분량이 응답 한도를 초과합니다(약 {len(content):,}자). "
@@ -1223,6 +1338,16 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
         ),
         "warnings": base["warnings"] + ["대용량 별표 — 본문 미수록. 표시된 안내 텍스트를 규정 원문으로 인용 금지."],
     })
+    # v0.20.0: 청크 접근 안내 — 신규 필드·경고 1줄만 additive(기존 content·required_action 문자열
+    # 무변 → 기존 소비자·잠금 테스트 회귀 없음). force_oversized로 강등된 청크 요청도 이 안내를 받음.
+    base["chunk_count"] = _chunk_count
+    base["chunk_note"] = (
+        f"전문이 필요하면 annex_chunk=1..{_chunk_count}로 재호출하여 별표 본문을 "
+        "줄 경계 분할 청크(원문 그대로)로 나눠 조회할 수 있습니다."
+    )
+    base["warnings"] = base["warnings"] + [
+        f"대용량 별표 — annex_chunk 파라미터(1..{_chunk_count})로 본문을 청크 단위 조회 가능."
+    ]
     return base
 
 
@@ -1802,7 +1927,7 @@ async def suggest_review_sources(
 
 
 @mcp.tool()
-async def get_provision_detail(provision_id: str, include_old_and_new: bool = False) -> dict:
+async def get_provision_detail(provision_id: str, include_old_and_new: bool = False, annex_chunk: int | None = None) -> dict:
     """사용 시점: search_provision 또는 suggest_review_sources가 반환한 provision_id의 원문·삭제 여부·현행 내용을 확인할 때 호출하십시오. provision_id 없이 조문 내용을 추측하지 마십시오. 이 도구의 content가 규정 조문·별표 본문의 권위 출처이므로, 본문은 외부 웹(law.go.kr 직접 열람·웹검색 결과)에서 가져오지 말고 이 도구로 확인하십시오. content_format이 plain_text_verbatim이 아니면 응답이 제공한 attached_file_url·document_source_url의 공식 원문을 확인하십시오. 행정규칙(admrul) 응답에는 발령번호·종류가 issuance_number·regulation_kind·version_label 필드로 포함되니 이를 사용하되, 이 값은 조회된 규정의 것이며 현행임을 보증하지 않으므로(검색 실패 시 등록 버전일 수 있음) 현행 여부 단정이 필요하면 1차 출처에서 확인하고, 응답에 없는 고시·예규 번호 등은 외부 값으로 단정하지 마십시오. 기한·금액·비율·수치 등 구체값도 마찬가지로, 응답 원문에 있는 값은 그대로 인용하되 원문에서 확인되지 않은 값은 임의 예시로라도 단정하지 말고 확인되지 않았음을 명시하십시오.
 
     provision_id로 단일 조문/별표 본문 재조회 — 응답은 법령 원문 verbatim.
@@ -1852,6 +1977,13 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
       article_structure 생략 또는 본문 미수록 oversized_pointer), BP… 면 별표 본문 (행정규칙·법령
       시행령 모두, v0.2; size-tiered). BP는 4자리(본별표, 예: BP0001=별표 1) 또는 6자리(가지별표
       번호4+가지2, 예: BP000102=별표 1의2, v0.2.1). 별지·서식은 별표가 아니므로 BP로 조회 불가.
+      대용량 별표가 oversized_pointer(본문 미수록)면 응답의 chunk_count를 확인해
+      annex_chunk=1..chunk_count로 재호출하여 별표 본문을 줄 경계 분할 청크(원문 그대로·
+      plain_text_verbatim)로 나눠 조회할 수 있음(v0.20.0·별표 BP 전용·기본 None — 문서레벨·조문에서는
+      무시됨·전문이 예산 내인 별표에는 불필요). 청크 응답은 is_complete=false·chunk_index/chunk_count가
+      표시되는 부분 본문이므로 별표 전체로 오인하지 말고, 검색 발췌나 청크에 없는 문구·수치는 그 응답으로
+      확인된 것이 아니므로 확인 불가로 표시하거나 다른 청크·공식 원문에서 확인할 것. 청크 경계는 개정 시
+      달라질 수 있음(effective_date 확인).
     """
     _e = _http_no_key_error()
     if _e is not None:
@@ -2057,6 +2189,11 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
             result["warnings"] = result["warnings"] + [
                 "include_old_and_new는 law 문서레벨 조회에서만 지원 — 행정규칙(admrul)은 신구조문대비표 미제공."
             ]
+        if annex_chunk is not None:
+            # v0.20.0: 오지정 정직 고지(include_old_and_new admrul 경고와 동형 — 침묵 무시 방지)
+            result["warnings"] = result["warnings"] + [
+                "annex_chunk는 대용량 별표(BP) 상세 조회에서만 지원 — 문서레벨 조회에서는 무시됨."
+            ]
         return result
 
     # article (JO)
@@ -2097,6 +2234,12 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 resp.update(_version_meta)
                 if _revision:
                     resp["revision_notice"] = _revision
+            if annex_chunk is not None:
+                # v0.20.0: 오지정 정직 고지 — 문서레벨과 동형(백스톱 이후 ~60자 append는
+                # include_old_and_new admrul 경고와 동일한 수용 범위)
+                resp["warnings"] = resp.get("warnings", []) + [
+                    "annex_chunk는 대용량 별표(BP) 상세 조회에서만 지원 — 조문(JO) 조회에서는 무시됨."
+                ]
             return resp
 
     # annex (BP)
@@ -2128,18 +2271,22 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 continue
             if _annex_branch_no(ann) != target_branch:
                 continue
-            resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date)
+            resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date, annex_chunk=annex_chunk)
+            if "errors" in resp:
+                return resp  # v0.20.0: annex_chunk 범위 밖 — 오류 dict에 version 메타 오염 방지
             resp.update(_version_meta)  # v0.5.0: oversized 별표도 version은 도구에서(프롬프트4 외부행 차단)
             if _revision:
                 resp["revision_notice"] = _revision
             # v0.5.0 B2 백스톱: 전문 별표에 사후주입(version 메타·revision_notice) 후 최종 직렬화가 예산을 넘으면
             # oversized로 강등(비정상 장문 사후주입 대비 airtight; version 메타는 상한 bounded라 정상 입력선 미발동).
+            # v0.20.0: 청크 응답(plain_text_verbatim)도 동일 백스톱 적용 — 재호출에 annex_chunk를 유지하되
+            # _build_annex_detail이 force_oversized+annex_chunk 조합을 포인터(청크 안내 포함)로 강등(airtight).
             if (
                 resp.get("content_format") == "plain_text_verbatim"
                 and "annex_status" not in resp
                 and len(json.dumps(resp, ensure_ascii=False)) > _ANNEX_DETAIL_CHAR_BUDGET
             ):
-                resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date, force_oversized=True)
+                resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date, force_oversized=True, annex_chunk=annex_chunk)
                 resp.update(_version_meta)
                 if _revision:
                     resp["revision_notice"] = _revision
@@ -2253,6 +2400,7 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
 5. 참조 조항 추적
    - 조문이 "제X조에 따라", "시행령 제X조", "별표", "고시로 정하는" 등을 참조하면 해당 조항도 조회할 것.
    - 별표(BP)는 행정규칙·시행령 모두 get_provision_detail로 조회 가능하다(v0.2). 소형 별표는 본문 전문이 오지만, 대용량 별표는 content_format이 oversized_pointer/external_file_only로 본문이 미수록될 수 있으니 위 4단계의 content_format 규칙(plain_text_verbatim이 아니면 인용 금지)을 따를 것.
+   - 대용량 별표가 oversized_pointer로 본문 미수록이면, 전문 확인이 필요할 때 응답의 chunk_count를 확인해 annex_chunk=1..chunk_count로 재호출하여 별표 본문을 줄 경계 분할 청크(원문 그대로)로 확인할 것(v0.20.0·별표 BP 전용·기본 미지정). 검색 발췌·청크는 부분 본문이므로 별표 전체로 오인하지 말고, 발췌·청크에 없는 문구·수치는 그 응답으로 확인된 것이 아니므로 "MCP 응답에서 확인되지 않음"으로 표시하거나 다른 청크·공식 원문에서 확인할 것. 청크 경계는 개정 시 달라질 수 있음(effective_date 확인).
    - 별표 상세 응답에 dependent_article_hints가 있으면, 힌트에 적힌 조문을 같은 문서에서 get_provision_detail로 함께 조회할 것. 힌트는 별표 제목에서 뽑은 미검증 단서이므로 힌트 자체를 근거로 인용하지 말고, 조회된 조문 원문만 근거로 삼을 것. 이 동반 조회는 힌트에 적힌 조문 1단계까지만 자동 수행하고, 그 조문에서 이어지는 참조는 본 5단계의 일반 규칙에 따를 것.
    - 별표 번호나 가지번호가 불확실하면 BP provision_id를 추측해 호출하지 말 것. 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 annexes 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.
    - 조문(JO)도 마찬가지로, 특정 조문의 provision_id가 불확실하면 추측하지 말고 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 articles 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.

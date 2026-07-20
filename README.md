@@ -117,6 +117,7 @@
 5. 참조 조항 추적
    - 조문이 "제X조에 따라", "시행령 제X조", "별표", "고시로 정하는" 등을 참조하면 해당 조항도 조회할 것.
    - 별표(BP)는 행정규칙·시행령 모두 get_provision_detail로 조회 가능하다(v0.2). 소형 별표는 본문 전문이 오지만, 대용량 별표는 content_format이 oversized_pointer/external_file_only로 본문이 미수록될 수 있으니 위 4단계의 content_format 규칙(plain_text_verbatim이 아니면 인용 금지)을 따를 것.
+   - 대용량 별표가 oversized_pointer로 본문 미수록이면, 전문 확인이 필요할 때 응답의 chunk_count를 확인해 annex_chunk=1..chunk_count로 재호출하여 별표 본문을 줄 경계 분할 청크(원문 그대로)로 확인할 것(v0.20.0·별표 BP 전용·기본 미지정). 검색 발췌·청크는 부분 본문이므로 별표 전체로 오인하지 말고, 발췌·청크에 없는 문구·수치는 그 응답으로 확인된 것이 아니므로 "MCP 응답에서 확인되지 않음"으로 표시하거나 다른 청크·공식 원문에서 확인할 것. 청크 경계는 개정 시 달라질 수 있음(effective_date 확인).
    - 별표 상세 응답에 dependent_article_hints가 있으면, 힌트에 적힌 조문을 같은 문서에서 get_provision_detail로 함께 조회할 것. 힌트는 별표 제목에서 뽑은 미검증 단서이므로 힌트 자체를 근거로 인용하지 말고, 조회된 조문 원문만 근거로 삼을 것. 이 동반 조회는 힌트에 적힌 조문 1단계까지만 자동 수행하고, 그 조문에서 이어지는 참조는 본 5단계의 일반 규칙에 따를 것.
    - 별표 번호나 가지번호가 불확실하면 BP provision_id를 추측해 호출하지 말 것. 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 annexes 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.
    - 조문(JO)도 마찬가지로, 특정 조문의 provision_id가 불확실하면 추측하지 말고 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 articles 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.

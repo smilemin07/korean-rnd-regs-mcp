@@ -227,17 +227,17 @@ rule_sets:
     retrieval: live_api
     api_target: admrul
     api_id_type: admrul_id
-    api_doc_id: "2100000235502"
+    api_doc_id: "2100000282288"
     unit_types: both
     query:
       - 국토교통부소관 연구개발사업 운영규정
       - 국토교통부 연구개발사업 운영규정
       - 국토부 연구개발사업 운영규정
     license_status: public_data
-    effective_date: "2024-01-22"
+    effective_date: "2026-07-08"
     source_url: https://www.law.go.kr/행정규칙/국토교통부소관연구개발사업운영규정
     known_limitations:
-      - "LIVE 검증: 조문 44개 + 별표 3개(별표 1은 삭제)·별지 2종(별지는 검색·BP 조회 미지원)"
+      - "LIVE 검증(2026-07-20): 조문 47개 + 별표 3개(별표 1은 삭제)·별지 2종(별지는 검색·BP 조회 미지원)"
       - "혁신법·시행령·연구개발비 사용기준 등 상위 규정을 우선 적용 — 본 운영규정은 국토교통부 특화"
 
   # === Sector: 산업기술 R&D family (산업통상부 소관 — 혁신법과 함께 적용, v0.2.5) ===

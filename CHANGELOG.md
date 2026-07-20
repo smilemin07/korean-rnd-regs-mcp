@@ -3,6 +3,27 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.20.0] - 2026-07-20
+
+**대용량 별표 본문 청크 조회(opt-in) — oversized 별표 접근성 해소** — v0.2.0 이래 대용량 별표(응답 예산 16,000자 초과)는 본문 전체 미수록(`oversized_pointer`·인용 금지)에 법제처 링크+검색 발췌(≤700자·매칭 행 cap 6)가 전부여서, 별표(단가·기준표·서식 위임)가 실질 데이터인 본 도메인에서 **호스트가 별표 본문을 도구로 읽을 수단이 구조적으로 전무**하던 한계를 해소한다(v0.19.1 eval P3에서 발췌 한계 hedge로 표면화). `get_provision_detail`에 **optional 입력 `annex_chunk`(기본 None)** 추가 — 별표(BP)+oversized일 때만 본문을 줄 경계 청크로 나눠 해당 청크를 **원문 그대로**(`plain_text_verbatim`·`verbatim_quote_allowed=true`) 반환한다. 청크는 원문 연속 substring(`"".join(chunks)==content` 무손실·결정론)이며 content에는 안내 마커를 섞지 않고(verbatim 순수성 — `/disc` Codex 수정 채택) 부분성 메타(`is_complete=false`·`chunk_index`·`chunk_count`·`total_char_count`·`chunk_note`)를 별도 필드로 동반한다. **추가 네트워크 0**(별표 본문은 상세조회 응답에 기존재). `contract_version` **0.15.0 → 0.16.0**(§5.17·입력 파라미터+응답 additive), 패키지 major bump(0.19.1 → **0.20.0**), 지원 규정 수 **52개 불변**. ★**입력 스키마 변경 릴리스**(v0.18.0 이후 두 번째) — 배포 후 웹 커넥터 재연결(비활성→재활성) 필요·진행 중 세션은 구 tools/list 캐시라 신 파라미터 미노출. **선정·설계**: `law-api-prober` LIVE 재확인 + 코드 실측 → `/disc` 3-AI(Claude+Codex+Gemini) **3/3 GO**(B 프롬프트-only 3연속·D 보류·발췌 예산 확대·전역 예산 상향 전부 기각 — 25k TOKEN 한도·전 경로 영향). **outage 회피**: 기본(None) 경로·검색 fan-out·부팅/HTTP transport/health 완전 무접촉, oversized_pointer 응답엔 `chunk_count`·재호출 안내만 additive(기존 content·required_action 문자열 무변), 사후주입 초과 백스톱(force_oversized)은 청크 요청도 포인터로 강등(airtight).
+
+### Added
+
+- **`get_provision_detail` 입력 `annex_chunk`**(optional int·기본 None): oversized 별표 한정 청크 조회. 범위 밖은 기존 오류코드 `not_found` + 유효 범위(1..chunk_count)·재호출 안내(신규 오류코드 0). 문서레벨·조문(JO)·비-oversized 별표에서는 무시 + 정직 경고 1줄(침묵 무시 방지).
+- **`_annex_chunk_texts` 헬퍼**(`main.py`): `splitlines(keepends=True)` 세그먼트 greedy 결합 — 각 청크 JSON escaped 길이 ≤ 12,000(`_ANNEX_CHUNK_CONTENT_BUDGET`·최종 직렬화 16,000 예산에 ≥1k 여유). 예산 초과 단일 줄(정상 데이터 미관측)은 문자 단위 강제 분할로 진행 보장. 순수 함수(결정론) — 단 개정 시 경계 변동 가능하여 응답에 `effective_date` 앵커·경고 동반.
+- **oversized_pointer 발견성**: 포인터 응답에 `chunk_count`·`chunk_note`(annex_chunk 재호출 안내)·경고 1줄 additive.
+- **테스트**(`tests/test_tools.py`·`tests/test_b2_executor.py`): 청크 재조립 무손실·예산 상한·초장문 줄 폴백·청크 응답 부분성 메타·범위 밖 not_found·비-oversized/문서레벨/JO 정직 경고·기본 경로 무변 잠금·oversized 포인터 additive 잠금·surface-consistency(3표면 청크 라우팅 토큰)·contract 0.16.0/패키지 0.20.0 잠금.
+- **acceptance spec**(`tests/acceptance/v0_20_0.py`): 혁신법 시행령 별표2(law:285767:BP0002) annex_chunk=1 청크 도달 + 기본 경로 oversized_pointer 무회귀 + admrul 대용량 별표 청크 + 무회귀 '연구개발비' returned ≥ 10. 청크 소비 품질(부분성 인지·발췌 미확인 라벨)은 Level-B 프롬프트로 배포 후 수동 eval.
+
+### Changed
+
+- **소비 가이드**(`_SERVER_INSTRUCTIONS`·`get_provision_detail` docstring·`review_regulation` 프롬프트 + `README.md` byte-sync): 대용량 별표 청크 라우팅(oversized_pointer → chunk_count 확인 → annex_chunk 재호출) + ★"검색 발췌·청크에 없는 문구·수치는 그 응답으로 확인된 것이 아니므로 확인 불가로 표시"(v0.19.1 eval 도출 발췌 한계 라벨 규칙을 신 기능 라우팅에 흡수). 기존 잠금 문구 전부 무수정 보존(append/신규 bullet만).
+- **manifest 현행화**(`rule_sets.yaml` — 계약 외 데이터·직전 `/disc` 3/3 사전 승인 이연분 집행): 국토교통부소관 연구개발사업 운영규정 `api_doc_id` 2100000235502 → **2100000282288**·시행일 2024-01-22 → **2026-07-08**(타법개정·2026-07-20 LIVE 재확인: 정확 제목 일치 단 1행·조문 47·별표 3+별지 2·amendment 정상 파싱). 평시 실영향 0(search-first가 이미 신 문서 자동 채택) — fallback 정합성 정비.
+
+### Deferred (scope 밖·backlog)
+
+- 발췌 마커(`_annex_snippet`) 문자열 강화(검색 fan-out 표면 — 이번엔 무접촉 유지)·structured 목 parity·평면 admrul 항·호 파싱(C4)·R5/B3·JO(조문) 청크(대용량 조문은 v0.6.0 size-tier 유지 — 별표 대비 실수요 미관측).
+
 ## [0.19.1] - 2026-07-19
 
 **eval 근본원인 프롬프트 가이드 보강 — 구체값 단정 금지 확장 + '개정 이력·연혁' 질의 라우팅** — v0.19.0 배포 후 브라우저 라이브 eval(2026-07-16·PASS_WITH_MINOR·서버 결함 0)에서 도출된 호스트 소비 품질 근본원인 2건을 해소하는 **프롬프트 문자열-only patch**(v0.17.1과 동형). ① P4(유일 minor): 호스트가 검증 조문 원문에 없는 "처리기한(예: 15일 이내 통보)" 임의 예시 구체값을 출력 — 기존 가드가 식별자(고시·예규 번호)만 커버하던 사각을 기한·금액·비율·수치 등 구체값(임의 예시 포함)으로 확장. ★over-blocking 방지를 위해 "도구 응답 원문에 있는 값은 그대로 인용" 허용문을 병기(인용 허용/금지 양립 — `/disc` 3-AI 반영). ② P3(관찰): "어떤 개정 이력이 있어?" 표현에 호스트가 MCP 미호출·웹-first — 라우팅 트리거를 '개정 이력'·'개정 내역'·'개정 경과'·'연혁' 등으로 확장하고, 본 서버는 최신 제·개정 1건만 제공(전체 연혁 목록 미제공)이라는 한계 고지 후 1차 출처 보강 분기 + amendment_kind="제정"이면 서버가 반환한 최신 제·개정구분 기준으로 제정 이후 개정 이력이 없다는 정합 지시를 명문화(무조건 도구 강제는 환각 위험으로 기각 유지). 코드 로직·응답 schema·입력 스키마 무변 — `contract_version` **0.15.0 유지**, 패키지 patch bump(0.19.0 → **0.19.1**), 지원 규정 수 **52개 불변**. **선정·문구**: read-only 에이전트 3개 실측(LIVE 52규정 전수 감사·프롬프트 4표면 census·backlog 6건 위험 평가) → 패키지 선정 `/disc` 3-AI 3/3 수정후 GO → 문구 초안 `/disc` 3-AI GO(Codex 수정 2건 채택: 트리거 표현 확장·"서버가 반환한 최신 제·개정구분 기준" 정밀화). **outage 회피**: 부팅/transport/검색 fan-out/공유 파서/캐시 완전 무접촉(프롬프트 문자열만).

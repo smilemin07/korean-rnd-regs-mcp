@@ -265,10 +265,10 @@ def test_tool_docstrings_include_usage_timing_stanza():
     assert "추측하지 마십시오" in gpd  # provision_id 없이 추측 금지(삭제 여부·현행 내용은 호출로 확인)
 
 
-def test_contract_version_is_0_15_0():
-    """v0.19.0: admrul redline 확장 — 행정규칙 문서레벨에도 amendment_text·amendment_kind additive → contract 0.14.0→0.15.0(직전 v0.18.0=0.14.0 형태 B redline)."""
+def test_contract_version_is_0_16_0():
+    """v0.20.0: 대용량 별표 청크 조회(annex_chunk) → contract 0.15.0→0.16.0(직전 v0.19.0=0.15.0 admrul redline 확장)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.15.0"
+    assert CONTRACT_VERSION == "0.16.0"
 
 
 # === v0.2.11: MCP Registry 등록 마커 + server.json ===

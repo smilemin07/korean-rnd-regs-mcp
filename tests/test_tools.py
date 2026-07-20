@@ -543,7 +543,7 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
     """suggest 응답에 현행 contract_version(0.10.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.15.0"
+    assert result["contract_version"] == "0.16.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -868,7 +868,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.15.0"
+    assert result["contract_version"] == "0.16.0"
 
 
 # === _build_article_content  ===
@@ -3802,7 +3802,7 @@ def test_get_provision_detail_small_article_unchanged_v060(mock_client):
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None
     assert "content_available" not in result
-    assert result["contract_version"] == "0.15.0"
+    assert result["contract_version"] == "0.16.0"
 
 
 def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):
@@ -4040,3 +4040,160 @@ def test_admrul_unit_level_amendment_not_attached_v0190(mock_client):
     assert "amendment_text" not in result
     assert "amendment_kind" not in result
     assert "amendment_text_omitted" not in result
+
+
+# === v0.20.0: 대용량 별표 본문 청크 조회 (annex_chunk opt-in) ===
+def test_annex_chunk_texts_reassembly_and_budget_v0200():
+    """청크는 원문 연속 substring — "".join(chunks) == content(무손실·verbatim) +
+    각 청크 escaped 길이 ≤ _ANNEX_CHUNK_CONTENT_BUDGET + 결정론(같은 입력 → 같은 분할)."""
+    content = "\n".join(f"지원단가 기준행 {i:04d}\t값 {i * 1000:,}원 \"각주\"" for i in range(1200))
+    chunks = main_module._annex_chunk_texts(content)
+    assert len(chunks) >= 2, "대용량 입력은 복수 청크로 분할돼야"
+    assert "".join(chunks) == content, "재조립 무손실(verbatim) 위반"
+    for c in chunks:
+        assert main_module._json_escaped_len(c) <= main_module._ANNEX_CHUNK_CONTENT_BUDGET
+    assert chunks == main_module._annex_chunk_texts(content), "결정론 위반"
+
+
+def test_annex_chunk_texts_megaline_fallback_v0200():
+    """예산 초과 단일 줄(개행 없음)은 문자 단위 강제 분할로 진행 보장 — 재조립 무손실 유지."""
+    content = "가나다라 " * 5000  # 개행 0 · escaped ≈ 25k > 12k
+    chunks = main_module._annex_chunk_texts(content)
+    assert len(chunks) >= 2
+    assert "".join(chunks) == content
+    for c in chunks:
+        assert main_module._json_escaped_len(c) <= main_module._ANNEX_CHUNK_CONTENT_BUDGET
+
+
+def test_build_annex_detail_oversized_exposes_chunk_access_v0200():
+    """oversized 포인터 응답에 chunk_count·chunk_note additive — 기존 필드·안내 content 무변(잠금)."""
+    big = "구분\t정부지원\t기관부담\n" * 3000
+    ann = {"별표번호": "2", "별표제목": "연구개발비 사용용도", "별표내용": big,
+           "별표서식파일링크": "https://www.law.go.kr/x.hwp"}
+    resp = main_module._build_annex_detail("law:285767:BP0002", "BP0002", _fake_rs(), ann, "20260506")
+    # 기존 v0.2.x 포인터 계약 무변(잠금)
+    assert resp["content_format"] == "oversized_pointer"
+    assert resp["verbatim_quote_allowed"] is False
+    assert resp["content"].startswith("[본문 생략")
+    assert "document_source_url(법제처 공식 원문) 확인" in resp["required_action"]
+    # v0.20.0 additive
+    expected = len(main_module._annex_chunk_texts(big.strip()))
+    assert resp["chunk_count"] == expected and expected >= 2
+    assert "annex_chunk=1.." in resp["chunk_note"]
+    assert any("annex_chunk" in w for w in resp["warnings"])
+
+
+def test_build_annex_detail_chunk_returns_verbatim_partial_v0200():
+    """유효 annex_chunk → 해당 구간 원문만(content 마커 혼입 없음) + 부분성 메타 + 예산 내."""
+    big = "\n".join(f"제재부가금 부과기준 행 {i:04d} — 위반횟수별 기준" for i in range(1500))
+    ann = {"별표번호": "7", "별표제목": "제재부가금 처분기준", "별표내용": big, "별표서식파일링크": ""}
+    chunks = main_module._annex_chunk_texts(big)
+    resp = main_module._build_annex_detail("law:285767:BP0007", "BP0007", _fake_rs(), ann, "20260506",
+                                           annex_chunk=2)
+    assert resp["content"] == chunks[1], "content는 청크 원문 그대로(마커·안내문 혼입 금지)"
+    assert resp["content_format"] == "plain_text_verbatim"
+    assert resp["verbatim_quote_allowed"] is True
+    assert resp["is_complete"] is False
+    assert resp["chunk_index"] == 2
+    assert resp["chunk_count"] == len(chunks)
+    assert resp["total_char_count"] == len(big)
+    assert "청크" in resp["chunk_note"]
+    assert any("부분 본문" in w for w in resp["warnings"])
+    assert len(json.dumps(resp, ensure_ascii=False)) <= main_module._ANNEX_DETAIL_CHAR_BUDGET
+
+
+def test_build_annex_detail_chunk_out_of_range_not_found_v0200():
+    """범위 밖 annex_chunk → 기존 오류코드 not_found + 유효 범위·chunk_count 안내(신규 오류코드 0)."""
+    big = "행 데이터 값 " * 6000
+    ann = {"별표번호": "7", "별표제목": "제재부가금 처분기준", "별표내용": big, "별표서식파일링크": ""}
+    resp = main_module._build_annex_detail("law:285767:BP0007", "BP0007", _fake_rs(), ann, "20260506",
+                                           annex_chunk=99)
+    assert resp["errors"][0]["code"] == "not_found"
+    assert "1.." in resp["errors"][0]["message"]
+    assert resp["chunk_count"] >= 2
+
+
+def test_build_annex_detail_chunk_on_small_annex_ignored_v0200():
+    """비-oversized(전문 수록) 별표 + annex_chunk → 전문 그대로 + 정직 경고 1줄(침묵 무시 방지)."""
+    ann = {"별표번호": "1", "별표제목": "정부지원 지원기준",
+           "별표내용": "중소기업 75% 이하 / 중견기업 70% 이하 / 대기업 50% 이하",
+           "별표서식파일링크": ""}
+    resp = main_module._build_annex_detail("law:285767:BP0001", "BP0001", _fake_rs(), ann, "20260506",
+                                           annex_chunk=1)
+    assert resp["content_format"] == "plain_text_verbatim"
+    assert "75%" in resp["content"]
+    assert "chunk_index" not in resp
+    assert any("annex_chunk 무시" in w for w in resp["warnings"])
+
+
+def test_build_annex_detail_chunk_force_oversized_degrades_to_pointer_v0200():
+    """백스톱(force_oversized) 재호출 시 청크 요청도 포인터로 강등(airtight) — 청크 안내는 유지."""
+    big = "행 데이터 값 " * 6000
+    ann = {"별표번호": "7", "별표제목": "제재부가금 처분기준", "별표내용": big, "별표서식파일링크": ""}
+    resp = main_module._build_annex_detail("law:285767:BP0007", "BP0007", _fake_rs(), ann, "20260506",
+                                           force_oversized=True, annex_chunk=1)
+    assert resp["content_format"] == "oversized_pointer"
+    assert resp["verbatim_quote_allowed"] is False
+    assert resp["chunk_count"] >= 2
+
+
+def test_get_provision_detail_annex_chunk_end_to_end_v0200(mock_client):
+    """admrul BP 경로 end-to-end: 기본 호출=oversized_pointer+chunk_count / annex_chunk=1=청크 verbatim
+    (version 메타 사후주입 포함 예산 내) / 범위 밖=not_found(version 메타 미오염)."""
+    big = "\n".join(f"별표 기준행 {i:04d} — 간접비 계상 비율" for i in range(1500))
+    mock_client.get_admin_rule_detail.return_value["annexes"][0]["별표내용"] = big
+    # 기본 경로(annex_chunk 미지정): 포인터 + 청크 발견성 additive
+    base = asyncio.run(get_provision_detail("admrul:2100000278740:BP0001"))
+    assert base["content_format"] == "oversized_pointer"
+    assert base["chunk_count"] == len(main_module._annex_chunk_texts(big))
+    # 청크 조회: 원문 그대로 + 부분성 메타 + 최종 직렬화 예산 내
+    resp = asyncio.run(get_provision_detail("admrul:2100000278740:BP0001", annex_chunk=1))
+    assert resp["content_format"] == "plain_text_verbatim"
+    assert resp["content"] == main_module._annex_chunk_texts(big)[0]
+    assert resp["is_complete"] is False and resp["chunk_index"] == 1
+    assert len(json.dumps(resp, ensure_ascii=False)) <= main_module._ANNEX_DETAIL_CHAR_BUDGET
+    # 범위 밖: not_found + 오류 dict에 version 메타 미주입
+    err = asyncio.run(get_provision_detail("admrul:2100000278740:BP0001", annex_chunk=999))
+    assert err["errors"][0]["code"] == "not_found"
+    assert "issuance_number" not in err
+
+
+def test_get_provision_detail_annex_chunk_ignored_on_doc_and_jo_v0200(mock_client):
+    """문서레벨·조문(JO) + annex_chunk → 무시 + 정직 경고 1줄(§5.15 admrul 경고와 동형)."""
+    doc = asyncio.run(get_provision_detail("law:283849", annex_chunk=1))
+    assert any("annex_chunk" in w and "문서레벨" in w for w in doc["warnings"])
+    jo = asyncio.run(get_provision_detail("law:283849:JO0015", annex_chunk=1))
+    assert jo.get("content"), "조문 상세 정상 도달"
+    assert any("annex_chunk" in w and "조문(JO)" in w for w in jo.get("warnings", []))
+    # 기본 경로 잠금: 미지정 시 경고·청크 필드 미출현
+    doc_default = asyncio.run(get_provision_detail("law:283849"))
+    assert not any("annex_chunk" in w for w in doc_default["warnings"])
+    jo_default = asyncio.run(get_provision_detail("law:283849:JO0015"))
+    assert not any("annex_chunk" in w for w in jo_default.get("warnings", []))
+
+
+def test_annex_chunk_guidance_present_all_surfaces_v0200():
+    """v0.20.0 surface-consistency: 청크 라우팅 + 발췌 한계 라벨 지시가 3개 프롬프트 표면에 모두
+    실렸는지 검증. 토큰 4종 = 청크 재호출 경로 · 부분 본문 오인 금지 · 발췌/청크에 없는 문구는
+    미확인(확인 불가 라벨) · 청크 경계 개정 변동. docstring wrap 대응 공백 정규화.
+    README 미러 동기화는 test_readme_embedded_prompt_matches_template가 별도 강제."""
+    import re
+
+    def _norm(s: str) -> str:
+        return re.sub(r"\s+", " ", s or "")
+
+    surfaces = {
+        "SERVER_INSTRUCTIONS": main_module._SERVER_INSTRUCTIONS,
+        "REVIEW_PROMPT": main_module._REVIEW_PROMPT_TEMPLATE,
+        "DOCSTRING": get_provision_detail.__doc__,
+    }
+    tokens = [
+        "annex_chunk=1..chunk_count",  # 청크 재호출 라우팅
+        "별표 전체로 오인",  # 부분 본문 오인 금지
+        "확인된 것이 아니",  # 발췌·청크에 없는 문구·수치 = 미확인(확인 불가 표시)
+        "청크 경계는 개정 시",  # 개정 시 경계 변동 경고
+    ]
+    for name, text in surfaces.items():
+        norm = _norm(text)
+        for tok in tokens:
+            assert tok in norm, f"{name}에 v0.20.0 가이드 토큰 '{tok}' 누락 — 3표면 동기화 필요"
