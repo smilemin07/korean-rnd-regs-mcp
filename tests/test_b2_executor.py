@@ -77,8 +77,8 @@ def test_contract_version_0_16_0():
     assert CONTRACT_VERSION == "0.16.0"
 
 
-def test_package_version_0_20_0():
-    """패키지 버전 0.20.0(major — 대용량 별표 본문 청크 조회 opt-in. contract 0.16.0·
-    ★입력 스키마 변경 릴리스[배포 후 웹 커넥터 재연결 안내]·manifest 국토부 운영규정 현행화 동반)."""
+def test_package_version_0_20_1():
+    """패키지 버전 0.20.1(patch — 청크·이력 소비 표시 정밀화 프롬프트 보강.
+    코드 로직·응답 schema·입력 스키마 무변[프롬프트 문자열만]·contract 0.16.0 유지·커넥터 재연결 불요)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.20.0"
+    assert __version__ == "0.20.1"

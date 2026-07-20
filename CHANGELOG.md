@@ -3,6 +3,23 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.20.1] - 2026-07-21
+
+**청크·이력 소비 표시 정밀화 — 별표 인용 방식·확인 범위 표시 + latest_history 마커 라벨 보존** — v0.20.0 배포 후 브라우저 라이브 eval(2026-07-20·CLEAN PASS·서버 결함 0)에서 관찰된 비차단 표현 리스크 2건을 예방적으로 완결하는 **프롬프트 문자열-only patch**(v0.17.1·v0.19.1과 동형). ① 호스트가 고정폭 박스 표 별표 청크 전문을 목록형으로 재구성(내용 무손실·"재구성" 고지·표본 오류 0)했으나 표시 규약이 없어, 향후 병합셀 복잡 표에서 왜곡이 "원문 인용"으로 위장될 잠재 리스크 → 별표 본문을 인용·정리해 표시할 때 **원문 줄 배열 유지 인용 / 내용 보존 재구성 / 일부 요약** 중 방식을 답변에 명시하고(★재구성·요약 자체는 허용 — 금지가 아니라 표시 요구·over-blocking 차단 허용문 병기), 별표 전체에 대한 결론(문구·수치 부재 판단 등)은 전체 청크 전수/일부 확인 범위를 명시하도록 지시. ② eval에서 latest_history '신설' 마커를 '손질'로 뭉뚱그린 사례(허용 요약 판정·허위 아님) → latest_history 값을 전달·요약할 때 마커 유형 라벨(개정·신설·삭제·본조신설 등)을 원문 라벨 그대로 표기하되, 기존 "유형에서 개정 범위·중요도를 추론 금지" 원칙과 분리 서술로 병립. 코드 로직·응답 schema·입력 스키마 무변 — `contract_version` **0.16.0 유지**, 패키지 patch bump(0.20.0 → **0.20.1**), 지원 규정 수 **52개 불변**·커넥터 재연결 불요. **선정·문구**: 패키지 선정 `/disc` 3-AI(Claude+Codex+Gemini) **3/3 GO**(별표 내 검색 locate=실수요 게이트 미충족·예방 코드=트리거 0·보류·규정 확대 전부 기각) + 52규정 LIVE 현행성 전수 감사 전 건 일치(2026-07-21·data rider 0건) → 문구 초안 `/disc` 3-AI 수정후 GO(수렴 3건 채택: 인용/재구성/요약 3분법·"latest_history 값을 전달할 때"로 한정·"내용 무손실"→"내용을 보존한"). **outage 회피**: 부팅/transport/검색 fan-out/공유 파서/캐시 완전 무접촉(프롬프트 문자열만).
+
+### Changed
+
+- **소비 가이드**(`_SERVER_INSTRUCTIONS`·`get_provision_detail` docstring·`review_regulation` 프롬프트 + `README.md` byte-sync): 위 2지시 삽입(청크 소비 지시 블록·latest_history 지시 블록 말미 append). 기존 잠금 문구 전부 무수정 보존(append/삽입만).
+
+### Added
+
+- **테스트**(`tests/test_tools.py`·`tests/test_b2_executor.py`): v0.20.1 surface-consistency(3표면 토큰 4종 — 방식 표시·재구성/요약 허용·확인 범위 표시·원문 라벨 보존)·패키지 0.20.1 잠금.
+- **acceptance spec**(`tests/acceptance/v0_20_1.py`): Level A는 무회귀만(프롬프트-only라 응답 데이터 무변 — 청크 조회·oversized_pointer·amendment 부착·'연구개발비' returned ≥ 10 유지). 개선 2건은 Level-B 프롬프트(재구성 표시·전수 확인 범위 표시·마커 라벨 보존·over-blocking 확인)로 배포 후 수동 eval.
+
+### Deferred (scope 밖·backlog)
+
+- 서버 측 별표 내 검색/locate 보조 경로(실수요 관측 후)·annex_chunk 엄격 타입 검증·R5/B3·structured 목 parity·평면 admrul 항·호 파싱(C4)·broad 드리프트.
+
 ## [0.20.0] - 2026-07-20
 
 **대용량 별표 본문 청크 조회(opt-in) — oversized 별표 접근성 해소** — v0.2.0 이래 대용량 별표(응답 예산 16,000자 초과)는 본문 전체 미수록(`oversized_pointer`·인용 금지)에 법제처 링크+검색 발췌(≤700자·매칭 행 cap 6)가 전부여서, 별표(단가·기준표·서식 위임)가 실질 데이터인 본 도메인에서 **호스트가 별표 본문을 도구로 읽을 수단이 구조적으로 전무**하던 한계를 해소한다(v0.19.1 eval P3에서 발췌 한계 hedge로 표면화). `get_provision_detail`에 **optional 입력 `annex_chunk`(기본 None)** 추가 — 별표(BP)+oversized일 때만 본문을 줄 경계 청크로 나눠 해당 청크를 **원문 그대로**(`plain_text_verbatim`·`verbatim_quote_allowed=true`) 반환한다. 청크는 원문 연속 substring(`"".join(chunks)==content` 무손실·결정론)이며 content에는 안내 마커를 섞지 않고(verbatim 순수성 — `/disc` Codex 수정 채택) 부분성 메타(`is_complete=false`·`chunk_index`·`chunk_count`·`total_char_count`·`chunk_note`)를 별도 필드로 동반한다. **추가 네트워크 0**(별표 본문은 상세조회 응답에 기존재). `contract_version` **0.15.0 → 0.16.0**(§5.17·입력 파라미터+응답 additive), 패키지 major bump(0.19.1 → **0.20.0**), 지원 규정 수 **52개 불변**. ★**입력 스키마 변경 릴리스**(v0.18.0 이후 두 번째) — 배포 후 웹 커넥터 재연결(비활성→재활성) 필요·진행 중 세션은 구 tools/list 캐시라 신 파라미터 미노출. **선정·설계**: `law-api-prober` LIVE 재확인 + 코드 실측 → `/disc` 3-AI(Claude+Codex+Gemini) **3/3 GO**(B 프롬프트-only 3연속·D 보류·발췌 예산 확대·전역 예산 상향 전부 기각 — 25k TOKEN 한도·전 경로 영향). **outage 회피**: 기본(None) 경로·검색 fan-out·부팅/HTTP transport/health 완전 무접촉, oversized_pointer 응답엔 `chunk_count`·재호출 안내만 additive(기존 content·required_action 문자열 무변), 사후주입 초과 백스톱(force_oversized)은 청크 요청도 포인터로 강등(airtight).

@@ -4197,3 +4197,30 @@ def test_annex_chunk_guidance_present_all_surfaces_v0200():
         norm = _norm(text)
         for tok in tokens:
             assert tok in norm, f"{name}에 v0.20.0 가이드 토큰 '{tok}' 누락 — 3표면 동기화 필요"
+
+
+def test_consumption_labeling_guidance_present_all_surfaces_v0201():
+    """v0.20.1 surface-consistency: 청크·이력 소비 표시 정밀화 지시 2건이 3개 프롬프트 표면에 모두
+    실렸는지 검증. 토큰 4종 = ①별표 인용/재구성/요약 방식 표시 · ①재구성·요약 허용(over-blocking 차단) ·
+    ①별표 전체 결론의 확인 범위 표시 · ②latest_history 마커 라벨 보존. docstring wrap 대응 공백 정규화.
+    README 미러 동기화는 test_readme_embedded_prompt_matches_template가 별도 강제."""
+    import re
+
+    def _norm(s: str) -> str:
+        return re.sub(r"\s+", " ", s or "")
+
+    surfaces = {
+        "SERVER_INSTRUCTIONS": main_module._SERVER_INSTRUCTIONS,
+        "REVIEW_PROMPT": main_module._REVIEW_PROMPT_TEMPLATE,
+        "DOCSTRING": get_provision_detail.__doc__,
+    }
+    tokens = [
+        "그 방식을 답변에 명시",  # ① 인용/재구성/요약 방식 표시 의무
+        "재구성·요약 자체는 허용",  # ① 허용문 병기 — 표시 요구이지 금지 아님
+        "확인 범위를 답변에 명시",  # ① 전수/일부 확인 범위 표시
+        "원문 라벨 그대로 표기",  # ② latest_history 마커 유형 라벨 보존
+    ]
+    for name, text in surfaces.items():
+        norm = _norm(text)
+        for tok in tokens:
+            assert tok in norm, f"{name}에 v0.20.1 가이드 토큰 '{tok}' 누락 — 3표면 동기화 필요"
