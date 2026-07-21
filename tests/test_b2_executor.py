@@ -68,17 +68,17 @@ def test_cache_lock_never_wraps_network_or_parse():
     assert lock_blocks >= 8, f"_cache_lock 블록이 {lock_blocks}개뿐 — 캐시 touch 직렬화 누락 의심"
 
 
-def test_contract_version_0_16_0():
-    """v0.20.0: 대용량 별표 본문 청크 조회(§5.17) — get_provision_detail에 optional 입력
-    annex_chunk + oversized 별표 응답에 청크(부분성 메타)·chunk_count additive(입력 파라미터+
-    응답 schema 신규 필드) → contract 0.15.0 → 0.16.0 minor bump.
-    직전 v0.19.0: admrul redline 확장(§5.16 — 0.14.0 → 0.15.0)."""
+def test_contract_version_0_17_0():
+    """v0.21.0: 대용량 별표 내 검색 locate(§5.18) — get_provision_detail에 optional 입력
+    annex_locate + oversized 별표 응답에 annex_locate_result 블록 additive(입력 파라미터+
+    응답 schema 신규 필드) → contract 0.16.0 → 0.17.0 minor bump.
+    직전 v0.20.0: 대용량 별표 본문 청크 조회(§5.17 — 0.15.0 → 0.16.0)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.16.0"
+    assert CONTRACT_VERSION == "0.17.0"
 
 
-def test_package_version_0_20_1():
-    """패키지 버전 0.20.1(patch — 청크·이력 소비 표시 정밀화 프롬프트 보강.
-    코드 로직·응답 schema·입력 스키마 무변[프롬프트 문자열만]·contract 0.16.0 유지·커넥터 재연결 불요)."""
+def test_package_version_0_21_0():
+    """패키지 버전 0.21.0(대용량 별표 내 검색 annex_locate opt-in — 청크 다회 순회 비용 해소.
+    ★입력 스키마 변경 릴리스[annex_locate 추가] — 배포 후 커넥터 재연결 안내)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.20.1"
+    assert __version__ == "0.21.0"

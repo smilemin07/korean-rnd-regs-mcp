@@ -268,7 +268,7 @@ def test_tool_docstrings_include_usage_timing_stanza():
 def test_contract_version_is_0_16_0():
     """v0.20.0: 대용량 별표 청크 조회(annex_chunk) → contract 0.15.0→0.16.0(직전 v0.19.0=0.15.0 admrul redline 확장)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.16.0"
+    assert CONTRACT_VERSION == "0.17.0"
 
 
 # === v0.2.11: MCP Registry 등록 마커 + server.json ===

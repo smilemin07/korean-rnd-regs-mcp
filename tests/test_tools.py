@@ -543,7 +543,7 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
     """suggest 응답에 현행 contract_version(0.10.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.16.0"
+    assert result["contract_version"] == "0.17.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -868,7 +868,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.16.0"
+    assert result["contract_version"] == "0.17.0"
 
 
 # === _build_article_content  ===
@@ -3802,7 +3802,7 @@ def test_get_provision_detail_small_article_unchanged_v060(mock_client):
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None
     assert "content_available" not in result
-    assert result["contract_version"] == "0.16.0"
+    assert result["contract_version"] == "0.17.0"
 
 
 def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):
@@ -4224,3 +4224,219 @@ def test_consumption_labeling_guidance_present_all_surfaces_v0201():
         norm = _norm(text)
         for tok in tokens:
             assert tok in norm, f"{name}에 v0.20.1 가이드 토큰 '{tok}' 누락 — 3표면 동기화 필요"
+
+
+# ---------------------------------------------------------------------------
+# v0.21.0: 대용량 별표 내 검색 annex_locate (opt-in·서버 측 전문 스캔)
+# ---------------------------------------------------------------------------
+
+def test_annex_locate_result_matches_and_chunk_index_v0210():
+    """매치 발췌(±1줄·원문 substring)·전문 기준 total_match_count·chunk_index 매핑 정확성."""
+    lines = [f"별표 기준행 {i:04d} — 간접비 계상 비율" for i in range(1500)]
+    lines[-1] = "지원단가 RCMS 연계 기준행"
+    content = "\n".join(lines)
+    chunks = main_module._annex_chunk_texts(content)
+    assert len(chunks) >= 2
+    result = main_module._annex_locate_result(content, "RCMS", chunks)
+    assert result["scanned_scope"] == "annex_full_text"
+    assert result["scanned_char_count"] == len(content)
+    assert result["total_match_count"] == 1
+    assert result["matches_truncated"] is False
+    m = result["matches"][0]
+    assert m["line"] == 1500
+    assert m["chunk_index"] == len(chunks), "마지막 줄 매치는 마지막 청크 소속"
+    assert "RCMS 연계 기준행" in m["excerpt"]
+    assert m["excerpt"] in content, "excerpt는 원문 연속 substring(±1줄)"
+    assert "매치 1건" in result["locate_note"]
+
+
+def test_annex_locate_result_zero_match_anchor_v0210():
+    """0매치 = 전문 스캔·미발견 데이터 앵커 + 한계 고지(줄 단위·HWP 범위 밖) 동봉."""
+    content = "\n".join(f"연구개발비 사용 기준행 {i:04d}" for i in range(1500))
+    chunks = main_module._annex_chunk_texts(content)
+    result = main_module._annex_locate_result(content, "RCMS", chunks)
+    assert result["total_match_count"] == 0
+    assert result["matches"] == []
+    assert result["matches_truncated"] is False
+    assert "매치 0건" in result["locate_note"]
+    assert "발견되지 않았습니다" in result["locate_note"]
+    assert "HWP 첨부 원문은 스캔 범위 밖" in result["locate_note"]
+    assert "한정" in result["locate_note"], "부재 결론 범위 한정(해당 별표 전문) 고지"
+
+
+def test_annex_locate_result_middle_dot_normalization_v0210():
+    """가운뎃점 변형(ㆍ U+318D ↔ · U+00B7)은 매칭에서 동일 문자 — 발췌는 raw 원문 유지."""
+    filler = "\n".join(f"기준행 {i:04d}" for i in range(1500))
+    content = "배상금ㆍ위약금 계상 기준\n" + filler
+    chunks = main_module._annex_chunk_texts(content)
+    # 질의는 · (U+00B7) — 원문은 ㆍ (U+318D)
+    result = main_module._annex_locate_result(content, "배상금·위약금", chunks)
+    assert result["total_match_count"] == 1
+    assert "배상금ㆍ위약금" in result["matches"][0]["excerpt"], "발췌는 raw 원문(ㆍ) 유지"
+    # 역방향(원문 ·, 질의 ㆍ)도 매치
+    content2 = "배상금·위약금 계상 기준\n" + filler
+    result2 = main_module._annex_locate_result(content2, "배상금ㆍ위약금", main_module._annex_chunk_texts(content2))
+    assert result2["total_match_count"] == 1
+
+
+def test_annex_locate_result_token_and_and_truncation_v0210():
+    """의미토큰 2개+ = 줄 내 토큰 AND(search_provision 동일 의미론) + 표시 cap 6 초과 시 truncated."""
+    lines = []
+    for i in range(1500):
+        if i % 100 == 0:
+            lines.append(f"협약 변경 절차 기준행 {i:04d}")  # 15건 — 두 토큰 동일 줄
+        elif i % 7 == 0:
+            lines.append(f"협약 체결 기준행 {i:04d}")  # '변경' 없음 — AND 미충족
+        else:
+            lines.append(f"일반 기준행 {i:04d}")
+    content = "\n".join(lines)
+    chunks = main_module._annex_chunk_texts(content)
+    result = main_module._annex_locate_result(content, "협약 변경", chunks)
+    assert "token_and" in result["match_semantics"]
+    assert result["total_match_count"] == 15, "전문 기준 전체 매치 수(표시 cap과 무관)"
+    assert len(result["matches"]) == main_module._ANNEX_SNIPPET_MATCH_LINES_MAX
+    assert result["matches_truncated"] is True
+    assert "초과분 미표시" in result["locate_note"]
+    for m in result["matches"]:
+        assert "협약 변경" in m["excerpt"]
+
+
+def test_build_annex_detail_locate_attaches_block_additive_v0210():
+    """oversized + annex_locate → 포인터 응답 유지(기존 필드 잠금) + annex_locate_result additive."""
+    big = "\n".join(f"별표 기준행 {i:04d}" for i in range(1500)) + "\n지원단가 RCMS 연계행"
+    ann = {"별표번호": "2", "별표제목": "연구개발비 사용용도", "별표내용": big, "별표서식파일링크": ""}
+    resp = main_module._build_annex_detail("law:285767:BP0002", "BP0002", _fake_rs(), ann, "20260506",
+                                           annex_locate="RCMS")
+    # 기존 포인터 계약 무변(잠금)
+    assert resp["content_format"] == "oversized_pointer"
+    assert resp["verbatim_quote_allowed"] is False
+    assert resp["content"].startswith("[본문 생략")
+    assert resp["chunk_count"] >= 2
+    # v0.21.0 additive
+    blk = resp["annex_locate_result"]
+    assert blk["total_match_count"] == 1
+    assert blk["matches"][0]["chunk_index"] >= 1
+    assert any("annex_locate 결과는 전문 스캔 요약" in w for w in resp["warnings"])
+    assert len(json.dumps(resp, ensure_ascii=False)) <= main_module._ANNEX_DETAIL_CHAR_BUDGET
+
+
+def test_build_annex_detail_locate_precedence_and_ignores_v0210():
+    """(a) annex_chunk 동시 지정 → 청크 우선·locate 무시+경고 (b) tier-1 전문 수록 → 무시+경고
+    (c) 빈 검색어 → 무시+경고 — 세 경우 모두 annex_locate_result 미부착."""
+    big = "\n".join(f"별표 기준행 {i:04d}" for i in range(1500))
+    ann = {"별표번호": "7", "별표제목": "제재부가금 처분기준", "별표내용": big, "별표서식파일링크": ""}
+    # (a) 동시 지정 — 청크 응답 유지 + locate 무시 경고
+    both = main_module._build_annex_detail("law:285767:BP0007", "BP0007", _fake_rs(), ann, "20260506",
+                                           annex_chunk=1, annex_locate="RCMS")
+    assert both["content_format"] == "plain_text_verbatim" and both["chunk_index"] == 1
+    assert "annex_locate_result" not in both
+    assert any("annex_locate 무시" in w and "annex_chunk" in w for w in both["warnings"])
+    # (b) tier-1(전문 수록)
+    small = {"별표번호": "1", "별표제목": "정부지원 지원기준",
+             "별표내용": "중소기업 75% 이하 / 중견기업 70% 이하", "별표서식파일링크": ""}
+    t1 = main_module._build_annex_detail("law:285767:BP0001", "BP0001", _fake_rs(), small, "20260506",
+                                         annex_locate="중소기업")
+    assert t1["content_format"] == "plain_text_verbatim"
+    assert "annex_locate_result" not in t1
+    assert any("annex_locate 무시" in w for w in t1["warnings"])
+    # (c) 빈 검색어
+    empty = main_module._build_annex_detail("law:285767:BP0007", "BP0007", _fake_rs(), ann, "20260506",
+                                            annex_locate="   ")
+    assert empty["content_format"] == "oversized_pointer"
+    assert "annex_locate_result" not in empty
+    assert any("빈 검색어" in w for w in empty["warnings"])
+
+
+def test_get_provision_detail_annex_locate_end_to_end_v0210(mock_client):
+    """admrul BP 경로 end-to-end: locate 블록 부착(version 메타 사후주입 포함 예산 내) +
+    문서레벨·조문(JO) 오지정 정직 경고 + 기본 경로 잠금(미지정 시 신규 필드·경고 미출현)."""
+    big = "\n".join(f"별표 기준행 {i:04d} — 간접비 계상 비율" for i in range(1500)) + "\n지원단가 RCMS 연계행"
+    mock_client.get_admin_rule_detail.return_value["annexes"][0]["별표내용"] = big
+    resp = asyncio.run(get_provision_detail("admrul:2100000278740:BP0001", annex_locate="RCMS"))
+    assert resp["content_format"] == "oversized_pointer"
+    assert resp["annex_locate_result"]["total_match_count"] == 1
+    assert len(json.dumps(resp, ensure_ascii=False)) <= main_module._ANNEX_DETAIL_CHAR_BUDGET
+    # 0매치 앵커 end-to-end
+    zero = asyncio.run(get_provision_detail("admrul:2100000278740:BP0001", annex_locate="존재하지않는문구"))
+    assert zero["annex_locate_result"]["total_match_count"] == 0
+    assert "매치 0건" in zero["annex_locate_result"]["locate_note"]
+    # 문서레벨·JO 오지정 정직 경고
+    doc = asyncio.run(get_provision_detail("law:283849", annex_locate="RCMS"))
+    assert any("annex_locate" in w and "문서레벨" in w for w in doc["warnings"])
+    jo = asyncio.run(get_provision_detail("law:283849:JO0015", annex_locate="RCMS"))
+    assert any("annex_locate" in w and "조문(JO)" in w for w in jo.get("warnings", []))
+    # 기본 경로 잠금: 미지정 시 locate 필드·경고 미출현
+    base = asyncio.run(get_provision_detail("admrul:2100000278740:BP0001"))
+    assert "annex_locate_result" not in base
+    assert not any("annex_locate" in w for w in base["warnings"])
+    doc_default = asyncio.run(get_provision_detail("law:283849"))
+    assert not any("annex_locate" in w for w in doc_default["warnings"])
+
+
+def test_annex_locate_guidance_present_all_surfaces_v0210():
+    """v0.21.0 surface-consistency: locate 라우팅·소비 지시가 3개 프롬프트 표면에 모두 실렸는지 검증.
+    토큰 5종 = locate 재호출 라우팅 · 전문 스캔 결과 블록 · 0매치=부재 근거 인용 허용 ·
+    스캔 한계(HWP 범위 밖) · 매치 발췌 부분성. docstring wrap 대응 공백 정규화.
+    README 미러 동기화는 test_readme_embedded_prompt_matches_template가 별도 강제."""
+    import re
+
+    def _norm(s: str) -> str:
+        return re.sub(r"\s+", " ", s or "")
+
+    surfaces = {
+        "SERVER_INSTRUCTIONS": main_module._SERVER_INSTRUCTIONS,
+        "REVIEW_PROMPT": main_module._REVIEW_PROMPT_TEMPLATE,
+        "DOCSTRING": get_provision_detail.__doc__,
+    }
+    tokens = [
+        "annex_locate=<검색어>로 재호출",  # locate 라우팅(청크 전수 순회 전에)
+        "서버 측 전문 스캔 결과(annex_locate_result)",  # 결과 블록 명칭
+        "부재 근거로 인용할 수 있되",  # 0매치 소비 허용(over-blocking 차단)
+        "HWP 첨부 원문은 스캔 범위 밖",  # 스캔 한계 표시 의무
+        "매치 줄 ±1줄의 부분 발췌",  # 발췌 부분성 오인 금지
+    ]
+    for name, text in surfaces.items():
+        norm = _norm(text)
+        for tok in tokens:
+            assert tok in norm, f"{name}에 v0.21.0 가이드 토큰 '{tok}' 누락 — 3표면 동기화 필요"
+
+
+def test_annex_locate_query_cap_blocks_budget_vector_v0210():
+    """(diff 적대검증 Codex blocking 해소) 초장문 검색어 → 무시+경고·query echo 예산 잠식 차단."""
+    big = "\n".join(f"별표 기준행 {i:04d}" for i in range(1500))
+    ann = {"별표번호": "2", "별표제목": "테스트", "별표내용": big, "별표서식파일링크": ""}
+    resp = main_module._build_annex_detail("law:285767:BP0002", "BP0002", _fake_rs(), ann, "20260506",
+                                           annex_locate="가" * 20000)
+    assert "annex_locate_result" not in resp, "cap 초과 검색어는 스캔 자체를 수행하지 않음"
+    assert any("검색어가 너무 깁니다" in w for w in resp["warnings"])
+    assert len(json.dumps(resp, ensure_ascii=False)) <= main_module._ANNEX_DETAIL_CHAR_BUDGET
+    # cap 경계: 정확히 상한 길이는 허용
+    ok = main_module._build_annex_detail("law:285767:BP0002", "BP0002", _fake_rs(), ann, "20260506",
+                                         annex_locate="가" * main_module._ANNEX_LOCATE_QUERY_MAX)
+    assert "annex_locate_result" in ok
+    assert len(json.dumps(ok, ensure_ascii=False)) <= main_module._ANNEX_DETAIL_CHAR_BUDGET
+
+
+def test_annex_locate_megaline_match_position_v0210():
+    """(diff 적대검증 Codex edge 해소) 문자 분할 초장문 줄 — chunk_index는 매치 위치 기준·
+    excerpt는 매치 중심 윈도우라 매치 문구가 반드시 포함."""
+    mega = "가" * 20000 + "TARGET" + "나" * 2000  # 단일 줄·oversized·TARGET은 2번째 청크 구간
+    ann = {"별표번호": "3", "별표제목": "테스트", "별표내용": mega, "별표서식파일링크": ""}
+    resp = main_module._build_annex_detail("law:285767:BP0003", "BP0003", _fake_rs(), ann, "20260506",
+                                           annex_locate="TARGET")
+    blk = resp["annex_locate_result"]
+    assert blk["total_match_count"] == 1
+    m = blk["matches"][0]
+    # 매치 오프셋(20000)이 속한 청크를 chunks 누적 길이로 직접 계산해 대조
+    chunks = main_module._annex_chunk_texts(mega)
+    acc, expected_idx = 0, len(chunks)
+    for idx, c in enumerate(chunks, start=1):
+        acc += len(c)
+        if 20000 < acc:
+            expected_idx = idx
+            break
+    assert expected_idx >= 2, "TARGET은 첫 청크 밖(테스트 전제)"
+    assert m["chunk_index"] == expected_idx, "chunk_index는 줄 시작이 아닌 매치 위치 기준"
+    assert "TARGET" in m["excerpt"], "매치 중심 윈도우 — 초장문 줄에서도 매치 문구 포함"
+    assert m["excerpt_truncated"] is True
+    assert m["excerpt"] in mega, "발췌는 여전히 원문 연속 substring"

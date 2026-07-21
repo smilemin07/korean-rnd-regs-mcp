@@ -3,6 +3,22 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.21.0] - 2026-07-21
+
+**대용량 별표 내 검색(opt-in) — 청크 다회 순회 비용 해소** — 배포 후 브라우저 라이브 eval 2회 연속(v0.20.0 P2·v0.20.1 P2)에서 호스트가 "별표들에 특정 문구(RCMS 등)가 있는가"류 부재 확인 질문에 `annex_chunk`를 7회 연속 호출해 수만 자를 전수 순회하는 실수요가 실측됐다(정답은 도달하나 호출·컨텍스트 비용 과다). `get_provision_detail`에 **optional 입력 `annex_locate`(문자열·기본 None)** 추가 — 별표(BP)+oversized일 때만 서버가 이미 확보한 별표 전문 텍스트를 줄 단위로 스캔하여 `annex_locate_result` 블록(`scanned_scope="annex_full_text"` 데이터 앵커·**전문 기준** `total_match_count`·매치 발췌[±1줄 원문 substring·표시 cap 6·`matches_truncated` 명시]·매치별 `chunk_index`[해당 구간 `annex_chunk` 재호출 안내])을 oversized_pointer 응답에 additive 부착한다. **0매치 = "서버가 별표 전문을 스캔한 결과 미발견"의 결정론 앵커** — v0.20.1 지시①(확인 범위 명시)을 호스트 자가 신고에서 서버 보장으로 상향하되, 스캔 한계(줄 단위 스캔이라 줄바꿈·표기 변형 미매치 가능·HWP 첨부 원문 범위 밖·부재 결론은 해당 별표 전문에 한정)를 `locate_note`에 동봉한다. 매칭은 search_provision의 토큰 규칙 재사용(의미토큰 2개+ 줄 내 토큰 AND·그 외 리터럴 — ★스코프는 줄 단위로 search_provision의 문서 전체 스코프보다 좁으며 locate_note가 이 한계를 고지) + 가운뎃점 유니코드 변형(ㆍ↔·) 정규화(v0.20.1 eval 실측 반영·발췌는 raw 원문) + 검색어 200자 상한(query echo가 응답 예산을 잠식하는 벡터 차단 — diff 적대검증 Codex 실측 반영). **추가 네트워크 0**. `contract_version` **0.16.0 → 0.17.0**(§5.18·입력 파라미터+응답 additive), 패키지 major bump(0.20.1 → **0.21.0**), 지원 규정 수 **52개 불변**. ★**입력 스키마 변경 릴리스**(v0.18.0·v0.20.0 이후 세 번째) — 배포 후 웹 커넥터 재연결(비활성→재활성) 안내·진행 중 세션은 구 tools/list 캐시라 신 파라미터 미노출. **선정·설계**: 52규정 LIVE 현행성 전수 감사 전 건 일치(data rider 0) + 코드 실측 → `/disc` 3-AI(Claude+Codex+Gemini) **3/3 GO 만장일치**(승격 게이트=실수요 2회 관측 충족·표현 patch 묶음 동봉=단일 의도 위반 기각·표시 cap 6 재사용·annex_chunk 동시 지정 시 청크 우선 2/3·regex/fuzzy 모드 과설계 기각). **outage 회피**: 기본(None) 경로·검색 fan-out·부팅/HTTP transport/health 완전 무접촉, 기존 포인터 `content`·`required_action`·청크 안내 문자열 무변(잠금 테스트 무수정 통과), 검색어 200자·excerpt 개별 400자 상한 + 직렬화 예산 방어 백스톱 2단(`matches_omitted`[스캔 결론 앵커 보존] → `annex_locate_omitted`[블록 통째 생략·airtight]).
+
+### Added
+
+- **`get_provision_detail` 입력 `annex_locate`**(optional str·기본 None): oversized 별표 한정 서버 측 전문 스캔. 문서레벨·조문(JO)·비-oversized 별표·빈 검색어에서는 무시 + 정직 경고 1줄(침묵 무시 방지·annex_chunk와 동형). `annex_chunk`와 동시 지정 시 청크 본문 조회 우선(locate 무시 + 경고).
+- **`_annex_locate_result`·`_locate_normalize` 헬퍼**(`main.py`): 순수 함수·결정론. 매치 위치(첫 토큰 오프셋)→청크 경계 매핑으로 매치별 `chunk_index` 산출(청크는 원문 연속 substring이라 누적 길이가 곧 경계 — 문자 분할 초장문 줄에서도 정확)·매치 중심 발췌 윈도우(초장문 줄에서도 매치 문구가 발췌에 포함).
+- **프롬프트 3표면 + README**(`_SERVER_INSTRUCTIONS`·docstring·`review_regulation` byte-sync): locate 라우팅("존재/부재 확인은 청크 전수 순회 전에 annex_locate 먼저")·0매치 소비(부재 근거 인용 허용 + 한계 표시)·발췌 부분성 오인 금지.
+- **테스트 385 → 396**(`tests/test_tools.py`·`tests/test_b2_executor.py`·acceptance 가드): 매치/0매치 앵커·가운뎃점 정규화·토큰 AND·truncation·additive 잠금·우선순위/무시 경고·end-to-end·검색어 cap(query echo 예산 벡터)·megaline 매치 위치·surface-consistency(토큰 5종)·버전/contract 잠금.
+- **acceptance spec**(`tests/acceptance/v0_21_0.py`): locate 실반환(law·admrul)·0매치 앵커·기본 경로 무회귀·검색 recall 무회귀 + Level-B 프롬프트(부재 확인 1-call 라우팅·과잉 단정 방지).
+
+### Deferred (scope 밖·backlog)
+
+- 표현 patch 묶음(재구성 표시 문구 강도·latest_history 라벨 출처 병기 — 단일 의도 분리)·structured 목 parity·평면 admrul 항·호 파싱(C4)·R5/B3·annex_chunk/annex_locate 엄격 타입 검증·broad 드리프트.
+
 ## [0.20.1] - 2026-07-21
 
 **청크·이력 소비 표시 정밀화 — 별표 인용 방식·확인 범위 표시 + latest_history 마커 라벨 보존** — v0.20.0 배포 후 브라우저 라이브 eval(2026-07-20·CLEAN PASS·서버 결함 0)에서 관찰된 비차단 표현 리스크 2건을 예방적으로 완결하는 **프롬프트 문자열-only patch**(v0.17.1·v0.19.1과 동형). ① 호스트가 고정폭 박스 표 별표 청크 전문을 목록형으로 재구성(내용 무손실·"재구성" 고지·표본 오류 0)했으나 표시 규약이 없어, 향후 병합셀 복잡 표에서 왜곡이 "원문 인용"으로 위장될 잠재 리스크 → 별표 본문을 인용·정리해 표시할 때 **원문 줄 배열 유지 인용 / 내용 보존 재구성 / 일부 요약** 중 방식을 답변에 명시하고(★재구성·요약 자체는 허용 — 금지가 아니라 표시 요구·over-blocking 차단 허용문 병기), 별표 전체에 대한 결론(문구·수치 부재 판단 등)은 전체 청크 전수/일부 확인 범위를 명시하도록 지시. ② eval에서 latest_history '신설' 마커를 '손질'로 뭉뚱그린 사례(허용 요약 판정·허위 아님) → latest_history 값을 전달·요약할 때 마커 유형 라벨(개정·신설·삭제·본조신설 등)을 원문 라벨 그대로 표기하되, 기존 "유형에서 개정 범위·중요도를 추론 금지" 원칙과 분리 서술로 병립. 코드 로직·응답 schema·입력 스키마 무변 — `contract_version` **0.16.0 유지**, 패키지 patch bump(0.20.0 → **0.20.1**), 지원 규정 수 **52개 불변**·커넥터 재연결 불요. **선정·문구**: 패키지 선정 `/disc` 3-AI(Claude+Codex+Gemini) **3/3 GO**(별표 내 검색 locate=실수요 게이트 미충족·예방 코드=트리거 0·보류·규정 확대 전부 기각) + 52규정 LIVE 현행성 전수 감사 전 건 일치(2026-07-21·data rider 0건) → 문구 초안 `/disc` 3-AI 수정후 GO(수렴 3건 채택: 인용/재구성/요약 3분법·"latest_history 값을 전달할 때"로 한정·"내용 무손실"→"내용을 보존한"). **outage 회피**: 부팅/transport/검색 fan-out/공유 파서/캐시 완전 무접촉(프롬프트 문자열만).

@@ -73,6 +73,12 @@ _SERVER_INSTRUCTIONS = (
     "일부 요약인지 그 방식을 답변에 명시하십시오(재구성·요약 자체는 허용 — 방식 표시 요구). "
     "또한 별표 전체에 대한 결론(특정 문구·수치의 부재 판단 등)을 제시할 때는 "
     "전체 청크를 모두 확인했는지 일부만 확인했는지 그 확인 범위를 답변에 명시하십시오. "
+    "별표에서 특정 문구·수치의 존재/부재 확인이나 위치 찾기가 목적이면, 청크를 순서대로 전수 조회하기 전에 "
+    "annex_locate=<검색어>로 재호출하여 서버 측 전문 스캔 결과(annex_locate_result)를 먼저 확인하십시오(대용량 별표 BP 전용). "
+    "total_match_count=0이면 서버가 별표 전문 텍스트를 줄 단위로 스캔한 결과 미발견이므로 부재 근거로 인용할 수 있되, "
+    "줄 단위 스캔이라 줄바꿈·표기 변형으로 매치되지 않았을 가능성과 HWP 첨부 원문은 스캔 범위 밖임을 함께 표시하십시오. "
+    "매치 excerpt는 매치 줄 ±1줄의 부분 발췌(원문 그대로)이므로 별표 전체로 오인하지 말고, "
+    "전후 맥락이 필요하면 해당 매치의 chunk_index로 annex_chunk를 조회하십시오. "
     "행정규칙(고시·예규·훈령)의 발령번호·종류는 get_provision_detail 응답의 "
     "issuance_number·regulation_kind·version_label 필드로 확인하되, 이 값은 조회된 규정의 것이며 현행임을 보증하지 않습니다"
     "(검색 실패 시 등록(manifest) 버전일 수 있고 개정 안내가 없어도 현행이라는 뜻은 아니므로, 현행 여부 단정이 필요하면 1차 출처에서 확인). "
@@ -1193,7 +1199,105 @@ def _annex_chunk_texts(content: str) -> list[str]:
     return chunks
 
 
-def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date: str, force_oversized: bool = False, annex_chunk: int | None = None) -> dict:
+_ANNEX_LOCATE_EXCERPT_MAX = 400  # 매치 발췌(매치 줄 ±1줄) 개별 상한 — 초장문 줄 방어(절단해도 원문 substring 유지)
+_ANNEX_LOCATE_QUERY_MAX = 200    # 검색어 길이 상한 — query echo가 응답 예산을 잠식하는 벡터 차단(초과=무시+경고)
+
+
+def _locate_normalize(s: str) -> str:
+    """annex_locate 매칭용 최소 정규화 — 가운뎃점 유니코드 변형(ㆍ U+318D → · U+00B7)만 동일 문자로
+    취급(v0.20.1 eval 실측: 별표 원문에 ㆍ 변형 실재 — 미정규화 시 거짓 미발견 위험). 발췌·응답 본문은
+    raw 원문 유지(이 함수는 매칭 판정에만 사용). NFKC 등 광범위 정규화는 오매치 위험으로 미적용."""
+    return s.replace("ㆍ", "·")
+
+
+def _annex_locate_result(content: str, query: str, chunks: list[str]) -> dict:
+    """oversized 별표 전문을 서버가 줄 단위로 스캔한 결과 블록 (v0.21.0 annex_locate).
+
+    - 토큰 규칙은 search_provision(_title_token_match)과 동일 재사용: 의미토큰(2자+) 2개 이상이면
+      토큰 AND, 그 외 질의 전체 리터럴 부분문자열. ★단 매칭 스코프는 줄 단위(모든 토큰이 같은 줄) —
+      search_provision의 문서 전체 스코프보다 좁으며, 이 한계는 locate_note의 줄 단위 스캔 고지로 커버.
+    - total_match_count는 전문 기준 전체 매치 줄 수(결정론). 표시(matches)는 문서 순서 앞
+      _ANNEX_SNIPPET_MATCH_LINES_MAX(6)건 — 초과분은 matches_truncated=True로 명시(일부만 보고
+      전량 확인으로 오인하는 성급한 결론 방지).
+    - 각 match의 excerpt는 매치 줄 ±1줄 원문 그대로(연속 substring·부분 발췌·매치 위치 중심 윈도우
+      — 초장문 줄에서도 매치 문구가 발췌에 포함)이며, chunk_index는 매치 위치(줄 시작이 아닌 첫 토큰
+      위치) 기준 소속 청크(초장문 줄이 문자 분할로 여러 청크에 걸쳐도 정확). 0매치는 "서버가 별표
+      전문 텍스트를 스캔한 결과 미발견"의 데이터 앵커 — 단 줄 단위 스캔 한계(줄바꿈·표 개행에 걸친
+      문구·표기 변형 미매치 가능)와 HWP 첨부 원문 범위 밖 한계를 locate_note에 동봉(부재 결론의
+      범위 한정).
+    - 순수 함수·추가 네트워크 0(content는 detail 응답에 기존재). query는 호출부에서 길이 cap
+      (_ANNEX_LOCATE_QUERY_MAX) 통과분만 도달 — query echo의 예산 잠식 벡터 차단.
+    """
+    tokens_raw = [t for t in query.split() if len(t) >= 2]
+    is_token_and = len(tokens_raw) >= 2
+    tokens = [_locate_normalize(t) for t in (tokens_raw if is_token_and else [query])]
+    lines = content.split("\n")
+    # 줄 시작 오프셋 → 청크 소속 매핑 (청크는 원문 연속 substring이라 누적 길이가 곧 경계)
+    line_offsets: list[int] = []
+    _off = 0
+    for ln in lines:
+        line_offsets.append(_off)
+        _off += len(ln) + 1
+    chunk_ends: list[int] = []
+    _acc = 0
+    for c in chunks:
+        _acc += len(c)
+        chunk_ends.append(_acc)
+
+    def _chunk_of(offset: int) -> int:
+        for idx, end in enumerate(chunk_ends, start=1):
+            if offset < end:
+                return idx
+        return len(chunk_ends) or 1
+
+    matched = [i for i, ln in enumerate(lines) if all(t in _locate_normalize(ln) for t in tokens)]
+    shown = matched[:_ANNEX_SNIPPET_MATCH_LINES_MAX]
+    matches: list[dict] = []
+    for i in shown:
+        # 매치 위치(줄 내 첫 토큰 오프셋) — _locate_normalize는 1:1 문자 치환이라 raw 인덱스와 동일.
+        pos = min(_locate_normalize(lines[i]).find(t) for t in tokens)
+        joined = "\n".join(lines[max(0, i - 1):i + 2])
+        rel = pos + (len(lines[i - 1]) + 1 if i > 0 else 0)  # joined 내 매치 오프셋
+        # 매치 중심 윈도우 — 초장문 줄에서 prefix 절단으로 매치 문구가 발췌에서 탈락하는 것 방지.
+        start = max(0, rel - _ANNEX_LOCATE_EXCERPT_MAX // 2)
+        excerpt = joined[start:start + _ANNEX_LOCATE_EXCERPT_MAX]
+        item: dict = {"line": i + 1, "chunk_index": _chunk_of(line_offsets[i] + pos), "excerpt": excerpt}
+        if len(excerpt) < len(joined):
+            item["excerpt_truncated"] = True
+        matches.append(item)
+    result = {
+        "query": query,
+        "match_semantics": (
+            "token_and — 공백 구분 의미토큰(2자 이상) 전부가 같은 줄에 있으면 매치"
+            if is_token_and else "literal — 질의 전체를 부분문자열로 매치"
+        ),
+        "scanned_scope": "annex_full_text",
+        "scanned_char_count": len(content),
+        "total_match_count": len(matched),
+        "matches": matches,
+        "matches_truncated": len(matched) > len(shown),
+    }
+    if matched:
+        result["locate_note"] = (
+            f"서버가 본 별표 전문({len(content):,}자·전체 {len(chunks)}청크)을 줄 단위로 스캔한 결과 "
+            f"매치 {len(matched)}건 중 {len(shown)}건 표시"
+            + ("(표시 cap 초과분 미표시 — 초과분까지 전량 확인이 필요하면 annex_chunk 청크 조회로 확인)"
+               if len(matched) > len(shown) else "")
+            + ". excerpt는 매치 줄 ±1줄 원문 그대로의 부분 발췌이며 별표 전체가 아닙니다 — "
+            "표시된 매치의 전후 맥락은 해당 매치의 chunk_index를 annex_chunk로 재호출하여 확인하십시오."
+        )
+    else:
+        result["locate_note"] = (
+            f"서버가 본 별표 전문({len(content):,}자·전체 {len(chunks)}청크)을 줄 단위로 스캔한 결과 매치 0건 — "
+            "이 별표 전문 텍스트에서 해당 문구가 발견되지 않았습니다(전문 스캔·결정론). "
+            "단 줄 단위 스캔이므로 줄바꿈·표 개행에 걸쳐 쪼개진 문구나 띄어쓰기 등 표기 변형은 매치되지 "
+            "않을 수 있고, attached_file_url의 HWP 첨부 원문은 스캔 범위 밖입니다. "
+            "부재 결론은 본 별표 전문 텍스트에 한정하여 표시하십시오."
+        )
+    return result
+
+
+def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date: str, force_oversized: bool = False, annex_chunk: int | None = None, annex_locate: str | None = None) -> dict:
     """별표 단위 상세 응답 (v0.2, size-tiered + verbatim 정확성 가드).
 
     force_oversized=True면 전문 분기를 건너뛰고 oversized_pointer로 강등(v0.5.0 — 호출부가 사후주입(version 메타·
@@ -1212,6 +1316,12 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
     chunk_count·재호출 안내를 additive로만 노출(기존 안내 content 문자열 무변). 분기 1~3에서는
     본문이 없거나 전문이 이미 수록되므로 무시 + 정직 경고 1줄. force_oversized(사후주입 초과
     백스톱 재호출)일 때는 청크 응답도 포인터로 강등해 예산 초과를 airtight 차단.
+
+    v0.21.0 annex_locate(opt-in): 분기 4(oversized)에서만 유효 — 지정 시 서버가 별표 전문을
+    줄 단위로 스캔한 annex_locate_result 블록(전문 기준 total_match_count·매치 발췌·chunk_index)을
+    포인터 응답에 additive로만 부착(기존 content·required_action·청크 안내 문자열 무변). 빈 검색어는
+    무시+정직 경고, annex_chunk와 동시 지정 시 청크 본문 조회 우선(locate 무시+경고 — 기존 기능
+    보존), 분기 1~3에서는 무시+정직 경고 1줄(annex_chunk와 동형).
     """
     title = (ann.get("별표제목") or "").strip()
     content = (ann.get("별표내용") or "").strip()
@@ -1252,6 +1362,8 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
         })
         if annex_chunk is not None:
             base["warnings"] = base["warnings"] + ["annex_chunk 무시 — 본 별표는 본문 텍스트가 없어 청크 조회 대상이 아닙니다."]
+        if annex_locate is not None:
+            base["warnings"] = base["warnings"] + ["annex_locate 무시 — 본 별표는 본문 텍스트가 없어 스캔 대상이 아닙니다(HWP 첨부·공식 원문 확인)."]
         return base
     # 2) 삭제 stub — 개정 삭제 표기('삭제 <날짜>')로 한정. 동사 '삭제한다'를 담은 짧은 활성 별표 오탐 방지.
     #    v0.2.1: 제목 기반 보조 판정 추가 — admrul 삭제 별표는 content가 '<삭 제>'(공백형·60자 초과)라
@@ -1267,6 +1379,8 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
         })
         if annex_chunk is not None:
             base["warnings"] = base["warnings"] + ["annex_chunk 무시 — 삭제 별표 스텁 전문이 이미 수록되어 청크 조회가 불필요합니다."]
+        if annex_locate is not None:
+            base["warnings"] = base["warnings"] + ["annex_locate 무시 — 삭제 별표 스텁 전문이 이미 수록되어 스캔이 불필요합니다."]
         return base
     # 3) 전문 시도 — 직렬화 JSON 길이로 예산 판정
     full = dict(base)
@@ -1282,10 +1396,31 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
     if not force_oversized and len(json.dumps(full, ensure_ascii=False)) <= _ANNEX_DETAIL_CHAR_BUDGET - _ANNEX_DETAIL_HEADROOM:
         if annex_chunk is not None:
             full["warnings"] = full["warnings"] + ["annex_chunk 무시 — 본 별표는 전문이 응답 예산 내라 전체 본문을 반환했습니다(청크 조회 불필요)."]
+        if annex_locate is not None:
+            full["warnings"] = full["warnings"] + ["annex_locate 무시 — 본 별표는 전문이 응답에 수록되어 content에서 직접 확인 가능합니다(서버 스캔 불필요)."]
         return full
     # 4) 초과 — v0.20.0: 줄 경계 청크 분할(결정론)을 선계산해 청크 조회·안내에 공용.
     _chunks = _annex_chunk_texts(content)
     _chunk_count = len(_chunks)
+    # v0.21.0 annex_locate 게이트 — oversized에서만 유효. 빈 검색어는 무시(정직 경고),
+    # annex_chunk와 동시 지정 시 청크 본문 조회 우선(기존 기능 보존 — locate 무시+경고).
+    _locate_query: str | None = None
+    if annex_locate is not None:
+        _locate_query = annex_locate.strip()
+        if not _locate_query:
+            base["warnings"] = base["warnings"] + ["annex_locate 무시 — 빈 검색어입니다."]
+            _locate_query = None
+        elif len(_locate_query) > _ANNEX_LOCATE_QUERY_MAX:
+            # query echo가 응답 예산을 잠식하는 벡터 차단(diff 적대검증 Codex 실측 — 무제한 검색어로 예산 초과 재현)
+            base["warnings"] = base["warnings"] + [
+                f"annex_locate 무시 — 검색어가 너무 깁니다(최대 {_ANNEX_LOCATE_QUERY_MAX}자). 짧은 핵심 문구로 재호출하십시오."
+            ]
+            _locate_query = None
+        elif annex_chunk is not None:
+            base["warnings"] = base["warnings"] + [
+                "annex_locate 무시 — annex_chunk와 동시 지정 시 청크 본문 조회를 우선합니다(전문 스캔이 필요하면 annex_chunk 없이 재호출)."
+            ]
+            _locate_query = None
     if annex_chunk is not None and not force_oversized:
         # 4a) 유효 청크 요청 → 해당 구간 원문 그대로(부분성 메타 동반). force_oversized(사후주입
         #     포함 최종이 예산을 넘긴 백스톱 재호출)면 이 분기를 건너뛰고 포인터로 강등(airtight).
@@ -1355,6 +1490,25 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
     base["warnings"] = base["warnings"] + [
         f"대용량 별표 — annex_chunk 파라미터(1..{_chunk_count})로 본문을 청크 단위 조회 가능."
     ]
+    # v0.21.0: 서버 측 별표 내 검색(locate) — 포인터 응답에 additive 블록·경고 1줄만 부착
+    # (기존 content·required_action·청크 안내 문자열 무변 → 기존 소비자·잠금 테스트 회귀 없음).
+    if _locate_query is not None:
+        base["annex_locate_result"] = _annex_locate_result(content, _locate_query, _chunks)
+        base["warnings"] = base["warnings"] + [
+            "annex_locate 결과는 전문 스캔 요약 — matches의 excerpt는 부분 발췌이므로 별표 전체로 오인 금지, "
+            "부재 결론 표시는 locate_note의 스캔 한계(줄 단위·HWP 첨부 제외)를 함께 표기."
+        ]
+        # 방어 백스톱 2단: ① matches만 비움(스캔 결론 앵커 보존) → ② 그래도 초과면 블록 통째 생략
+        # (annex_locate_omitted — airtight·query cap 하에서는 정상 입력선 미발동).
+        if len(json.dumps(base, ensure_ascii=False)) > _ANNEX_DETAIL_CHAR_BUDGET - _ANNEX_DETAIL_HEADROOM:
+            base["annex_locate_result"]["matches"] = []
+            base["annex_locate_result"]["matches_omitted"] = True
+            if len(json.dumps(base, ensure_ascii=False)) > _ANNEX_DETAIL_CHAR_BUDGET - _ANNEX_DETAIL_HEADROOM:
+                del base["annex_locate_result"]
+                base["annex_locate_omitted"] = True
+                base["warnings"] = base["warnings"] + [
+                    "annex_locate 결과 생략 — 응답 예산 초과(annex_locate_omitted). 검색어를 줄여 재호출하십시오."
+                ]
     return base
 
 
@@ -1934,7 +2088,7 @@ async def suggest_review_sources(
 
 
 @mcp.tool()
-async def get_provision_detail(provision_id: str, include_old_and_new: bool = False, annex_chunk: int | None = None) -> dict:
+async def get_provision_detail(provision_id: str, include_old_and_new: bool = False, annex_chunk: int | None = None, annex_locate: str | None = None) -> dict:
     """사용 시점: search_provision 또는 suggest_review_sources가 반환한 provision_id의 원문·삭제 여부·현행 내용을 확인할 때 호출하십시오. provision_id 없이 조문 내용을 추측하지 마십시오. 이 도구의 content가 규정 조문·별표 본문의 권위 출처이므로, 본문은 외부 웹(law.go.kr 직접 열람·웹검색 결과)에서 가져오지 말고 이 도구로 확인하십시오. content_format이 plain_text_verbatim이 아니면 응답이 제공한 attached_file_url·document_source_url의 공식 원문을 확인하십시오. 행정규칙(admrul) 응답에는 발령번호·종류가 issuance_number·regulation_kind·version_label 필드로 포함되니 이를 사용하되, 이 값은 조회된 규정의 것이며 현행임을 보증하지 않으므로(검색 실패 시 등록 버전일 수 있음) 현행 여부 단정이 필요하면 1차 출처에서 확인하고, 응답에 없는 고시·예규 번호 등은 외부 값으로 단정하지 마십시오. 기한·금액·비율·수치 등 구체값도 마찬가지로, 응답 원문에 있는 값은 그대로 인용하되 원문에서 확인되지 않은 값은 임의 예시로라도 단정하지 말고 확인되지 않았음을 명시하십시오.
 
     provision_id로 단일 조문/별표 본문 재조회 — 응답은 법령 원문 verbatim.
@@ -1995,7 +2149,14 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
       달라질 수 있음(effective_date 확인). 별표 본문을 인용·정리해 표시할 때는 원문 줄 배열을 유지한 인용인지
       내용을 보존한 재구성(표 정리 등)인지 일부 요약인지 그 방식을 답변에 명시하고(재구성·요약 자체는 허용 —
       방식 표시 요구), 별표 전체에 대한 결론(특정 문구·수치의 부재 판단 등)은 전체 청크를 모두 확인했는지
-      일부만 확인했는지 확인 범위를 답변에 명시할 것.
+      일부만 확인했는지 확인 범위를 답변에 명시할 것. 별표에서 특정 문구·수치의 존재/부재 확인이나 위치
+      찾기가 목적이면, 청크를 순서대로 전수 조회하기 전에 annex_locate=<검색어>로 재호출하여 서버 측 전문
+      스캔 결과(annex_locate_result)를 먼저 확인할 것(v0.21.0·대용량 별표 BP 전용·기본 None — 문서레벨·
+      조문·전문 수록 별표에서는 무시됨·annex_chunk와 동시 지정 시 청크 조회 우선). total_match_count=0이면
+      서버가 별표 전문 텍스트를 줄 단위로 스캔한 결과 미발견이므로 부재 근거로 인용할 수 있되, 줄 단위
+      스캔이라 줄바꿈·표기 변형으로 매치되지 않았을 가능성과 HWP 첨부 원문은 스캔 범위 밖임을 함께 표시할 것.
+      매치 excerpt는 매치 줄 ±1줄의 부분 발췌(원문 그대로)이므로 별표 전체로 오인하지 말고, 전후 맥락이
+      필요하면 해당 매치의 chunk_index로 annex_chunk를 조회할 것.
     """
     _e = _http_no_key_error()
     if _e is not None:
@@ -2206,6 +2367,11 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
             result["warnings"] = result["warnings"] + [
                 "annex_chunk는 대용량 별표(BP) 상세 조회에서만 지원 — 문서레벨 조회에서는 무시됨."
             ]
+        if annex_locate is not None:
+            # v0.21.0: 오지정 정직 고지(annex_chunk와 동형)
+            result["warnings"] = result["warnings"] + [
+                "annex_locate는 대용량 별표(BP) 상세 조회에서만 지원 — 문서레벨 조회에서는 무시됨."
+            ]
         return result
 
     # article (JO)
@@ -2252,6 +2418,11 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 resp["warnings"] = resp.get("warnings", []) + [
                     "annex_chunk는 대용량 별표(BP) 상세 조회에서만 지원 — 조문(JO) 조회에서는 무시됨."
                 ]
+            if annex_locate is not None:
+                # v0.21.0: 오지정 정직 고지(annex_chunk와 동형)
+                resp["warnings"] = resp.get("warnings", []) + [
+                    "annex_locate는 대용량 별표(BP) 상세 조회에서만 지원 — 조문(JO) 조회에서는 무시됨."
+                ]
             return resp
 
     # annex (BP)
@@ -2283,7 +2454,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 continue
             if _annex_branch_no(ann) != target_branch:
                 continue
-            resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date, annex_chunk=annex_chunk)
+            resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date, annex_chunk=annex_chunk, annex_locate=annex_locate)
             if "errors" in resp:
                 return resp  # v0.20.0: annex_chunk 범위 밖 — 오류 dict에 version 메타 오염 방지
             resp.update(_version_meta)  # v0.5.0: oversized 별표도 version은 도구에서(프롬프트4 외부행 차단)
@@ -2298,7 +2469,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 and "annex_status" not in resp
                 and len(json.dumps(resp, ensure_ascii=False)) > _ANNEX_DETAIL_CHAR_BUDGET
             ):
-                resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date, force_oversized=True, annex_chunk=annex_chunk)
+                resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date, force_oversized=True, annex_chunk=annex_chunk, annex_locate=annex_locate)
                 resp.update(_version_meta)
                 if _revision:
                     resp["revision_notice"] = _revision
@@ -2413,6 +2584,7 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
    - 조문이 "제X조에 따라", "시행령 제X조", "별표", "고시로 정하는" 등을 참조하면 해당 조항도 조회할 것.
    - 별표(BP)는 행정규칙·시행령 모두 get_provision_detail로 조회 가능하다(v0.2). 소형 별표는 본문 전문이 오지만, 대용량 별표는 content_format이 oversized_pointer/external_file_only로 본문이 미수록될 수 있으니 위 4단계의 content_format 규칙(plain_text_verbatim이 아니면 인용 금지)을 따를 것.
    - 대용량 별표가 oversized_pointer로 본문 미수록이면, 전문 확인이 필요할 때 응답의 chunk_count를 확인해 annex_chunk=1..chunk_count로 재호출하여 별표 본문을 줄 경계 분할 청크(원문 그대로)로 확인할 것(v0.20.0·별표 BP 전용·기본 미지정). 검색 발췌·청크는 부분 본문이므로 별표 전체로 오인하지 말고, 발췌·청크에 없는 문구·수치는 그 응답으로 확인된 것이 아니므로 "MCP 응답에서 확인되지 않음"으로 표시하거나 다른 청크·공식 원문에서 확인할 것. 청크 경계는 개정 시 달라질 수 있음(effective_date 확인). 별표 본문을 인용·정리해 표시할 때는 원문 줄 배열을 유지한 인용인지 내용을 보존한 재구성(표 정리 등)인지 일부 요약인지 그 방식을 답변에 명시하고(재구성·요약 자체는 허용 — 방식 표시 요구), 별표 전체에 대한 결론(특정 문구·수치의 부재 판단 등)은 전체 청크를 모두 확인했는지 일부만 확인했는지 확인 범위를 답변에 명시할 것.
+   - 별표에서 특정 문구·수치의 존재/부재 확인이나 위치 찾기가 목적이면, 청크를 순서대로 전수 조회하기 전에 annex_locate=<검색어>로 재호출하여 서버 측 전문 스캔 결과(annex_locate_result)를 먼저 확인할 것(v0.21.0·대용량 별표 BP 전용·기본 미지정). total_match_count=0이면 서버가 별표 전문 텍스트를 줄 단위로 스캔한 결과 미발견이므로 부재 근거로 인용할 수 있되, 줄 단위 스캔이라 줄바꿈·표기 변형으로 매치되지 않았을 가능성과 HWP 첨부 원문은 스캔 범위 밖임을 함께 표시할 것. 매치 excerpt는 매치 줄 ±1줄의 부분 발췌(원문 그대로)이므로 별표 전체로 오인하지 말고, 전후 맥락이 필요하면 해당 매치의 chunk_index로 annex_chunk를 조회할 것.
    - 별표 상세 응답에 dependent_article_hints가 있으면, 힌트에 적힌 조문을 같은 문서에서 get_provision_detail로 함께 조회할 것. 힌트는 별표 제목에서 뽑은 미검증 단서이므로 힌트 자체를 근거로 인용하지 말고, 조회된 조문 원문만 근거로 삼을 것. 이 동반 조회는 힌트에 적힌 조문 1단계까지만 자동 수행하고, 그 조문에서 이어지는 참조는 본 5단계의 일반 규칙에 따를 것.
    - 별표 번호나 가지번호가 불확실하면 BP provision_id를 추측해 호출하지 말 것. 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 annexes 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.
    - 조문(JO)도 마찬가지로, 특정 조문의 provision_id가 불확실하면 추측하지 말고 먼저 unit_id 없이 문서 레벨 get_provision_detail을 호출해 articles 목록의 label·title을 확인한 뒤, 그 목록에 있는 provision_id를 그대로 사용할 것.
