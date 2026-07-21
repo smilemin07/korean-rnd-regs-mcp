@@ -4401,6 +4401,34 @@ def test_annex_locate_guidance_present_all_surfaces_v0210():
             assert tok in norm, f"{name}에 v0.21.0 가이드 토큰 '{tok}' 누락 — 3표면 동기화 필요"
 
 
+def test_citation_preservation_guidance_present_all_surfaces_v0211():
+    """v0.21.1 surface-consistency: 근거 법률 인용 원문 단위 보존 지시(v0.21.0 eval P4 조문번호
+    탈락 대응)가 3개 프롬프트 표면에 모두 실렸는지 검증. 토큰 3종 = 인용구 원문 단위 보존 ·
+    조문번호 연결 표현 패턴('제N조에 따른' 예시화 — 제N조의M·제N조제M항 변형 포괄 의도) ·
+    over-blocking 방지 허용문. 기존 v0.17.1 토큰("기관명만으로 축약하지 말고")은
+    test_amendment_consumption_guidance_present_all_surfaces_v0171이 계속 잠금(no-churn 설계).
+    README 미러 동기화는 test_readme_embedded_prompt_matches_template가 별도 강제."""
+    import re
+
+    def _norm(s: str) -> str:
+        return re.sub(r"\s+", " ", s or "")
+
+    surfaces = {
+        "SERVER_INSTRUCTIONS": main_module._SERVER_INSTRUCTIONS,
+        "REVIEW_PROMPT": main_module._REVIEW_PROMPT_TEMPLATE,
+        "DOCSTRING": get_provision_detail.__doc__,
+    }
+    tokens = [
+        "원문 단위 그대로 보존",  # 인용구 보존 본문(법명·조문번호·연결어 포함)
+        "제N조에 따른",  # 조문번호 연결 표현 패턴(예시화)
+        "요약·정리 자체는 허용",  # over-blocking 방지 허용문
+    ]
+    for name, text in surfaces.items():
+        norm = _norm(text)
+        for tok in tokens:
+            assert tok in norm, f"{name}에 v0.21.1 지시 토큰 '{tok}' 누락 — 3표면 동기화 필요"
+
+
 def test_annex_locate_query_cap_blocks_budget_vector_v0210():
     """(diff 적대검증 Codex blocking 해소) 초장문 검색어 → 무시+경고·query echo 예산 잠식 차단."""
     big = "\n".join(f"별표 기준행 {i:04d}" for i in range(1500))

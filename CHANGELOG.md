@@ -3,6 +3,23 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.21.1] - 2026-07-22
+
+**근거 법률 인용 원문 단위 보존 — 개정문 인용 시 조문번호 탈락 방지 프롬프트 정밀화** — v0.21.0 배포 후 브라우저 라이브 eval(2026-07-21·PASS_WITH_MINOR·날조 0·서버 결함 0)의 유일 minor: 호스트가 개정문(amendment_text)의 제10조 개정후 대체문을 인용하며 "「중소기업진흥에 관한 법률」 제68조에 따른 중소벤처기업진흥공단"에서 조문번호("제68조에 따른")만 탈락(법명·기관명은 보존·같은 답변 다른 항목에선 보존=다중 항목 나열 시 표본 이탈·v0.17.0 minor③[기관명-만 축약]의 재발 계열). 근본원인 = 기존 지시가 "기관명만으로 축약하지 말고"에 초점이라(v0.17.1 도입 당시 사건 대응형) 조문번호-만 탈락 케이스를 못 겨냥 + LLM의 가독성 요약 성향이 다중 항목에서 보존 지시를 표본적으로 압도. 해당 지시 1문장을 in-place 강화하는 **프롬프트 문자열-only patch**(v0.17.1·v0.19.1·v0.20.1과 동형): 근거 법률 인용구는 법명·조문번호·'에 따른' 연결어를 포함한 **원문 단위 그대로 보존**('「법명」 제N조에 따른 기관' 패턴 등에서 '제N조에 따른' 탈락 금지)·여러 조문 나열 정리 시에도 각 항목 동일 유지·근거 법률 인용구를 옮긴 경우 답변 전 조문번호·연결어 누락 자가 점검 + ★over-blocking 차단 허용문 병기("요약·정리 자체는 허용"). 코드 로직·응답 schema·입력 스키마 무변 — `contract_version` **0.17.0 유지**, 패키지 patch bump(0.21.0 → **0.21.1**), 지원 규정 수 **52개 불변**·커넥터 재연결 불요. **선정·문구**: 계획 `/disc` 3-AI(Claude+Codex+Gemini) **3/3 GO 만장일치**(지시 1건만 최소형 — 백로그 표현 후보 2건[재구성 문구 강도·latest_history 라벨 출처 병기]은 2회 eval 연속 결함 0=트리거 0이라 동봉 기각·지시 과밀 회피) + 52규정 LIVE 현행성 전수 감사 전 건 일치(2026-07-22·data rider 0건) → 문구 `/disc` 3-AI 수정후 GO(수렴 2건 채택: 보존 대상 "인용구" 한정[개정문 전체 verbatim 강제로의 과확대 해석 차단]·'제N조에 따른' 예시화+자가 점검 대상 일반화[제N조의M·제N조제M항 변형 포괄]). **outage 회피**: 부팅/transport/검색 fan-out/공유 파서/캐시 완전 무접촉(프롬프트 문자열만).
+
+### Changed
+
+- **소비 가이드**(`_SERVER_INSTRUCTIONS`·`get_provision_detail` docstring·`review_regulation` 프롬프트 + `README.md` byte-sync): 근거 법률 인용 보존 지시 1문장을 위 3문장(보존 명문화·다중 항목 유지·자가 점검+허용문)으로 in-place 강화. 기존 잠금 문구("기관명만으로 축약하지 말고" 포함) 전부 보존 — v0.17.1 surface-consistency 테스트 무수정 통과(no-churn).
+
+### Added
+
+- **테스트 396 → 398**(`tests/test_tools.py`·`tests/test_b2_executor.py`·acceptance 가드 자동 +1): v0.21.1 surface-consistency(3표면 토큰 3종 — 원문 단위 그대로 보존·'제N조에 따른' 패턴·요약·정리 허용문)·패키지 0.21.1 잠금·신규 spec 구조 가드(파라미터화 자동 수집).
+- **acceptance spec**(`tests/acceptance/v0_21_1.py`): Level A는 무회귀만(프롬프트-only라 응답 데이터 무변 — locate 스캔 블록·기본 경로 oversized_pointer·청크 verbatim·amendment 부착[law 일부개정·admrul 타법개정]·'연구개발비' returned ≥ 10 유지). 개선(조문번호 보존)은 Level-B 프롬프트(P4 재현·locate 라우팅 무회귀)로 배포 후 수동 eval.
+
+### Deferred (scope 밖·backlog)
+
+- 표현 후보 2건(재구성 표시 문구 강도·latest_history 라벨 출처 병기 — 트리거 0·백로그 유지)·별표 내 검색 v2·structured 목 parity·평면 admrul 항·호 파싱(C4)·R5/B3·annex_chunk/annex_locate 엄격 타입 검증·broad 드리프트.
+
 ## [0.21.0] - 2026-07-21
 
 **대용량 별표 내 검색(opt-in) — 청크 다회 순회 비용 해소** — 배포 후 브라우저 라이브 eval 2회 연속(v0.20.0 P2·v0.20.1 P2)에서 호스트가 "별표들에 특정 문구(RCMS 등)가 있는가"류 부재 확인 질문에 `annex_chunk`를 7회 연속 호출해 수만 자를 전수 순회하는 실수요가 실측됐다(정답은 도달하나 호출·컨텍스트 비용 과다). `get_provision_detail`에 **optional 입력 `annex_locate`(문자열·기본 None)** 추가 — 별표(BP)+oversized일 때만 서버가 이미 확보한 별표 전문 텍스트를 줄 단위로 스캔하여 `annex_locate_result` 블록(`scanned_scope="annex_full_text"` 데이터 앵커·**전문 기준** `total_match_count`·매치 발췌[±1줄 원문 substring·표시 cap 6·`matches_truncated` 명시]·매치별 `chunk_index`[해당 구간 `annex_chunk` 재호출 안내])을 oversized_pointer 응답에 additive 부착한다. **0매치 = "서버가 별표 전문을 스캔한 결과 미발견"의 결정론 앵커** — v0.20.1 지시①(확인 범위 명시)을 호스트 자가 신고에서 서버 보장으로 상향하되, 스캔 한계(줄 단위 스캔이라 줄바꿈·표기 변형 미매치 가능·HWP 첨부 원문 범위 밖·부재 결론은 해당 별표 전문에 한정)를 `locate_note`에 동봉한다. 매칭은 search_provision의 토큰 규칙 재사용(의미토큰 2개+ 줄 내 토큰 AND·그 외 리터럴 — ★스코프는 줄 단위로 search_provision의 문서 전체 스코프보다 좁으며 locate_note가 이 한계를 고지) + 가운뎃점 유니코드 변형(ㆍ↔·) 정규화(v0.20.1 eval 실측 반영·발췌는 raw 원문) + 검색어 200자 상한(query echo가 응답 예산을 잠식하는 벡터 차단 — diff 적대검증 Codex 실측 반영). **추가 네트워크 0**. `contract_version` **0.16.0 → 0.17.0**(§5.18·입력 파라미터+응답 additive), 패키지 major bump(0.20.1 → **0.21.0**), 지원 규정 수 **52개 불변**. ★**입력 스키마 변경 릴리스**(v0.18.0·v0.20.0 이후 세 번째) — 배포 후 웹 커넥터 재연결(비활성→재활성) 안내·진행 중 세션은 구 tools/list 캐시라 신 파라미터 미노출. **선정·설계**: 52규정 LIVE 현행성 전수 감사 전 건 일치(data rider 0) + 코드 실측 → `/disc` 3-AI(Claude+Codex+Gemini) **3/3 GO 만장일치**(승격 게이트=실수요 2회 관측 충족·표현 patch 묶음 동봉=단일 의도 위반 기각·표시 cap 6 재사용·annex_chunk 동시 지정 시 청크 우선 2/3·regex/fuzzy 모드 과설계 기각). **outage 회피**: 기본(None) 경로·검색 fan-out·부팅/HTTP transport/health 완전 무접촉, 기존 포인터 `content`·`required_action`·청크 안내 문자열 무변(잠금 테스트 무수정 통과), 검색어 200자·excerpt 개별 400자 상한 + 직렬화 예산 방어 백스톱 2단(`matches_omitted`[스캔 결론 앵커 보존] → `annex_locate_omitted`[블록 통째 생략·airtight]).
