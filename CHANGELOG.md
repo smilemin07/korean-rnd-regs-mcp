@@ -3,6 +3,21 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.22.0] - 2026-07-22
+
+**연구실안전법 family 3건 확대 — 연구실 안전 컴플라이언스 트랙 신설(52 → 55)** — 직전 2회 배포 후 eval(v0.20.1·v0.21.1) 연속 CLEAN PASS·서버 결함 0으로 "고칠 관측 결함"이 없는 상태에서, NTIS 국가R&D법령 카탈로그(정부 공인 445건)에 수록됐으나 미등록이던 실무 수요 최상위 family를 등록: **연구실 안전환경 조성에 관한 법률(MST 283355·시행 2026-05-20·조문 46)·시행령(MST 286181·시행 2026-05-20·조문 35·별표 13 전건 본문 전문 tier-1·oversized 0)·시행규칙(MST 283229·시행 2026-02-01·조문 24·별표 5 tier-1+서식 16[BP 미노출])**. 연구자·대학 행정직원의 안전관리규정·안전교육 이수시간·안전점검·정밀안전진단·사고보고·보험 의무 질의를 도구 근거로 검토 가능. **순수 data+prompt+test 확대 10번째**(코드 로직 0줄) — `contract_version` **0.17.0 유지**, 패키지 minor bump(0.21.1 → **0.22.0**), 입력 스키마 무변 = 커넥터 재연결 불요. **선정**: 확대 후보 LIVE 전수 프로브(law-api-prober 2026-07-22 — 전건 정확일치 1행 resolve·동명 충돌 0·시행예정 행 0) + NTIS 카탈로그 1회 확인 → `/disc` 3-AI(Claude+Codex+Gemini) 적대검증 — A(연구실안전법 3건) 채택 2/3+tiebreak(정체성 적합·3건 완결 scope는 3/3 일치), 기초연구진흥법 family 동봉(6건)은 "한 번에 너무 많은 수정 금지"·eval 초점 분산으로 기각(차기 1순위 보존), 산업부 평가관리지침(기후부 이관 미확정=구판 오등록 위험)·국토부 신규 admrul·예방 백로그·무변경 휴지 기각. **outage 회피**: manifest 데이터 행 추가 + 프롬프트 카운트·family 행·cross-check 라우팅 문자열만 — 부팅/transport/검색·랭킹 알고리즘/공유 파서/캐시 완전 무접촉(N 52→55는 fan-out 예산 20s·캐시 maxsize 64[headroom 9] 내 — cold 실측 2.2~4.9s@51).
+
+### Added
+
+- **manifest 3건**(`rule_sets.yaml`): `lab_safety_act`(법률·rank 1·article)·`lab_safety_decree`(대통령령·rank 2·both — 별표 13 전건 tier-1)·`lab_safety_rule`(과기정통부령·rank 3·both — 별표 5+서식 16[BP 미노출 정직 caveat]). 전건 `api_target: law`·중첩 schema·`ministry: 과학기술정보통신부` — 기존 파서·size-tier 가드가 그대로 처리(신규 코드 0).
+- **프롬프트 3표면+README byte-sync**: 적용 범위 카운트 52→55·Tier 1 연구실 안전 family 행·cross-check 라우팅(연구실 안전/안전점검/정밀안전진단/연구실 사고 → lab_safety_*) 추가. 기존 잠금 문구 무수정(append-only).
+- **테스트 398 → 401**(`tests/test_main.py`·`tests/test_b2_executor.py`·acceptance 가드 자동 +1): 55건 완전일치 잠금·연구실안전법 family 정적 잠금(식별자·rank·unit_types·ministry)·템플릿 family 행+카운트+cross-check 표면·패키지 0.22.0 잠금.
+- **acceptance spec**(`tests/acceptance/v0_22_0.py`): 신규 3건 fan-out 도달·시행령 별표 tier-1(BP0001 plain_text_verbatim)·법 amendment_kind 부착·무회귀('연구개발비' returned ≥ 10·기본 경로 oversized_pointer·청크/locate 유지)·cold fan-out 예산. 소비 품질(연구실 안전 질의 grounded)은 Level-B 프롬프트로 배포 후 수동 eval.
+
+### Deferred (scope 밖·backlog)
+
+- 기초연구진흥법 family(차기 data-only 확대 1순위 — LIVE 식별자 확보: 법 268777·령 282943·규칙 283225[본문 639자 극소·포함 여부 그때 재판단])·국토부 자율주행 운영관리규정(2100000282292)·산업부 평가관리지침 접미(기후부 이관 확정 확인 전 보류)·표현 후보 2건·별표 내 검색 v2·structured 목 parity·평면 admrul 항·호(C4)·R5/B3·엄격 타입·broad 드리프트.
+
 ## [0.21.1] - 2026-07-22
 
 **근거 법률 인용 원문 단위 보존 — 개정문 인용 시 조문번호 탈락 방지 프롬프트 정밀화** — v0.21.0 배포 후 브라우저 라이브 eval(2026-07-21·PASS_WITH_MINOR·날조 0·서버 결함 0)의 유일 minor: 호스트가 개정문(amendment_text)의 제10조 개정후 대체문을 인용하며 "「중소기업진흥에 관한 법률」 제68조에 따른 중소벤처기업진흥공단"에서 조문번호("제68조에 따른")만 탈락(법명·기관명은 보존·같은 답변 다른 항목에선 보존=다중 항목 나열 시 표본 이탈·v0.17.0 minor③[기관명-만 축약]의 재발 계열). 근본원인 = 기존 지시가 "기관명만으로 축약하지 말고"에 초점이라(v0.17.1 도입 당시 사건 대응형) 조문번호-만 탈락 케이스를 못 겨냥 + LLM의 가독성 요약 성향이 다중 항목에서 보존 지시를 표본적으로 압도. 해당 지시 1문장을 in-place 강화하는 **프롬프트 문자열-only patch**(v0.17.1·v0.19.1·v0.20.1과 동형): 근거 법률 인용구는 법명·조문번호·'에 따른' 연결어를 포함한 **원문 단위 그대로 보존**('「법명」 제N조에 따른 기관' 패턴 등에서 '제N조에 따른' 탈락 금지)·여러 조문 나열 정리 시에도 각 항목 동일 유지·근거 법률 인용구를 옮긴 경우 답변 전 조문번호·연결어 누락 자가 점검 + ★over-blocking 차단 허용문 병기("요약·정리 자체는 허용"). 코드 로직·응답 schema·입력 스키마 무변 — `contract_version` **0.17.0 유지**, 패키지 patch bump(0.21.0 → **0.21.1**), 지원 규정 수 **52개 불변**·커넥터 재연결 불요. **선정·문구**: 계획 `/disc` 3-AI(Claude+Codex+Gemini) **3/3 GO 만장일치**(지시 1건만 최소형 — 백로그 표현 후보 2건[재구성 문구 강도·latest_history 라벨 출처 병기]은 2회 eval 연속 결함 0=트리거 0이라 동봉 기각·지시 과밀 회피) + 52규정 LIVE 현행성 전수 감사 전 건 일치(2026-07-22·data rider 0건) → 문구 `/disc` 3-AI 수정후 GO(수렴 2건 채택: 보존 대상 "인용구" 한정[개정문 전체 verbatim 강제로의 과확대 해석 차단]·'제N조에 따른' 예시화+자가 점검 대상 일반화[제N조의M·제N조제M항 변형 포괄]). **outage 회피**: 부팅/transport/검색 fan-out/공유 파서/캐시 완전 무접촉(프롬프트 문자열만).

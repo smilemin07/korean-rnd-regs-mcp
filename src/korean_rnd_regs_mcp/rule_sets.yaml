@@ -3,7 +3,7 @@
 # schema: src/korean_rnd_regs_mcp/manifest.py (Pydantic RuleSet model, 13 fields)
 # 단계: (schema 정의) + (MVP 4개 항목 입력)
 #
-# 본 52개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.13.0: 혁신도전형 연구개발사업군 지정·분류 기준 고시 확대 — 별지 정직 caveat)
+# 본 55개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.22.0: 연구실안전법 family 3건 확대 — 연구실 안전 컴플라이언스 트랙)
 # 추가 항목 (타 부처 R&D 규정, 기관별 매뉴얼 등)은 차기 확장 후보.
 
 rule_sets:
@@ -1068,3 +1068,63 @@ rule_sets:
     ministry: 과학기술정보통신부
     known_limitations:
       - "별표 0 — 부속 서식 15건은 전부 별표구분='서식'이라 BP 미노출 → unit_types=article."
+
+  # === Tier 1: Sector — 연구실 안전 family (v0.22.0 확대, 과기정통부·연구실 안전 컴플라이언스 트랙) ===
+
+  - id: lab_safety_act
+    title: 연구실 안전환경 조성에 관한 법률
+    tier: "Tier 1"
+    hierarchy_rank: 1
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "283355"
+    unit_types: article  # LIVE(2026-07-22): 조문 46·별표 0(중첩 schema)
+    query:
+      - 연구실 안전환경 조성에 관한 법률
+      - 연구실안전법
+      - 연구실 안전
+    license_status: public_data
+    effective_date: "2026-05-20"
+    source_url: https://www.law.go.kr/법령/연구실안전환경조성에관한법률
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "연구실 안전 의무(안전관리규정·교육·점검·사고보고·보험)의 모법. 별표 0(본문 조문만)."
+
+  - id: lab_safety_decree
+    title: 연구실 안전환경 조성에 관한 법률 시행령
+    tier: "Tier 1"
+    hierarchy_rank: 2
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "286181"
+    unit_types: both  # LIVE(2026-07-22): 조문 35·별표 13(전건 별표구분='별표'·최대 11,590자 — 전건 본문 전문 tier-1·oversized 0)
+    query:
+      - 연구실 안전환경 조성에 관한 법률 시행령
+      - 연구실안전법 시행령
+    license_status: public_data
+    effective_date: "2026-05-20"
+    source_url: https://www.law.go.kr/법령/연구실안전환경조성에관한법률시행령
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "별표 13건 전건 소형(본문 전문 tier-1) — 안전점검·정밀안전진단 기준·교육시간 등 실무 기준."
+
+  - id: lab_safety_rule
+    title: 연구실 안전환경 조성에 관한 법률 시행규칙
+    tier: "Tier 1"
+    hierarchy_rank: 3
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "283229"
+    unit_types: both  # LIVE(2026-07-22): 조문 24·별표 5(최대 12,607자 tier-1)+서식 16(별표구분='서식'→BP 미노출)
+    query:
+      - 연구실 안전환경 조성에 관한 법률 시행규칙
+      - 연구실안전법 시행규칙
+    license_status: public_data
+    effective_date: "2026-02-01"
+    source_url: https://www.law.go.kr/법령/연구실안전환경조성에관한법률시행규칙
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "별표 5건 tier-1(본문 전문). 부속 서식 16건은 별표구분='서식'이라 BP 미노출."

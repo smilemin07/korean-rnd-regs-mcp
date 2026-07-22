@@ -40,6 +40,21 @@ from korean_rnd_regs_mcp.main import (
 _FAKE_KEY = "fake_secret_key_xyz_2099"
 
 
+def _restrict_manifest(monkeypatch, ids):
+    """search fan-out을 지정 rule set 부분집합으로 한정하는 테스트 격리 헬퍼(v0.22.0).
+
+    배경: mock_client는 모든 law 규정에 동일 상세 응답을 반환하므로, 전수 fan-out 기반
+    단정(결과 cap 30 이하·특정 항목 존재)은 manifest의 law 규정 수에 결합된다 —
+    N 52→55 확대에서 law 규정이 32건이 되며 cap(30)을 넘어 3건이 깨진 실측.
+    규정 확대는 상시 발생하므로, cap 거동·emit 형식을 검증하는 테스트는 부분집합으로
+    격리해 manifest 크기와 무관하게 만든다(전수 카운트 잠금은 test_main이 담당).
+    """
+    from korean_rnd_regs_mcp.manifest import load_manifest as _real_load
+    subset = [rs for rs in _real_load() if rs.id in ids]
+    assert len(subset) == len(ids), f"부분집합 id 누락: {ids - {rs.id for rs in subset}}"
+    monkeypatch.setattr("korean_rnd_regs_mcp.main.load_manifest", lambda: subset)
+
+
 @pytest.fixture
 def mock_client(monkeypatch):
     """LawApiClient를 mock으로 대체. api_key는 fake value로 설정."""
@@ -1444,8 +1459,9 @@ def test_search_provision_truncates_large_results(mock_client, monkeypatch):
     assert len(result["results"]) == 2
 
 
-def test_search_provision_no_truncation_when_under_limit(mock_client):
-    """결과가 _RESULTS_MAX 이하면 truncated=False."""
+def test_search_provision_no_truncation_when_under_limit(mock_client, monkeypatch):
+    """결과가 _RESULTS_MAX 이하면 truncated=False (manifest 크기 무관 — 부분집합 격리)."""
+    _restrict_manifest(monkeypatch, {"innovation_act", "innovation_decree", "innovation_rule"})
     result = asyncio.run(search_provision("특별평가"))
     assert result["truncated"] is False
     assert result["returned"] == result["total"]
@@ -2001,8 +2017,9 @@ def test_get_provision_detail_bp_ignores_forms(mock_client):
     assert "지원 비율" in result["content"]
 
 
-def test_search_provision_emits_branch_annex_and_skips_forms(mock_client):
-    """D: search — 가지별표는 6자리 BP id로 emit, 별지·서식은 미노출."""
+def test_search_provision_emits_branch_annex_and_skips_forms(mock_client, monkeypatch):
+    """D: search — 가지별표는 6자리 BP id로 emit, 별지·서식은 미노출 (부분집합 격리 — cap 30 비결합)."""
+    _restrict_manifest(monkeypatch, {"innovation_act", "innovation_decree"})
     base = mock_client.get_law_detail.return_value
     mock_client.get_law_detail.return_value = {
         **base,
@@ -2204,8 +2221,9 @@ def test_doc_level_articles_includes_branch_v0140(mock_client):
         parse_pid(a["provision_id"])
 
 
-def test_search_provision_emits_branch_article_v0140(mock_client):
-    """v0.14.0: search — 가지조문은 6자리 JO id로 emit(본조문 4자리와 collision 없이 둘 다 노출)."""
+def test_search_provision_emits_branch_article_v0140(mock_client, monkeypatch):
+    """v0.14.0: search — 가지조문은 6자리 JO id로 emit(본조문 4자리와 collision 없이 둘 다 노출·부분집합 격리)."""
+    _restrict_manifest(monkeypatch, {"innovation_act", "innovation_decree", "innovation_rule"})
     base = mock_client.get_law_detail.return_value
     mock_client.get_law_detail.return_value = {
         **base,
