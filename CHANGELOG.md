@@ -3,6 +3,21 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.23.0] - 2026-07-23
+
+**국방 R&D family 3건 확대 — 방위사업청 국방 R&D 트랙 신설 1차(55 → 58)** — Andy 결정(2026-07-23·"방사청 발주 R&D 연구행정 규정 추가·안정 최우선·차근차근")에 따른 단계 로드맵 1차분: **국방과학기술혁신 촉진법(MST 258057·시행 2024-07-10·조문 21)·시행령(MST 287549·시행 2026-07-01 최신 개정 발효·조문 20·별표 3 전건 tier-1[참여제한 기간·사업비 환수·제재부가금 부과기준])·시행규칙(MST 230705·시행 2021-04-01·조문 13·별표 1[연구개발비 사용용도·★채번 '0000'=BP0000]+서식 1[BP 미노출])**. ★corpus 첫 **'혁신법 대체' 트랙**(국방 R&D는 혁신법이 아닌 본 법 체계가 적용)이라 **트랙 정체성 가드** 동반 — 서버 지시문 1문장 + review_regulation 적용 범위 행 + cross-check 라우팅(혁신법 제3조제3호는 보안과제 국방사업에 제9~18조 비적용일 뿐 전면 배제가 아니라는 nuance 보존 — 반대 오류 차단 문구 포함). **순수 data+prompt+test 확대 11번째**(코드 로직 0줄) — `contract_version` **0.17.0 유지**, 패키지 minor bump(0.22.0 → **0.23.0**), 입력 스키마 무변 = 커넥터 재연결 불요. **선정·문구**: 로드맵 `/disc` 3-AI 만장일치(1차 law family 3건 — 업무처리지침은 2차 확정 예약[후행 이유는 안정성 우선]·방위사업관리규정 129k 초대형은 안정 레버 선행 전 보류) → 계획 `/disc` 3-AI GO(가드는 instructions에도 최소형 필요 2/3·"지배" 단정 완화) → 문구 `/disc` 수렴 반영. **배포 전 LIVE 게이트**: 재프로브 3건 전건 일치(2026-07-23·정확일치 1행·검색행 소관부처 "국방부,방위사업청" 콤마 다부처 → `ministry: 방위사업청` 필터 통과 확정·acceptance 검색어 '국방과학기술' 3건 본문 실존 38/24/9회). **outage 회피**: manifest 데이터 행+프롬프트 문자열만 — 부팅/transport/검색·랭킹 알고리즘/공유 파서/캐시 완전 무접촉(N 55→58은 fan-out 예산 20s·캐시 maxsize 64[headroom 6] 내).
+
+### Added
+
+- **manifest 3건**(`rule_sets.yaml`): `defense_tech_act`(법률·rank 1·article)·`defense_tech_decree`(대통령령·rank 2·both — 제재 기준 별표 3 전건 tier-1)·`defense_tech_rule`(국방부령·rank 3·both — BP0000+서식 1[정직 caveat]·2021 제정 이래 무개정=amendment_text 미제공 정상). 전건 `api_target: law`·중첩 schema·`ministry: 방위사업청` — 기존 파서·size-tier 가드가 그대로 처리(신규 코드 0).
+- **트랙 정체성 가드**(프롬프트 문자열): `_SERVER_INSTRUCTIONS` 1문장(국방 R&D는 국방과기혁신법 family 우선 확인·제3조제3호 nuance) + 템플릿 적용 범위 국방 R&D family 행 + cross-check 라우팅 + 카운트 55→58(README byte-sync).
+- **테스트 401 → 404**: 58건 완전일치 잠금·국방 family 정적 잠금(식별자·rank·unit_types·시행일·제목·ministry)·가드 표면 잠금·기존 테스트 확장(`_ministry_matches` "국방부,방위사업청" 콤마 케이스·`_annex_unit_id` 별표번호 '0000'→BP0000 케이스)·패키지 0.23.0 잠금.
+- **acceptance spec**(`tests/acceptance/v0_23_0.py`): 신규 3건 fan-out 도달('국방과학기술')·시행령 BP0001 tier-1·시행규칙 BP0000 도달(tier-1 추정 실측)·법 일부개정/규칙 제정 kind·무회귀·N=58 latency. 가드 실효(혁신법 오적용 방지)는 Level-B 프롬프트 3종으로 배포 후 수동 eval.
+
+### Deferred (scope 밖·backlog)
+
+- 2차 확정 예약: 국방기술 연구개발 업무처리지침(2100000274666)+국방과학 기술료 고시(2100000274638·N=60 캐시 상향 검토 동반). 3차 보류: 미래도전 지침·시설장비 규정·표준협약서·방위산업 진입 공통운영규정(승계 확인)·방위사업관리규정(129k — B3/pre-filter 선행 전 미등록). 기초연구진흥법 family(후순위)·기존 backlog 전건 유지.
+
 ## [0.22.0] - 2026-07-22
 
 **연구실안전법 family 3건 확대 — 연구실 안전 컴플라이언스 트랙 신설(52 → 55)** — 직전 2회 배포 후 eval(v0.20.1·v0.21.1) 연속 CLEAN PASS·서버 결함 0으로 "고칠 관측 결함"이 없는 상태에서, NTIS 국가R&D법령 카탈로그(정부 공인 445건)에 수록됐으나 미등록이던 실무 수요 최상위 family를 등록: **연구실 안전환경 조성에 관한 법률(MST 283355·시행 2026-05-20·조문 46)·시행령(MST 286181·시행 2026-05-20·조문 35·별표 13 전건 본문 전문 tier-1·oversized 0)·시행규칙(MST 283229·시행 2026-02-01·조문 24·별표 5 tier-1+서식 16[BP 미노출])**. 연구자·대학 행정직원의 안전관리규정·안전교육 이수시간·안전점검·정밀안전진단·사고보고·보험 의무 질의를 도구 근거로 검토 가능. **순수 data+prompt+test 확대 10번째**(코드 로직 0줄) — `contract_version` **0.17.0 유지**, 패키지 minor bump(0.21.1 → **0.22.0**), 입력 스키마 무변 = 커넥터 재연결 불요. **선정**: 확대 후보 LIVE 전수 프로브(law-api-prober 2026-07-22 — 전건 정확일치 1행 resolve·동명 충돌 0·시행예정 행 0) + NTIS 카탈로그 1회 확인 → `/disc` 3-AI(Claude+Codex+Gemini) 적대검증 — A(연구실안전법 3건) 채택 2/3+tiebreak(정체성 적합·3건 완결 scope는 3/3 일치), 기초연구진흥법 family 동봉(6건)은 "한 번에 너무 많은 수정 금지"·eval 초점 분산으로 기각(차기 1순위 보존), 산업부 평가관리지침(기후부 이관 미확정=구판 오등록 위험)·국토부 신규 admrul·예방 백로그·무변경 휴지 기각. **outage 회피**: manifest 데이터 행 추가 + 프롬프트 카운트·family 행·cross-check 라우팅 문자열만 — 부팅/transport/검색·랭킹 알고리즘/공유 파서/캐시 완전 무접촉(N 52→55는 fan-out 예산 20s·캐시 maxsize 64[headroom 9] 내 — cold 실측 2.2~4.9s@51).

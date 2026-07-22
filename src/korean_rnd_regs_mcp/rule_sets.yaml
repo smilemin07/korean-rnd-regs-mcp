@@ -3,7 +3,7 @@
 # schema: src/korean_rnd_regs_mcp/manifest.py (Pydantic RuleSet model, 13 fields)
 # 단계: (schema 정의) + (MVP 4개 항목 입력)
 #
-# 본 55개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.22.0: 연구실안전법 family 3건 확대 — 연구실 안전 컴플라이언스 트랙)
+# 본 58개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.23.0: 국방 R&D family 3건 확대 — 방위사업청 국방 R&D 트랙 1차)
 # 추가 항목 (타 부처 R&D 규정, 기관별 매뉴얼 등)은 차기 확장 후보.
 
 rule_sets:
@@ -1128,3 +1128,63 @@ rule_sets:
     ministry: 과학기술정보통신부
     known_limitations:
       - "별표 5건 tier-1(본문 전문). 부속 서식 16건은 별표구분='서식'이라 BP 미노출."
+
+  # === Tier 1: Sector — 국방 R&D family (v0.23.0 확대 1차, 방위사업청 — corpus 첫 '혁신법 대체' 트랙) ===
+
+  - id: defense_tech_act
+    title: 국방과학기술혁신 촉진법
+    tier: "Tier 1"
+    hierarchy_rank: 1
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "258057"
+    unit_types: article  # LIVE(2026-07-23): 조문 21·별표 0(중첩 schema). ★검색행 시행 20240710 vs 상세응답 20240410 불일치 — 검색행 기준 채택(C12 원칙)
+    query:
+      - 국방과학기술혁신 촉진법
+      - 국방과학기술
+      - 국방 연구개발
+    license_status: public_data
+    effective_date: "2024-07-10"
+    source_url: https://www.law.go.kr/법령/국방과학기술혁신촉진법
+    ministry: 방위사업청
+    known_limitations:
+      - "국방 R&D 모법 — 방위사업청 발주 등 국방 R&D 질의에서 우선 확인할 family(혁신법 제3조제3호는 보안과제로 구성된 국방 분야 사업의 제9~18조 비적용 한정, 전면 배제 아님). 별표 0. ★family 3건 공통: 검색행 소관부처 '국방부,방위사업청' 콤마 다부처 — ministry 필터는 검색행 콤마 split 정확일치로 통과(상세응답 소관부처 단일값 기준 판정 금지)."
+
+  - id: defense_tech_decree
+    title: 국방과학기술혁신 촉진법 시행령
+    tier: "Tier 1"
+    hierarchy_rank: 2
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "287549"
+    unit_types: both  # LIVE(2026-07-23): 조문 20·별표 3(전건 별표구분='별표'·최대 4,360자 — 전건 본문 전문 tier-1). 2026-07-01 개정 발효(구 MST 261995→287549 CHANGED 이력)
+    query:
+      - 국방과학기술혁신 촉진법 시행령
+      - 국방 연구개발 시행령
+    license_status: public_data
+    effective_date: "2026-07-01"
+    source_url: https://www.law.go.kr/법령/국방과학기술혁신촉진법시행령
+    ministry: 방위사업청
+    known_limitations:
+      - "별표 3건 전건 소형(본문 전문 tier-1) — 참여제한 기간 기준·사업비 환수 기준·제재부가금 부과기준."
+
+  - id: defense_tech_rule
+    title: 국방과학기술혁신 촉진법 시행규칙
+    tier: "Tier 1"
+    hierarchy_rank: 3
+    retrieval: live_api
+    api_target: law
+    api_id_type: MST
+    api_doc_id: "230705"
+    unit_types: both  # LIVE(2026-07-23): 조문 13·별표 1(연구개발비 사용용도·11,040자·★채번 '0000'=BP0000 코너케이스)+서식 1(별표구분='서식'→BP 미노출). 2021 제정 이래 무개정
+    query:
+      - 국방과학기술혁신 촉진법 시행규칙
+      - 국방 연구개발 시행규칙
+    license_status: public_data
+    effective_date: "2021-04-01"
+    source_url: https://www.law.go.kr/법령/국방과학기술혁신촉진법시행규칙
+    ministry: 방위사업청
+    known_limitations:
+      - "별표 1건(연구개발비 사용용도·별표 채번 '0000'=BP0000). 부속 서식 1건은 별표구분='서식'이라 BP 미노출. 2021 제정 이래 무개정 — amendment_text 미제공(제개정구분=제정 skip)이 정상 거동."

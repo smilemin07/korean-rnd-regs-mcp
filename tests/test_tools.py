@@ -1339,6 +1339,9 @@ def test_ministry_matches_static_helper():
     assert m("산업통상부", "산업통상부") is True
     # 콤마 다부처 행(보안대책 9부처형) — 정확일치 원소 포함
     assert m("과학기술정보통신부", "과학기술정보통신부,교육부,기후에너지환경부") is True
+    # v0.23.0 국방 트랙: 검색행 "국방부,방위사업청" 콤마 다부처 — ministry=방위사업청 지정 통과(LIVE 2026-07-23 실측 형태)
+    assert m("방위사업청", "국방부,방위사업청") is True
+    assert m("국방부", "국방부,방위사업청") is True
     # substring 오탐 차단: "환경부"는 "기후에너지환경부"의 부분문자열이나 별개 부처
     assert m("환경부", "기후에너지환경부") is False
     # 빈 want → 필터 미적용(기존 거동)
@@ -1949,6 +1952,8 @@ def test_annex_unit_id_and_kind_helpers():
     assert main_module._annex_unit_id({"별표번호": "1", "별표가지번호": "00"}) == "BP0001"
     assert main_module._annex_unit_id({"별표번호": "1"}) == "BP0001"  # mock·키 부재 호환
     assert main_module._annex_unit_id({"별표번호": "1", "별표가지번호": "02"}) == "BP000102"
+    # v0.23.0: 별표 채번 '0000' 코너케이스(국방과기혁신법 시행규칙·정보처리기준 실보유) → BP0000
+    assert main_module._annex_unit_id({"별표번호": "0000", "별표가지번호": "00"}) == "BP0000"
     assert main_module._annex_unit_id({"별표번호": "비고"}) is None
     assert main_module._is_annex_kind({"별표구분": "별표"}) is True
     assert main_module._is_annex_kind({}) is True  # 키 부재(mock)는 별표 간주

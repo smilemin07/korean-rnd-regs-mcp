@@ -143,12 +143,12 @@ def test_review_prompt_instructs_keyword_array_to_suggest():
 
 
 def test_list_rule_sets_returns_live_api_items():
-    """v0.22.0: 연구실안전법 family 3건 추가 = 55건."""
+    """v0.23.0: 국방 R&D family 3건 추가 = 58건."""
     result = asyncio.run(list_rule_sets())
     assert "rule_sets" in result
     assert isinstance(result["rule_sets"], list)
-    assert result["total"] == 55
-    assert len(result["rule_sets"]) == 55
+    assert result["total"] == 58
+    assert len(result["rule_sets"]) == 58
     ids = {rs["id"] for rs in result["rule_sets"]}
     expected = {
         # Tier 1 + 기존 Tier 2 (혁신법 family + 연구개발비 사용 기준)
@@ -186,6 +186,8 @@ def test_list_rule_sets_returns_live_api_items():
         "research_industry_act", "research_industry_decree", "research_industry_rule",
         # v0.22.0 — 과기정통부 연구실안전법 family (연구실 안전 컴플라이언스 트랙)
         "lab_safety_act", "lab_safety_decree", "lab_safety_rule",
+        # v0.23.0 — 방위사업청 국방 R&D family (혁신법 대체 트랙 1차)
+        "defense_tech_act", "defense_tech_decree", "defense_tech_rule",
     }
     assert ids == expected, f"id 불일치: 누락={expected - ids}, 추가={ids - expected}"
     # 모든 항목이 필수 field + v0.2.6 ministry 필드(additive) 노출
@@ -316,7 +318,7 @@ def test_server_instructions_fail_closed_and_scope_honesty():
 def test_server_instructions_stale_guard_v030():
     """v0.3.0: 범위 외 정직성 절이 미지원 규정의 변동 구체값 현행 단정 자제 + 43 카운트 동기화."""
     instr = mcp.instructions
-    assert "지원 55개 규정 밖이면" in instr               # 미지원 한정(in-scope 인용 비억제) + 카운트
+    assert "지원 58개 규정 밖이면" in instr               # 미지원 한정(in-scope 인용 비억제) + 카운트
     assert "변동 가능한 구체값을 현행 사실로 단정하지" in instr  # stale 식별자 단정 자제
     assert "1차 출처" in instr                            # 1차 출처 안내 보존
     # 미지원 한정 조건이 유지돼 in-scope 인용을 억제하지 않음(과억제 방지 회귀)
@@ -328,7 +330,7 @@ def test_review_prompt_mentions_health_family_and_count():
     body = review_regulation_prompt("테스트 상황")
     assert "보건의료 R&D family" in body                  # Tier 1 family 행
     assert "보건의료기술 진흥법" in body                  # family 규정명
-    assert "(55개 규정)" in body                          # 카운트 동기화
+    assert "(58개 규정)" in body                          # 카운트 동기화
     assert "health_tech_act" in body                      # cross-check 라우팅
 
 
@@ -350,7 +352,7 @@ def test_review_prompt_mentions_kdca_family_and_count():
     """v0.4.0: review 템플릿에 질병관리청 R&D family 행 + cross-check 라우팅 + 43 카운트."""
     body = review_regulation_prompt("테스트 상황")
     assert "질병관리청 R&D 행정규칙" in body              # Tier 2 family 행
-    assert "(55개 규정)" in body                          # 카운트 동기화
+    assert "(58개 규정)" in body                          # 카운트 동기화
     assert "kdca_rnd_management" in body                   # cross-check 라우팅
 
 
@@ -577,7 +579,7 @@ def test_server_instructions_external_fallback_guard_v041():
     assert "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오" in instr
     # append-only 회귀: 기존 도구 호출 유도·범위 외 정직성 가드 보존
     assert "일반 학습지식으로 답하지 말고" in instr
-    assert "지원 55개 규정 밖이면" in instr
+    assert "지원 58개 규정 밖이면" in instr
 
 
 def test_get_provision_detail_docstring_external_fallback_v041():
@@ -599,7 +601,7 @@ def test_server_instructions_false_negative_guard_v050():
     assert "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오" in instr
     assert "지원 범위 내 규정의 조문·별표 본문은" in instr
     assert "일반 학습지식으로 답하지 말고" in instr
-    assert "지원 55개 규정 밖이면" in instr
+    assert "지원 58개 규정 밖이면" in instr
 
 
 def test_get_provision_detail_docstring_mentions_version_fields_v050():
@@ -644,5 +646,52 @@ def test_review_prompt_mentions_lab_safety_family_and_count_v0220():
     body = review_regulation_prompt("테스트 상황")
     assert "연구실 안전 family" in body                    # Tier 1 family 행
     assert "연구실 안전환경 조성에 관한 법률" in body      # family 규정명
-    assert "(55개 규정)" in body                           # 카운트 동기화
+    assert "(58개 규정)" in body                           # 카운트 동기화
     assert "lab_safety_act" in body                        # cross-check 라우팅
+
+
+# === v0.23.0: 국방 R&D family 확대 (방위사업청 트랙 1차 — 혁신법 대체 트랙) ===
+def test_defense_family_registered_v0230():
+    """v0.23.0: 국방과기혁신법 family 3건 등록(law·방위사업청·rank 1/2/3) + manifest fallback 식별자 잠금.
+
+    LIVE 검증(law-api-prober 2026-07-23 재프로브): 전건 정확일치 1행 resolve·검색행 소관부처
+    "국방부,방위사업청" 콤마 다부처(ministry=방위사업청은 콤마 split 정확일치로 통과 —
+    _ministry_matches 콤마 케이스는 test_tools에서 잠금). 법 effective_date는 검색행
+    20240710 채택(상세응답 20240410과 불일치 — C12 원칙).
+    """
+    from korean_rnd_regs_mcp.manifest import load_manifest
+    items = {rs.id: rs for rs in load_manifest()}
+    expected = {
+        "defense_tech_act": ("258057", 1, "article", "2024-07-10"),
+        "defense_tech_decree": ("287549", 2, "both", "2026-07-01"),
+        "defense_tech_rule": ("230705", 3, "both", "2021-04-01"),
+    }
+    for rid, (doc_id, rank, unit_types, effective) in expected.items():
+        assert rid in items, f"국방 R&D family 누락: {rid}"
+        rs = items[rid]
+        assert rs.api_target == "law"
+        assert rs.ministry == "방위사업청"
+        assert rs.api_doc_id == doc_id
+        assert rs.hierarchy_rank == rank
+        assert rs.unit_types == unit_types
+        assert rs.effective_date == effective
+    assert items["defense_tech_act"].title == "국방과학기술혁신 촉진법"
+    assert items["defense_tech_decree"].title == "국방과학기술혁신 촉진법 시행령"
+    assert items["defense_tech_rule"].title == "국방과학기술혁신 촉진법 시행규칙"
+
+
+def test_defense_track_guard_surfaces_v0230():
+    """v0.23.0: 트랙 정체성 가드 표면 잠금(★표면별 검증 — repo 전체 substring 아님).
+
+    corpus 첫 '혁신법 대체' 트랙 — instructions(전 경로 최상위)와 review 템플릿(적용 범위·
+    cross-check) 각각에 국방 트랙 안내가 실재해야 하며, 혁신법 제3조제3호 nuance(보안과제
+    한정·전면 배제 아님)가 반대 오류 차단 문구로 보존돼야 한다(문구 /disc 3-AI 수렴안).
+    """
+    instr = mcp.instructions
+    assert "국방과학기술혁신 촉진법" in instr              # 트랙 지목(instructions 표면)
+    assert "국방 R&D 전면 배제가 아닙니다" in instr        # 반대 오류 차단(nuance)
+    body = review_regulation_prompt("테스트 상황")
+    assert "국방 R&D family" in body                       # Tier 1 family 행
+    assert "국방과학기술혁신 촉진법" in body               # family 규정명
+    assert "전면 배제 아님" in body                        # 템플릿 표면 nuance
+    assert "defense_tech_act" in body                      # cross-check 라우팅

@@ -55,9 +55,13 @@ _SERVER_INSTRUCTIONS = (
     "현재 대화에 규정 도구가 보이지 않거나 호출에 실패하여 질문의 근거를 확인할 수 없으면, "
     "일반 학습지식으로 규정의 수치·요건·결론을 단정하지 말고 도구 미가용 사실을 밝힌 뒤 "
     "새 대화에서 다시 시도하거나 stdio 클라이언트(Claude Desktop·Claude Code 등)에서 재조회하도록 안내하십시오. "
-    "도구 호출 결과 질문 대상이 지원 55개 규정 밖이면 본 서버 근거로 확인되지 않았음을 밝히고, "
+    "도구 호출 결과 질문 대상이 지원 58개 규정 밖이면 본 서버 근거로 확인되지 않았음을 밝히고, "
     "답변을 덧붙일 경우 일반 학습지식에 따른 설명임을 명시하되 고시번호·시행일·조문 번호·금액·비율·기한 등 "
     "변동 가능한 구체값을 현행 사실로 단정하지 말며, 현행 식별자와 원문은 1차 출처(국가법령정보센터 등)에서 확인하도록 안내하십시오. "
+    "방위사업청 발주 등 국방 R&D 질의는 국가연구개발혁신법만으로 단정하지 말고 "
+    "국방과학기술혁신 촉진법 family(법·시행령·시행규칙)를 우선 확인하십시오"
+    "(혁신법 제3조제3호는 제21조제4항에 따른 보안과제로 구성된 국방 분야의 사업에 "
+    "제9조부터 제18조까지를 적용하지 않는 규정일 뿐, 국방 R&D 전면 배제가 아닙니다). "
     "한편 지원 범위 내 규정의 조문·별표 본문은 임의의 외부 웹검색이나 law.go.kr 직접 열람으로 대체하지 말고 "
     "get_provision_detail의 content로 확인하되(content_format이 plain_text_verbatim이 아니면 응답이 제공한 공식 원문 링크를 확인), "
     "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오. "
@@ -636,7 +640,7 @@ _CLIENT_BY_KEY_MAX = 100
 # bound(backpressure)한다. import 시 생성하나 ThreadPoolExecutor는 submit 시까지 스레드를
 # spawn하지 않아 boot 무의존(set_default_executor와 달리 transport/loop 비의존). atexit shutdown은
 # 미추가(서버 생존 중 오작동 시 "cannot schedule new futures" 위험).
-# 사이징 32: N=55 cold peak 동시성 ≈55 → 32는 일부 잠깐 큐잉(~5s대)·48은 law.go.kr 동시연결
+# 사이징 32: N=58 cold peak 동시성 ≈58 → 32는 일부 잠깐 큐잉(~5s대)·48은 law.go.kr 동시연결
 # rate-limit/예의 위험. 게이트(NAS cold)에서 rate_limited 관측 시 24로 하향.
 _FANOUT_MAX_WORKERS = 32
 _FANOUT_EXECUTOR = ThreadPoolExecutor(
@@ -1140,7 +1144,7 @@ _ANNEX_DETAIL_CHAR_BUDGET = 16000
 # → 합 ~200자 < 300 헤드룸이라 verbatim/oversized 경계 불변(B2: 최종 직렬화 ≤ _ANNEX_DETAIL_CHAR_BUDGET 보장).
 _ANNEX_DETAIL_HEADROOM = 300
 # v0.7.0: 문서 레벨 articles 출력 목록 상한 — 예산(16k)상 수록 가능한 항목 수(최소 항목 ~45자 → ~350개)를
-# 크게 상회하는 방어적 cap. 현행 55규정 최대 117조문이라 평시 미도달. 출력 목록 크기를 600으로 cap해
+# 크게 상회하는 방어적 cap. 현행 58규정 최대 117조문이라 평시 미도달. 출력 목록 크기를 600으로 cap해
 # 절단 pop(O(k²)) 직렬화·메모리를 bound (입력 articles 순회 자체는 전체; 초과분은 size 백스톱이 truncated 처리).
 _DOC_ARTICLES_MAX = 600
 
@@ -2327,7 +2331,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
         result["articles"] = _articles_list
         # size 백스톱: articles 목록 항목들이 응답을 예산(16,000) 너머로 키우지 않도록, 최종 직렬화(절단
         # 플래그·경고 포함)를 실제 json.dumps로 측정해 초과 시 목록을 뒤에서 제거(추정 산식 아님 →
-        # separator·메타데이터 누적 오차에 안전). 현행 55규정 최악 117조문 ~12.9k자라 평시 미발동.
+        # separator·메타데이터 누적 오차에 안전). 현행 58규정 최악 117조문 ~12.9k자라 평시 미발동.
         # ★base(annexes·revision_notice 등 무한 비-본문 필드)만으로 이미 예산 한계 근처/초과면, 목록을
         #   비우고 본 feature가 추가한 절단 플래그·경고를 되돌려 base를 더 키우지 않는다(graceful degrade).
         #   이때 빈 additive `articles` 키(~16자)는 남으며, base가 예산-16자 근처인 극단에서는 그 16자가
@@ -2527,7 +2531,7 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
 == 검토 상황 ==
 {situation}
 
-== MCP 적용 범위 (55개 규정) ==
+== MCP 적용 범위 (58개 규정) ==
 - Tier 1 (혁신법 family): 혁신법(일반법)·시행령·시행규칙
 - Tier 1 (Sector — 국토교통 R&D family): 국토교통과학기술 육성법(특별법)·시행령·시행규칙
 - Tier 1 (Sector — 산업기술 R&D family): 산업기술혁신 촉진법·시행령·시행규칙
@@ -2538,6 +2542,7 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
 - Tier 1 (Sector — 기업부설연구소 R&D family): 기업부설연구소등의 연구개발 지원에 관한 법률·시행령·시행규칙(과기정통부)
 - Tier 1 (Sector — 연구산업 R&D family): 연구산업진흥법·시행령·시행규칙(과기정통부)
 - Tier 1 (Sector — 연구실 안전 family): 연구실 안전환경 조성에 관한 법률·시행령·시행규칙(과기정통부)
+- Tier 1 (Sector — 국방 R&D family): 국방과학기술혁신 촉진법·시행령·시행규칙(방위사업청 — 국방 R&D는 해당 family를 우선 확인; 혁신법 제3조제3호는 보안과제로 구성된 국방 분야 사업의 제9~18조 비적용 한정, 전면 배제 아님)
 - Tier 1 (성과평가 family): 국가연구개발사업 등의 성과평가 및 성과관리에 관한 법률·시행령
 - Tier 2 (공통 행정규칙): 연구개발비 사용 기준·동시수행 제한·시설장비 표준지침·연구노트 지침·혁신도전형 연구개발사업군 지정 및 분류 기준 고시·국가연구개발정보처리기준·국가연구개발사업 보안대책·과학기술정보통신부 소관 과학기술분야 연구개발사업 처리규정·정보통신·방송 연구개발 관리규정·정보통신·방송 연구윤리 진실성 확보 등에 관한 규정·연구윤리 확보를 위한 지침(교육부)
 - Tier 2 (사업 운영규정·요령): 국토교통부소관 연구개발사업 운영규정, 산업기술혁신사업 공통 운영요령, 산업기술혁신사업 보안관리요령, 산업기술혁신사업 기술개발 평가관리지침, 중소기업기술개발 지원사업 운영요령, 기술료 징수 및 관리에 관한 통합요령(산업부), 중소기업기술개발 지원사업 기술료 관리규정(중기부), 보건의료기술 연구개발사업 운영·관리규정(보건복지부)
@@ -2576,6 +2581,7 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
      기업부설연구소/연구개발전담부서/연구소 인정 → corp_lab_act · corp_lab_decree · corp_lab_rule
      연구산업/연구개발서비스업/연구장비산업 → research_industry_act · research_industry_decree · research_industry_rule
      연구실 안전/안전점검/정밀안전진단/연구실 사고 → lab_safety_act · lab_safety_decree · lab_safety_rule
+     국방 R&D/국방연구개발/국방과학기술/국방기술/방위사업청/방사청/무기체계 연구개발 → defense_tech_act · defense_tech_decree · defense_tech_rule
 
 4. 위계 순서에 따른 상세 조회
    - 법률 → 시행령 → 시행규칙 → 행정규칙 순서로 검토할 것
@@ -2671,7 +2677,7 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
     name="review_regulation",
     title="규정 검토 (표준 워크플로 기반 1차 검토)",
     description=(
-        "본 MCP 적용 범위 내 국가연구개발 및 국토교통·산업·중소기업·보건의료·질병관리 R&D 연구행정 규정 검토 — 혁신법·시행령·시행규칙·"
+        "본 MCP 적용 범위 내 국가연구개발 및 국토교통·산업·중소기업·보건의료·질병관리·국방 R&D 연구행정 규정 검토 — 혁신법·시행령·시행규칙·"
         "부처별 R&D family·핵심 행정규칙(연구개발비 사용기준·정보처리·보안·성과평가·기술료 등)의 근거 조항을 "
         "verbatim 인용과 함께 답변. Tier 1 → Tier 2 위계 순서 + provision_id 인용을 "
         "본 MCP server 도구(suggest_review_sources, get_provision_detail)로 자동 적용. "

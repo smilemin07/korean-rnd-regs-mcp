@@ -77,8 +77,8 @@ def test_contract_version_0_17_0():
     assert CONTRACT_VERSION == "0.17.0"
 
 
-def test_package_version_0_22_0():
-    """패키지 버전 0.22.0(연구실안전법 family 3건 확대 — 순수 data+prompt+test·
-    contract 0.17.0 유지·입력 스키마 무변=커넥터 재연결 불요·규정 52→55)."""
+def test_package_version_0_23_0():
+    """패키지 버전 0.23.0(국방 R&D family 3건 확대 — 방위사업청 트랙 1차·순수 data+prompt+test·
+    contract 0.17.0 유지·입력 스키마 무변=커넥터 재연결 불요·규정 55→58)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.22.0"
+    assert __version__ == "0.23.0"
