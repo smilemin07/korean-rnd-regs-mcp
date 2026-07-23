@@ -4452,6 +4452,37 @@ def test_citation_preservation_guidance_present_all_surfaces_v0211():
             assert tok in norm, f"{name}에 v0.21.1 지시 토큰 '{tok}' 누락 — 3표면 동기화 필요"
 
 
+def test_out_of_scope_aux_label_and_method_check_present_all_surfaces_v0231():
+    """v0.23.1 surface-consistency: v0.23.0 eval minor 2건 해소 지시가 3개 프롬프트 표면에
+    모두 실렸는지 검증. 지시① = 범위 밖 법령 보조 인용 라벨(질문 대상이 아닌 '보조 맥락' 케이스
+    겨냥 — grounded 제외 조건 '도구 응답 원문에서 확인되는 부분' + over-labeling 방지 허용문) ·
+    지시② = 별표 재구성 방식 라벨 자가 점검(v0.21.1 자가 점검 문형 동형). 기존 잠금 토큰
+    ("일반 학습지식에 따른 설명임을 명시"·"재구성·요약 자체는 허용")은 기존 테스트가 계속
+    잠금(no-churn 설계). README 미러 동기화는 test_readme_embedded_prompt_matches_template가
+    별도 강제."""
+    import re
+
+    def _norm(s: str) -> str:
+        return re.sub(r"\s+", " ", s or "")
+
+    surfaces = {
+        "SERVER_INSTRUCTIONS": main_module._SERVER_INSTRUCTIONS,
+        "REVIEW_PROMPT": main_module._REVIEW_PROMPT_TEMPLATE,
+        "DOCSTRING": get_provision_detail.__doc__,
+    }
+    tokens = [
+        "보조 맥락으로 덧붙일",  # 지시① 케이스 한정 코어
+        "보조 설명 자체는 허용",  # 지시① over-labeling 방지 허용문
+        "도구 응답 원문에서 확인되는 부분",  # 지시① grounded 제외 조건
+        "인용·재구성·요약 중 어느 방식인지",  # 지시② 점검 대상(기존 3분법 참조·신규 축 미생성)
+        "명시되었는지 점검",  # 지시② 자가 점검 동사부
+    ]
+    for name, text in surfaces.items():
+        norm = _norm(text)
+        for tok in tokens:
+            assert tok in norm, f"{name}에 v0.23.1 지시 토큰 '{tok}' 누락 — 3표면 동기화 필요"
+
+
 def test_annex_locate_query_cap_blocks_budget_vector_v0210():
     """(diff 적대검증 Codex blocking 해소) 초장문 검색어 → 무시+경고·query echo 예산 잠식 차단."""
     big = "\n".join(f"별표 기준행 {i:04d}" for i in range(1500))

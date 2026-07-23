@@ -77,8 +77,8 @@ def test_contract_version_0_17_0():
     assert CONTRACT_VERSION == "0.17.0"
 
 
-def test_package_version_0_23_0():
-    """패키지 버전 0.23.0(국방 R&D family 3건 확대 — 방위사업청 트랙 1차·순수 data+prompt+test·
-    contract 0.17.0 유지·입력 스키마 무변=커넥터 재연결 불요·규정 55→58)."""
+def test_package_version_0_23_1():
+    """패키지 버전 0.23.1(v0.23.0 eval minor 2건 해소 프롬프트-only patch — 범위 밖 법령 보조 인용
+    라벨 + 별표 재구성 방식 라벨 자가 점검·로직 0줄·contract 0.17.0 유지·입력 스키마 무변=재연결 불요)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.23.0"
+    assert __version__ == "0.23.1"
