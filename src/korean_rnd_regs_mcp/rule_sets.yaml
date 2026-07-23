@@ -1188,3 +1188,45 @@ rule_sets:
     ministry: 방위사업청
     known_limitations:
       - "별표 1건(연구개발비 사용용도·별표 채번 '0000'=BP0000). 부속 서식 1건은 별표구분='서식'이라 BP 미노출. 2021 제정 이래 무개정 — amendment_text 미제공(제개정구분=제정 skip)이 정상 거동."
+
+  # === Tier 2: 국방 R&D 실무 행정규칙 (v0.24.0 확대 2차, 방위사업청) ===
+
+  - id: defense_rnd_guideline
+    title: 국방기술 연구개발 업무처리지침
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000274666"
+    unit_types: both  # LIVE(2026-07-23 재프로브): 평면 schema·조문 76(본조 69+가지 7)·별표 7 전건 tier-1(최대 ~4.3k자·oversized 0)·별지/서식 0. ★정식 제목에 '방위사업청'·'사업' 접두 없음 — 추정명 기재 시 정확일치 resolve 0건(현행성 死)
+    query:
+      - 국방기술 연구개발 업무처리지침
+      - 국방기술 연구개발
+      - 국방 업무처리지침
+    license_status: public_data
+    effective_date: "2026-02-10"
+    source_url: https://www.law.go.kr/행정규칙/국방기술연구개발업무처리지침
+    ministry: 방위사업청
+    known_limitations:
+      - "핵심기술·미래도전국방기술 연구개발사업의 실무 절차·기준(국방과학기술혁신 촉진법 제8조·동법 시행규칙 제2조 위임, 예규 제1045호). 별표 7건 전건 tier-1(본문 전문). 일부개정(2026-02-10)이나 개정문내용 미제공 — amendment_text 부재≠무개정. 유사명 별개 규칙(국방반도체 핵심기술·미래도전국방기술 업무처리지침)은 미등록."
+
+  - id: defense_tech_fee_notice
+    title: 국방과학 기술료 산정ㆍ징수방법 및 징수절차 등에 관한 고시
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000274638"
+    unit_types: article  # LIVE(2026-07-23 재프로브): 평면 schema·조문 10(가지 1 포함)·★별표 0건(별표단위 2건 전부 별표구분='별지'→BP 미노출). 정식 제목에 ㆍ(U+318D) 포함 — raw 표기로도 검색 totalCnt=1 실측 통과(_normalize_title이 ·와 상호 정규화)
+    query:
+      - 국방과학 기술료 산정ㆍ징수방법 및 징수절차 등에 관한 고시
+      - 국방과학 기술료
+      - 국방 기술료
+    license_status: public_data
+    effective_date: "2026-02-10"
+    source_url: https://www.law.go.kr/행정규칙/국방과학기술료산정ㆍ징수방법및징수절차등에관한고시
+    ministry: 방위사업청
+    known_limitations:
+      - "국방과학 기술료의 산정·징수방법·징수절차(국방과학기술혁신 촉진법 제11조·동법 시행령 제14조 위임, 고시 제2026-4호). 별표 0건 — 부속 별지 2건은 별표구분='별지'라 BP 미노출. 일부개정(2026-02-10)이나 개정문내용 미제공 — amendment_text 부재≠무개정. 산업부 기술료 통합요령·중기부 기술료 관리규정과 별개 규정(제목·소관 상이·동명 충돌 없음)."

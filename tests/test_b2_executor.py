@@ -77,8 +77,24 @@ def test_contract_version_0_17_0():
     assert CONTRACT_VERSION == "0.17.0"
 
 
-def test_package_version_0_23_1():
-    """패키지 버전 0.23.1(v0.23.0 eval minor 2건 해소 프롬프트-only patch — 범위 밖 법령 보조 인용
-    라벨 + 별표 재구성 방식 라벨 자가 점검·로직 0줄·contract 0.17.0 유지·입력 스키마 무변=재연결 불요)."""
+def test_package_version_0_24_0():
+    """패키지 버전 0.24.0(국방 트랙 2차 — 업무처리지침·기술료 고시 등록 58→60 + 캐시 상한 64→96·
+    코드 알고리즘 무변·contract 0.17.0 유지·입력 스키마 무변=재연결 불요)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.23.1"
+    assert __version__ == "0.24.0"
+
+
+def test_cache_maxsize_96_v0240():
+    """v0.24.0: N=60(국방 2차) 등록에 따른 detail/resolve 캐시 상한 64→96 잠금.
+
+    근거: N=60이면 검색 fan-out 1회가 detail 캐시 60엔트리를 점유(headroom 4) —
+    BP/JO 상세 조회 몇 건이면 LRU가 warm fan-out 엔트리를 축출해 다음 검색이 부분
+    cold 재조회되는 성능 저하 발생. 96(headroom 36)으로 warm-hit 보존. 기능·outage
+    무관(상수 2줄) — 계획 /disc 3-AI 만장일치 동승 항목."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    assert client._detail_cache.maxsize == 96
+    assert client._id_resolution_cache.maxsize == 96
+    # 분리 캐시는 불변(간섭 차단 설계 유지)
+    assert client._old_and_new_cache.maxsize == 16
+    assert client._search_cache.maxsize == 100

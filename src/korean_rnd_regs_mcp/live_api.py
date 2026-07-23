@@ -309,12 +309,12 @@ class LawApiClient:
             logger.warning("LAW_API_KEY empty — calls will raise auth_failed")
         # caches: 24h for success, 5min for failure (avoid hammering)
         self._search_cache: TTLCache = TTLCache(maxsize=100, ttl=86400)
-        self._detail_cache: TTLCache = TTLCache(maxsize=64, ttl=86400)  # v0.4.0: 50→64 — 규정 확대 선제 마진(v0.23.0 현재 N=58<64, warm-hit 보존·headroom 6). ★N=60(국방 2차)부터 상향 검토·N>64 확대 시 warm-hit 무력화 대비 필수
+        self._detail_cache: TTLCache = TTLCache(maxsize=96, ttl=86400)  # v0.24.0: 64→96 — N=60(국방 2차) 등록으로 headroom 4로 축소되던 것을 상향(fan-out 1회=60엔트리 점유·BP/JO 상세 조회의 warm 엔트리 축출 방지, headroom 36). 이력: v0.4.0 50→64. ★N>96 확대 시 재상향 검토
         self._failure_cache: TTLCache = TTLCache(maxsize=200, ttl=300)
-        self._id_resolution_cache: TTLCache = TTLCache(maxsize=64, ttl=86400)  # v0.4.0: 50→64 (detail cache와 동상 — 단일 fan-out이 규정당 1엔트리 생성)
+        self._id_resolution_cache: TTLCache = TTLCache(maxsize=96, ttl=86400)  # v0.24.0: 64→96 (detail cache와 동상 — 단일 fan-out이 규정당 1엔트리 생성)
         self._id_resolution_failure_cache: TTLCache = TTLCache(maxsize=50, ttl=300)
         # v0.18.0: 신구조문대비표(oldAndNew) 전용 소형 캐시 — opt-in 상세 경로 한정이라 소형으로 충분.
-        # _detail_cache(maxsize 64·검색 fan-out warm-hit 상주)와 분리해, 대비표 조회가 detail warm
+        # _detail_cache(maxsize 96·검색 fan-out warm-hit 상주)와 분리해, 대비표 조회가 detail warm
         # 엔트리를 축출해 cold fan-out latency를 되돌리는 간섭을 원천 차단.
         self._old_and_new_cache: TTLCache = TTLCache(maxsize=16, ttl=86400)
         # v0.9.1(B2): TTLCache 6종은 thread-safe 아님(in/get/[] read도 expire+링크 변경=mutation).
