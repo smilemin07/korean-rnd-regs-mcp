@@ -4483,6 +4483,38 @@ def test_out_of_scope_aux_label_and_method_check_present_all_surfaces_v0231():
             assert tok in norm, f"{name}에 v0.23.1 지시 토큰 '{tok}' 누락 — 3표면 동기화 필요"
 
 
+def test_mixed_table_label_and_condition_value_guidance_present_all_surfaces_v0241():
+    """v0.24.1 surface-consistency: v0.24.0 eval 관측 소비 결함 2건 해소 지시가 3개 프롬프트 표면에
+    모두 실렸는지 검증. 개선① = 지시② 문면 정교화 — 별표 방식 표시가 혼합 종합표(별표 내용을 조문 등
+    다른 본문과 섞은 표·목록)에도 적용됨 + '기준으로 정리했다' 부분 고지만으로는 부족(v0.23.1 P3·
+    v0.24.0 P3 표본 2회 겨냥). 개선② = 조건-값 결합 보존 — 조건별 값이 나뉘는 구체값 압축 시 한정어
+    귀속 유지·불확실하면 원문 구조대로(v0.24.0 P2 중견기업 유예기간 괄호 오귀속 겨냥·구체값 지시 인근
+    부착 — 별표 한정 아님). 기존 잠금 토큰("그 방식을 답변에 명시"·"재구성·요약 자체는 허용"·
+    "인용·재구성·요약 중 어느 방식인지"·"명시되었는지 점검")은 기존 테스트가 계속 잠금(no-churn 설계).
+    README 미러 동기화는 test_readme_embedded_prompt_matches_template가 별도 강제."""
+    import re
+
+    def _norm(s: str) -> str:
+        return re.sub(r"\s+", " ", s or "")
+
+    surfaces = {
+        "SERVER_INSTRUCTIONS": main_module._SERVER_INSTRUCTIONS,
+        "REVIEW_PROMPT": main_module._REVIEW_PROMPT_TEMPLATE,
+        "DOCSTRING": get_provision_detail.__doc__,
+    }
+    tokens = [
+        "다른 본문과 섞어",  # 개선① 혼합 종합표 포섭 코어
+        "설명만으로는 부족",  # 개선① 부분 고지('기준으로 정리') 겨냥
+        "조건에 따라 값이 나뉘는",  # 개선② 조건-값 코어
+        "어느 조건 또는 값에 귀속되는지",  # 개선② 한정어 귀속 확인
+        "원문 구조대로 나눠 표시",  # 개선② 방어적 폴백(불확실 시 압축 대신 원문 구조)
+    ]
+    for name, text in surfaces.items():
+        norm = _norm(text)
+        for tok in tokens:
+            assert tok in norm, f"{name}에 v0.24.1 지시 토큰 '{tok}' 누락 — 3표면 동기화 필요"
+
+
 def test_annex_locate_query_cap_blocks_budget_vector_v0210():
     """(diff 적대검증 Codex blocking 해소) 초장문 검색어 → 무시+경고·query echo 예산 잠식 차단."""
     big = "\n".join(f"별표 기준행 {i:04d}" for i in range(1500))
