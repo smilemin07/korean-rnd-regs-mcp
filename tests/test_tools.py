@@ -4515,6 +4515,35 @@ def test_mixed_table_label_and_condition_value_guidance_present_all_surfaces_v02
             assert tok in norm, f"{name}에 v0.24.1 지시 토큰 '{tok}' 누락 — 3표면 동기화 필요"
 
 
+def test_annex_method_label_placement_and_example_all_surfaces_v0261():
+    """v0.26.1 surface-consistency: 별표 방식 라벨 실효 트리거 정밀화(관찰 A 2례 해소 —
+    v0.25.0 minor C + v0.26.0 관찰 A)가 3개 프롬프트 표면에 모두 실렸는지 검증. 접근법(계획·문면
+    /disc 각 3/3): 추상 지시 반복이 아니라 (a) 완성형 라벨 관용구 예시 1개("별표 2 관련 기준 —
+    재구성(내용 보존 표 정리)") + (b) 라벨 배치 위치를 표·목록의 캡션(제목 줄) 또는 바로 앞·뒤
+    문장으로 고정 + 인용·요약 확장(라벨만 바꿔). 기존 v0231/v0241 토큰은 기존 테스트가 계속 잠금
+    (no-churn·순추가). README 미러 동기화는 test_readme_embedded_prompt_matches_template가 별도 강제."""
+    import re
+
+    def _norm(s: str) -> str:
+        return re.sub(r"\s+", " ", s or "")
+
+    surfaces = {
+        "SERVER_INSTRUCTIONS": main_module._SERVER_INSTRUCTIONS,
+        "REVIEW_PROMPT": main_module._REVIEW_PROMPT_TEMPLATE,
+        "DOCSTRING": get_provision_detail.__doc__,
+    }
+    tokens = [
+        "표·목록으로 정리해 표시하는 경우",  # 적용 조건절(표·목록 한정 명시)
+        "캡션(제목 줄) 또는 바로 앞·뒤 문장",  # (b) 위치 고정 코어
+        "별표 2 관련 기준 — 재구성(내용 보존 표 정리)",  # (a) 완성형 예시+라벨 관용구
+        "라벨만 바꿔",  # 인용·요약 확장
+    ]
+    for name, text in surfaces.items():
+        norm = _norm(text)
+        for tok in tokens:
+            assert tok in norm, f"{name}에 v0.26.1 지시 토큰 '{tok}' 누락 — 3표면 동기화 필요"
+
+
 def test_annex_locate_query_cap_blocks_budget_vector_v0210():
     """(diff 적대검증 Codex blocking 해소) 초장문 검색어 → 무시+경고·query echo 예산 잠식 차단."""
     big = "\n".join(f"별표 기준행 {i:04d}" for i in range(1500))
