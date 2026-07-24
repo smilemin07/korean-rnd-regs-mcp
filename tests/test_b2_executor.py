@@ -77,11 +77,11 @@ def test_contract_version_0_17_0():
     assert CONTRACT_VERSION == "0.17.0"
 
 
-def test_package_version_0_25_0():
-    """패키지 버전 0.25.0(국방 트랙 3차 확대 60→63 — 미래도전 지침·시설장비 규정·표준협약서 등록 ·
-    순수 data 13번째·contract 0.17.0 유지·입력 스키마 무변=재연결 불요)."""
+def test_package_version_0_26_0():
+    """패키지 버전 0.26.0(국토교통 자율주행 실무 행정규칙 확대 63→64 —
+    순수 data 14번째·contract 0.17.0 유지·입력 스키마 무변=재연결 불요)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.25.0"
+    assert __version__ == "0.26.0"
 
 
 def test_cache_maxsize_96_v0240():

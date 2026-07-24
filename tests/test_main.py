@@ -143,12 +143,12 @@ def test_review_prompt_instructs_keyword_array_to_suggest():
 
 
 def test_list_rule_sets_returns_live_api_items():
-    """v0.25.0: 국방 R&D 실무 행정규칙 3건 추가(확대 3차) = 63건."""
+    """v0.26.0: 국토교통 자율주행 실무 행정규칙 1건 추가 = 64건."""
     result = asyncio.run(list_rule_sets())
     assert "rule_sets" in result
     assert isinstance(result["rule_sets"], list)
-    assert result["total"] == 63
-    assert len(result["rule_sets"]) == 63
+    assert result["total"] == 64
+    assert len(result["rule_sets"]) == 64
     ids = {rs["id"] for rs in result["rule_sets"]}
     expected = {
         # Tier 1 + 기존 Tier 2 (혁신법 family + 연구개발비 사용 기준)
@@ -159,6 +159,8 @@ def test_list_rule_sets_returns_live_api_items():
         "innovation_challenge_criteria",
         # v0.1.3 — 국토교통 R&D family (혁신법과 함께 적용)
         "sector_kt_act", "sector_kt_decree", "sector_kt_rule", "kt_rnd_operations",
+        # v0.26.0 — 국토교통 자율주행 실무 행정규칙
+        "kt_autonomous_driving",
         # v0.2.5 — 산업기술 R&D family (산업통상부)
         "industry_tech_act", "industry_tech_decree", "industry_tech_rule", "industry_tech_operating",
         # v0.12.0 — 산업기술혁신사업 운영 지침 2건 (연구보안·성과평가)
@@ -322,7 +324,7 @@ def test_server_instructions_fail_closed_and_scope_honesty():
 def test_server_instructions_stale_guard_v030():
     """v0.3.0: 범위 외 정직성 절이 미지원 규정의 변동 구체값 현행 단정 자제 + 43 카운트 동기화."""
     instr = mcp.instructions
-    assert "지원 63개 규정 밖이면" in instr               # 미지원 한정(in-scope 인용 비억제) + 카운트
+    assert "지원 64개 규정 밖이면" in instr               # 미지원 한정(in-scope 인용 비억제) + 카운트
     assert "변동 가능한 구체값을 현행 사실로 단정하지" in instr  # stale 식별자 단정 자제
     assert "1차 출처" in instr                            # 1차 출처 안내 보존
     # 미지원 한정 조건이 유지돼 in-scope 인용을 억제하지 않음(과억제 방지 회귀)
@@ -334,7 +336,7 @@ def test_review_prompt_mentions_health_family_and_count():
     body = review_regulation_prompt("테스트 상황")
     assert "보건의료 R&D family" in body                  # Tier 1 family 행
     assert "보건의료기술 진흥법" in body                  # family 규정명
-    assert "(63개 규정)" in body                          # 카운트 동기화
+    assert "(64개 규정)" in body                          # 카운트 동기화
     assert "health_tech_act" in body                      # cross-check 라우팅
 
 
@@ -356,7 +358,7 @@ def test_review_prompt_mentions_kdca_family_and_count():
     """v0.4.0: review 템플릿에 질병관리청 R&D family 행 + cross-check 라우팅 + 43 카운트."""
     body = review_regulation_prompt("테스트 상황")
     assert "질병관리청 R&D 행정규칙" in body              # Tier 2 family 행
-    assert "(63개 규정)" in body                          # 카운트 동기화
+    assert "(64개 규정)" in body                          # 카운트 동기화
     assert "kdca_rnd_management" in body                   # cross-check 라우팅
 
 
@@ -583,7 +585,7 @@ def test_server_instructions_external_fallback_guard_v041():
     assert "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오" in instr
     # append-only 회귀: 기존 도구 호출 유도·범위 외 정직성 가드 보존
     assert "일반 학습지식으로 답하지 말고" in instr
-    assert "지원 63개 규정 밖이면" in instr
+    assert "지원 64개 규정 밖이면" in instr
 
 
 def test_get_provision_detail_docstring_external_fallback_v041():
@@ -605,7 +607,7 @@ def test_server_instructions_false_negative_guard_v050():
     assert "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오" in instr
     assert "지원 범위 내 규정의 조문·별표 본문은" in instr
     assert "일반 학습지식으로 답하지 말고" in instr
-    assert "지원 63개 규정 밖이면" in instr
+    assert "지원 64개 규정 밖이면" in instr
 
 
 def test_get_provision_detail_docstring_mentions_version_fields_v050():
@@ -650,7 +652,7 @@ def test_review_prompt_mentions_lab_safety_family_and_count_v0220():
     body = review_regulation_prompt("테스트 상황")
     assert "연구실 안전 family" in body                    # Tier 1 family 행
     assert "연구실 안전환경 조성에 관한 법률" in body      # family 규정명
-    assert "(63개 규정)" in body                           # 카운트 동기화
+    assert "(64개 규정)" in body                           # 카운트 동기화
     assert "lab_safety_act" in body                        # cross-check 라우팅
 
 
@@ -776,3 +778,35 @@ def test_defense_stage3_registered_v0250():
     assert "미래도전국방기술 연구개발 업무처리지침" in body
     assert "국방연구개발 시설·장비의 관리 등에 관한 규정" in body
     assert "무기체계 연구개발 표준협약서" in body
+
+
+def test_kt_autonomous_registered_v0260():
+    """v0.26.0: 국토교통 자율주행 실무 행정규칙 1건 등록(admrul·국토교통부·rank 4) + manifest 잠금.
+
+    LIVE 재프로브(2026-07-24): 현행 최신·정확일치 1행 resolve·국토교통부 단독 소관·
+    평면 schema·조문 45(삭제 4 포함)·별표 3 전건 tier-1(최대 escaped 4,960)·별지/서식 0.
+    ★정식 제목 verbatim 함정 — 부처 접두 "(국토교통부) "(뒤 공백 1개 포함)가 정식 제목의
+    일부라 무접두 제목은 정확일치 0행(resolve 死·질병청 이어달리기 사본과 동형).
+    과기정통부·산업통상부의 '(부처명) … 공동 운영관리규정'은 별개 문서(접두+정확일치 격리).
+    타법개정(2026-07-08)=정부조직 개편 부처명 정비. rank는 admrul=4 고정 규약.
+    """
+    from korean_rnd_regs_mcp.manifest import load_manifest
+    items = {rs.id: rs for rs in load_manifest()}
+    assert "kt_autonomous_driving" in items, "자율주행 행정규칙 누락"
+    rs = items["kt_autonomous_driving"]
+    assert rs.api_target == "admrul"
+    assert rs.ministry == "국토교통부"
+    assert rs.api_doc_id == "2100000282292"
+    assert rs.hierarchy_rank == 4
+    assert rs.unit_types == "both"
+    assert rs.effective_date == "2026-07-08"
+    title = rs.title
+    assert title == "(국토교통부) 자율주행기술개발혁신사업 운영관리규정"
+    assert title.startswith("(국토교통부) ")  # 접두 뒤 공백 포함 verbatim
+    # 발견성 보완: query에 무접두 정식명 배치(사용자는 접두 없이 검색할 개연성)
+    assert "자율주행기술개발혁신사업 운영관리규정" in rs.query
+    # 템플릿 라우팅 표면(문서레벨 발견성): 적용 범위 행 + 자율주행 cross-check 축
+    body = review_regulation_prompt("테스트 상황")
+    assert "kt_autonomous_driving" in body
+    assert "(국토교통부) 자율주행기술개발혁신사업 운영관리규정" in body
+    assert "자율주행 사업단" in body
