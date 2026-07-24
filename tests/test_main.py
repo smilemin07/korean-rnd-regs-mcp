@@ -143,12 +143,12 @@ def test_review_prompt_instructs_keyword_array_to_suggest():
 
 
 def test_list_rule_sets_returns_live_api_items():
-    """v0.24.0: 국방 R&D 실무 행정규칙 2건 추가 = 60건."""
+    """v0.25.0: 국방 R&D 실무 행정규칙 3건 추가(확대 3차) = 63건."""
     result = asyncio.run(list_rule_sets())
     assert "rule_sets" in result
     assert isinstance(result["rule_sets"], list)
-    assert result["total"] == 60
-    assert len(result["rule_sets"]) == 60
+    assert result["total"] == 63
+    assert len(result["rule_sets"]) == 63
     ids = {rs["id"] for rs in result["rule_sets"]}
     expected = {
         # Tier 1 + 기존 Tier 2 (혁신법 family + 연구개발비 사용 기준)
@@ -190,6 +190,8 @@ def test_list_rule_sets_returns_live_api_items():
         "defense_tech_act", "defense_tech_decree", "defense_tech_rule",
         # v0.24.0 — 방위사업청 국방 R&D 실무 행정규칙 (확대 2차)
         "defense_rnd_guideline", "defense_tech_fee_notice",
+        # v0.25.0 — 방위사업청 국방 R&D 실무 행정규칙 (확대 3차)
+        "defense_future_challenge_guideline", "defense_facility_equipment", "defense_standard_agreement",
     }
     assert ids == expected, f"id 불일치: 누락={expected - ids}, 추가={ids - expected}"
     # 모든 항목이 필수 field + v0.2.6 ministry 필드(additive) 노출
@@ -320,7 +322,7 @@ def test_server_instructions_fail_closed_and_scope_honesty():
 def test_server_instructions_stale_guard_v030():
     """v0.3.0: 범위 외 정직성 절이 미지원 규정의 변동 구체값 현행 단정 자제 + 43 카운트 동기화."""
     instr = mcp.instructions
-    assert "지원 60개 규정 밖이면" in instr               # 미지원 한정(in-scope 인용 비억제) + 카운트
+    assert "지원 63개 규정 밖이면" in instr               # 미지원 한정(in-scope 인용 비억제) + 카운트
     assert "변동 가능한 구체값을 현행 사실로 단정하지" in instr  # stale 식별자 단정 자제
     assert "1차 출처" in instr                            # 1차 출처 안내 보존
     # 미지원 한정 조건이 유지돼 in-scope 인용을 억제하지 않음(과억제 방지 회귀)
@@ -332,7 +334,7 @@ def test_review_prompt_mentions_health_family_and_count():
     body = review_regulation_prompt("테스트 상황")
     assert "보건의료 R&D family" in body                  # Tier 1 family 행
     assert "보건의료기술 진흥법" in body                  # family 규정명
-    assert "(60개 규정)" in body                          # 카운트 동기화
+    assert "(63개 규정)" in body                          # 카운트 동기화
     assert "health_tech_act" in body                      # cross-check 라우팅
 
 
@@ -354,7 +356,7 @@ def test_review_prompt_mentions_kdca_family_and_count():
     """v0.4.0: review 템플릿에 질병관리청 R&D family 행 + cross-check 라우팅 + 43 카운트."""
     body = review_regulation_prompt("테스트 상황")
     assert "질병관리청 R&D 행정규칙" in body              # Tier 2 family 행
-    assert "(60개 규정)" in body                          # 카운트 동기화
+    assert "(63개 규정)" in body                          # 카운트 동기화
     assert "kdca_rnd_management" in body                   # cross-check 라우팅
 
 
@@ -581,7 +583,7 @@ def test_server_instructions_external_fallback_guard_v041():
     assert "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오" in instr
     # append-only 회귀: 기존 도구 호출 유도·범위 외 정직성 가드 보존
     assert "일반 학습지식으로 답하지 말고" in instr
-    assert "지원 60개 규정 밖이면" in instr
+    assert "지원 63개 규정 밖이면" in instr
 
 
 def test_get_provision_detail_docstring_external_fallback_v041():
@@ -603,7 +605,7 @@ def test_server_instructions_false_negative_guard_v050():
     assert "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오" in instr
     assert "지원 범위 내 규정의 조문·별표 본문은" in instr
     assert "일반 학습지식으로 답하지 말고" in instr
-    assert "지원 60개 규정 밖이면" in instr
+    assert "지원 63개 규정 밖이면" in instr
 
 
 def test_get_provision_detail_docstring_mentions_version_fields_v050():
@@ -648,7 +650,7 @@ def test_review_prompt_mentions_lab_safety_family_and_count_v0220():
     body = review_regulation_prompt("테스트 상황")
     assert "연구실 안전 family" in body                    # Tier 1 family 행
     assert "연구실 안전환경 조성에 관한 법률" in body      # family 규정명
-    assert "(60개 규정)" in body                           # 카운트 동기화
+    assert "(63개 규정)" in body                           # 카운트 동기화
     assert "lab_safety_act" in body                        # cross-check 라우팅
 
 
@@ -732,3 +734,45 @@ def test_defense_stage2_registered_v0240():
     assert "defense_rnd_guideline" in body
     assert "defense_tech_fee_notice" in body
     assert "국방기술 연구개발 업무처리지침" in body
+
+
+def test_defense_stage3_registered_v0250():
+    """v0.25.0: 국방 R&D 실무 행정규칙 3건 등록(확대 3차·admrul·방위사업청·rank 4) + manifest 잠금.
+
+    LIVE 프로브(law-api-prober 2026-07-24): 세 건 모두 현행 최신·정확일치 1행 resolve·
+    소관 방위사업청 단독·평면 schema. ★정식 제목 verbatim 함정 2건 — 미래도전 지침은
+    '연구개발' 포함(축약명 기재 시 resolve 0건), 시설·장비 규정은 '국방연구개발' 접두 +
+    가운뎃점 ·(U+00B7·ㆍ U+318D 아님). ★표준협약서는 별표단위 5건 전부 '별지'라 별표 0
+    → unit_types=article(v0.24.0 기술료 고시와 동일 유형). 시설·장비 규정은 별표 16 중
+    별표 8이 oversized(escaped 16,695>15,700 — oversized_pointer+annex_chunk 경로).
+    rank는 admrul=4 고정 규약.
+    """
+    from korean_rnd_regs_mcp.manifest import load_manifest
+    items = {rs.id: rs for rs in load_manifest()}
+    expected = {
+        "defense_future_challenge_guideline": ("2100000274618", "both", "2026-02-10"),
+        "defense_facility_equipment": ("2100000274594", "both", "2026-02-10"),
+        "defense_standard_agreement": ("2100000272176", "article", "2026-01-02"),
+    }
+    for rid, (doc_id, unit_types, eff) in expected.items():
+        assert rid in items, f"국방 3차 행정규칙 누락: {rid}"
+        rs = items[rid]
+        assert rs.api_target == "admrul"
+        assert rs.ministry == "방위사업청"
+        assert rs.api_doc_id == doc_id
+        assert rs.hierarchy_rank == 4
+        assert rs.unit_types == unit_types
+        assert rs.effective_date == eff
+    assert items["defense_future_challenge_guideline"].title == "미래도전국방기술 연구개발 업무처리지침"
+    facility_title = items["defense_facility_equipment"].title
+    assert facility_title == "국방연구개발 시설·장비의 관리 등에 관한 규정"
+    assert "·" in facility_title and "ㆍ" not in facility_title  # 가운뎃점 U+00B7 verbatim
+    assert items["defense_standard_agreement"].title == "무기체계 연구개발 표준협약서"
+    # 템플릿 라우팅 표면(문서레벨 발견성): 국방 축에 신규 3건 노출
+    body = review_regulation_prompt("테스트 상황")
+    assert "defense_future_challenge_guideline" in body
+    assert "defense_facility_equipment" in body
+    assert "defense_standard_agreement" in body
+    assert "미래도전국방기술 연구개발 업무처리지침" in body
+    assert "국방연구개발 시설·장비의 관리 등에 관한 규정" in body
+    assert "무기체계 연구개발 표준협약서" in body

@@ -1230,3 +1230,65 @@ rule_sets:
     ministry: 방위사업청
     known_limitations:
       - "국방과학 기술료의 산정·징수방법·징수절차(국방과학기술혁신 촉진법 제11조·동법 시행령 제14조 위임, 고시 제2026-4호). 별표 0건 — 부속 별지 2건은 별표구분='별지'라 BP 미노출. 일부개정(2026-02-10)이나 개정문내용 미제공 — amendment_text 부재≠무개정. 산업부 기술료 통합요령·중기부 기술료 관리규정과 별개 규정(제목·소관 상이·동명 충돌 없음)."
+
+  # === Tier 2: 국방 R&D 실무 행정규칙 (v0.25.0 확대 3차, 방위사업청) ===
+
+  - id: defense_future_challenge_guideline
+    title: 미래도전국방기술 연구개발 업무처리지침
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000274618"
+    unit_types: both  # LIVE(2026-07-24 프로브): 평면 schema·조문 49(가지 3)·별표 4(활성 2+삭제 2 — deleted_stub 경로)+별지 7(BP 미노출)·oversized 0(최대 별표 escaped 3,916). ★정식 제목에 '연구개발' 포함 — 축약명('미래도전국방기술 업무처리지침' 등) 기재 시 정확일치 resolve 0건(현행성 死)
+    query:
+      - 미래도전국방기술 연구개발 업무처리지침
+      - 미래도전국방기술
+      - 미래도전 국방기술
+    license_status: public_data
+    effective_date: "2026-02-10"
+    source_url: https://www.law.go.kr/행정규칙/미래도전국방기술연구개발업무처리지침
+    ministry: 방위사업청
+    known_limitations:
+      - "미래도전국방기술 연구개발사업의 실무 절차·기준(국방과학기술혁신 촉진법 위임 실무 지침, 예규 제1040호). 별표 4건 중 삭제 2건은 deleted_stub로 노출·활성 별표 전건 tier-1(본문 전문). 부속 별지 7건은 별표구분='별지'라 BP 미노출. 일부개정(2026-02-10)이나 개정문내용 미제공 — amendment_text 부재≠무개정. 기등록 '국방기술 연구개발 업무처리지침'(예규 1045)과 별개 문서."
+
+  - id: defense_facility_equipment
+    title: 국방연구개발 시설·장비의 관리 등에 관한 규정
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000274594"
+    unit_types: both  # LIVE(2026-07-24 프로브): 평면 schema·조문 18·별표 16(별지·서식 0)·★oversized 1건=별표 8 「연구시설·장비 등록 정보항목 및 양식」(escaped 16,695>15,700 → oversized_pointer+annex_chunk 경로)·차순위 별표 escaped 7,843. ★제목 가운뎃점은 ·(U+00B7·ㆍ U+318D 아님)·'국방연구개발' 접두가 정식(축약 시 resolve 0건)
+    query:
+      - 국방연구개발 시설·장비의 관리 등에 관한 규정
+      - 국방연구개발 시설장비
+      - 국방 연구시설 장비 관리
+    license_status: public_data
+    effective_date: "2026-02-10"
+    source_url: https://www.law.go.kr/행정규칙/국방연구개발시설ㆍ장비의관리등에관한규정
+    ministry: 방위사업청
+    known_limitations:
+      - "국방연구개발 관련 연구시설·장비의 관리 실무 규정(훈령 제945호). 별표 16건 중 별표 8(연구시설·장비 등록 정보항목 및 양식)은 대용량 — oversized_pointer로 안내되며 annex_chunk로 전문 조회. 일부개정(2026-02-10)이나 개정문내용 미제공 — amendment_text 부재≠무개정. 과기정통부 '국가연구개발 시설·장비 표준지침'·질병관리청 시설·장비 규정과 부처·적용범위가 다른 병존 규정."
+
+  - id: defense_standard_agreement
+    title: 무기체계 연구개발 표준협약서
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000272176"
+    unit_types: article  # LIVE(2026-07-24 프로브): 평면 schema·조문 45·★별표 0건(별표단위 5건 전부 별표구분='별지'→BP 미노출)·조문내용 합 21,434자. v0.24.0 기술료 고시·v0.13.0 혁신도전형 고시와 동일 유형(별지 정직 caveat)
+    query:
+      - 무기체계 연구개발 표준협약서
+      - 무기체계 표준협약서
+      - 국방 연구개발 협약
+    license_status: public_data
+    effective_date: "2026-01-02"
+    source_url: https://www.law.go.kr/행정규칙/무기체계연구개발표준협약서
+    ministry: 방위사업청
+    known_limitations:
+      - "무기체계 연구개발 협약의 표준 조문(국방과학기술혁신 촉진법 제8조의 협약·계약 실무 구현, 예규 제1019호). 별표 0건 — 부속 별지 5건은 별표구분='별지'라 BP 미노출. 일부개정(2026-01-02)이나 개정문내용 미제공 — amendment_text 부재≠무개정."
