@@ -558,7 +558,7 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
     """suggest 응답에 현행 contract_version(0.10.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.17.0"
+    assert result["contract_version"] == "0.18.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -883,7 +883,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.17.0"
+    assert result["contract_version"] == "0.18.0"
 
 
 # === _build_article_content  ===
@@ -3825,7 +3825,7 @@ def test_get_provision_detail_small_article_unchanged_v060(mock_client):
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None
     assert "content_available" not in result
-    assert result["contract_version"] == "0.17.0"
+    assert result["contract_version"] == "0.18.0"
 
 
 def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):

@@ -19,6 +19,19 @@ from pydantic import Field
 from . import __version__
 from .live_api import LawApiClient, LawApiError, ResolvedDocId
 from .manifest import ApiTarget, Retrieval, UnitTypes, load_manifest
+from .manual import (
+    MANUAL_CHUNK_CONTENT_BUDGET,
+    MANUAL_DETAIL_CHAR_BUDGET,
+    MANUAL_DETAIL_HEADROOM,
+    MANUAL_FORMAT_NOTE,
+    ManualLoadError,
+    SECTION_ID_RE,
+    build_section_chunks,
+    find_excerpts,
+    load_manual,
+    manual_meta_block,
+    mdot_normalize,
+)
 from .provision_id import (
     CONTRACT_VERSION,
     InvalidProvisionId,
@@ -2696,6 +2709,297 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
 - 4절 또는 7절에서 직접 확인되지 않은 접수·검토·결재·통보 등 일반 실무 단계는 흐름을 매끄럽게 만들기 위해 임의로 추가하지 말 것.
 - 조건 분기는 [예]/[아니오]로 표시하고, 규정상 선후관계가 확인되지 않으면 순서로 단정하지 말고 "추가 확인 필요"로 표시할 것.
 """
+
+
+_MANUAL_SEARCH_MATCHES_MAX = 10  # search_manual 절 매치 상한(응답 16k 예산과 이중 가드)
+_MANUAL_QUERY_MAX = 200  # annex_locate와 동일 사상 — query echo의 응답 예산 잠식 차단
+
+
+def _manual_unavailable_envelope(err: ManualLoadError) -> dict:
+    """데이터 로드 실패 표준 envelope — edition 등 메타는 확인 불가이므로 하드코딩하지 않는다."""
+    return {
+        "errors": [{"code": "manual_unavailable", "message": f"{err.message} (reason: {err.reason})"}],
+        "manual_meta_available": False,
+        "contract_version": CONTRACT_VERSION,
+        "disclaimer": _DISCLAIMER,
+    }
+
+
+@mcp.tool()
+async def search_manual(query: str) -> dict:
+    """사용 시점: 「국가연구개발혁신법 매뉴얼(본권, 범부처 공통 해설서)」에서 혁신법령의 실무 해설·세부 절차·Q&A·사례를 찾을 때 호출하십시오. 이 도구는 법령·행정규칙 조문 원문 검색이 아닙니다 — 조문 원문·현행 여부 확인은 search_provision·get_provision_detail을 사용하고, 매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문이 우선합니다.
+
+    매뉴얼 본문(41개 절·인쇄 1~326쪽·부록 제외)을 절 단위로 검색합니다. 매칭은 search_provision과
+    동일한 토큰 AND(공백 분해·2자 이상 토큰 2개 이상이면 모든 토큰 존재 시 매칭, 그 외 리터럴)이며,
+    가운뎃점 표기차(ㆍ·･·)는 매칭에서 흡수합니다(발췌는 원문 그대로).
+
+    응답: matches[](절 메타·인쇄쪽 범위·매치 발췌[매치 줄 ±1줄·인쇄쪽 앵커]·matched_in) +
+    manual_meta(규범성 — 해설 자료·법적 효력 없음·법령 우선·판번·기준일). 절 본문 전문은
+    get_manual_section(section_id)으로 조회하십시오. 검색 0건은 "매뉴얼 미수록"일 뿐 규정의
+    부재를 뜻하지 않습니다 — 법령·행정규칙은 기존 규정 도구로 별도 확인하십시오.
+    """
+    query = (query or "").strip()
+    if len(query) < 2:
+        return {
+            "query": query,
+            "matches": [],
+            "errors": [{
+                "code": "invalid_query",
+                "message": "query는 의미 있는 검색을 위해 공백 제외 2자 이상이어야 합니다.",
+            }],
+            "contract_version": CONTRACT_VERSION,
+            "disclaimer": _DISCLAIMER,
+        }
+    if len(query) > _MANUAL_QUERY_MAX:
+        return {
+            "query": query[:50] + "…(절단)",
+            "matches": [],
+            "errors": [{
+                "code": "invalid_query",
+                "message": f"query가 너무 깁니다(최대 {_MANUAL_QUERY_MAX}자). 짧은 핵심 문구로 재호출하십시오.",
+            }],
+            "contract_version": CONTRACT_VERSION,
+            "disclaimer": _DISCLAIMER,
+        }
+    data = load_manual()
+    if isinstance(data, ManualLoadError):
+        return _manual_unavailable_envelope(data)
+
+    # 토큰 규칙은 search_provision과 동일 — 매칭만 가운뎃점 정규화(발췌·응답 텍스트는 raw)
+    _meaningful = [t for t in query.split() if len(t) >= 2]
+    tokens = _meaningful if len(_meaningful) >= 2 else [query]
+    norm_tokens = [mdot_normalize(t) for t in tokens]
+
+    scored: list[tuple] = []
+    for sec in data.sections:
+        sid = sec["id"]
+        title_norm = data.norm_title[sid]
+        body_norm = data.norm_body[sid]
+        if not all((t in title_norm) or (t in body_norm) for t in norm_tokens):
+            continue
+        matched_in = sorted(
+            {("title" if any(t in title_norm for t in norm_tokens) else None),
+             ("body" if any(t in body_norm for t in norm_tokens) else None)} - {None}
+        )
+        # 3단 정렬: 전 토큰 제목 매치(0) > 일부 토큰 제목 매치(1) > 본문만 매치(2) — 각 단 내 문서 순서
+        if all(t in title_norm for t in norm_tokens):
+            tier = 0
+        elif "title" in matched_in:
+            tier = 1
+        else:
+            tier = 2
+        scored.append((tier, sec.get("section_index", 0), sec, matched_in))
+    scored.sort(key=lambda x: (x[0], x[1]))
+
+    total_matched = len(scored)
+    matches: list[dict] = []
+    for _, _, sec, matched_in in scored[:_MANUAL_SEARCH_MATCHES_MAX]:
+        sid = sec["id"]
+        serialized = json.dumps(data.full_text[sid], ensure_ascii=False)
+        oversized = len(serialized) > MANUAL_DETAIL_CHAR_BUDGET - MANUAL_DETAIL_HEADROOM
+        matches.append({
+            "section_id": sid,
+            "chapter_no": sec.get("chapter_no"),
+            "chapter_title": sec.get("chapter_title"),
+            "section_label": sec.get("section_label"),
+            "section_title": sec.get("section_title"),
+            "page_start": sec.get("page_start"),
+            "page_end": sec.get("page_end"),
+            "pdf_page_start": sec.get("pdf_page_start"),
+            "pdf_page_end": sec.get("pdf_page_end"),
+            "char_count": sec.get("char_count"),
+            "oversized": oversized,
+            "chunk_count": len(build_section_chunks(sec)) if oversized else 1,
+            "matched_in": matched_in,
+            "subsection_titles": sec.get("subsection_titles", []),
+            "excerpts": find_excerpts(sec, tokens),
+        })
+
+    truncated = total_matched > len(matches)
+    response = {
+        "query": query,
+        "matches": matches,
+        "returned": len(matches),
+        "total_matched": total_matched,
+        "truncated": truncated,
+        "scanned_sections": len(data.sections),
+        "manual_meta": manual_meta_block(data.meta),
+        "contract_version": CONTRACT_VERSION,
+        "disclaimer": _DISCLAIMER,
+        "errors": [],
+    }
+    if not matches:
+        response["note"] = (
+            f"매뉴얼 본문 {len(data.sections)}개 절 전체를 스캔했으나 매치가 없습니다 — "
+            "매뉴얼 미수록이 규정의 부재를 뜻하지 않으므로, 법령·행정규칙 근거는 "
+            "search_provision·suggest_review_sources로 별도 확인하십시오. "
+            "(스캔은 줄 단위 텍스트 기준이며 이미지·도식 페이지는 검색되지 않습니다.)"
+        )
+    # 응답 16k 예산 가드 — 초과 시 뒤쪽 매치부터 제거(발췌 포함 매치가 커질 수 있는 방어선)
+    while matches and len(json.dumps(response, ensure_ascii=False)) > _SEARCH_RESPONSE_CHAR_BUDGET:
+        matches.pop()
+        response["returned"] = len(matches)
+        response["truncated"] = True
+    return response
+
+
+@mcp.tool()
+async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
+    """사용 시점: search_manual로 찾은 「국가연구개발혁신법 매뉴얼(본권)」 절의 본문 전문이 필요할 때 호출하십시오. 이 도구는 해설 자료 조회이며 법령·행정규칙 원문 조회가 아닙니다 — 조문 원문은 get_provision_detail을 사용하고, 매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문이 우선합니다.
+
+    section_id: 매뉴얼 절 id — "장-절"(예: "3-4"=제3장 제4절 학생인건비) 또는 "ref-N"(참고 자료).
+    chunk: 대형 절 전용 — 응답이 content_format="oversized_pointer"면 본문 미수록이니
+    chunk=1..chunk_count로 재호출하여 본문을 페이지 경계 분할 청크(추출 텍스트 그대로)로
+    나눠 조회하십시오. 각 청크는 인쇄쪽 범위(chunk_pages)를 명시합니다.
+
+    응답에는 항상 manual_meta(규범성 — 해설 자료·법적 효력 없음·법령 우선·판번·기준일)와
+    인쇄쪽 앵커가 동반됩니다. 표 포함 절은 PDF 추출 특성상 셀 텍스트 순서·제목 위치가 원본
+    배치와 다를 수 있으므로 수치·조건 인용 시 인쇄쪽 원문 대조를 권장합니다.
+    """
+    sid = (section_id or "").strip()
+    if not SECTION_ID_RE.match(sid):
+        return {
+            "errors": [{
+                "code": "invalid_section_id",
+                "message": (
+                    f"section_id 형식 위반: {sid!r} — 허용 형식은 '장-절'(예: '1-1', '3-4') 또는 "
+                    "'ref-N'(예: 'ref-1'). 절 목록·id는 search_manual 결과의 section_id로 확인하십시오."
+                ),
+            }],
+            "contract_version": CONTRACT_VERSION,
+            "disclaimer": _DISCLAIMER,
+        }
+    data = load_manual()
+    if isinstance(data, ManualLoadError):
+        return _manual_unavailable_envelope(data)
+    sec = data.by_id.get(sid)
+    if sec is None:
+        return {
+            "errors": [{
+                "code": "not_found",
+                "message": (
+                    f"section_id {sid!r}에 해당하는 절이 없습니다. 유효 범위: 제1장 1-1~1-5 · "
+                    "제2장 2-1~2-11 · 제3장 3-1~3-19 · 제4장 4-1~4-2 · 제5장 5-1~5-2 · 참고 ref-1~ref-2. "
+                    "search_manual로 절을 먼저 찾는 것을 권장합니다."
+                ),
+            }],
+            "contract_version": CONTRACT_VERSION,
+            "disclaimer": _DISCLAIMER,
+        }
+
+    warnings: list[str] = []
+    if sec.get("table_pages"):
+        warnings.append(
+            "표 포함 절 — PDF 추출 특성상 표 셀 텍스트 순서·제목 위치가 원본 배치와 다를 수 있습니다"
+            f"(표 포함 인쇄쪽: {', '.join(str(p) for p in sec['table_pages'])}). 수치·조건 인용 시 원문 대조 권장."
+        )
+    if sec.get("image_only_pages"):
+        warnings.append(
+            f"인쇄 p.{', '.join(str(p) for p in sec['image_only_pages'])}은(는) 이미지·도식 위주라 "
+            "텍스트가 추출되지 않았습니다 — 해당 내용은 PDF 원문 확인이 필요합니다."
+        )
+    base = {
+        "section_id": sid,
+        "chapter_no": sec.get("chapter_no"),
+        "chapter_title": sec.get("chapter_title"),
+        "section_label": sec.get("section_label"),
+        "section_title": sec.get("section_title"),
+        "page_start": sec.get("page_start"),
+        "page_end": sec.get("page_end"),
+        "pdf_page_start": sec.get("pdf_page_start"),
+        "pdf_page_end": sec.get("pdf_page_end"),
+        "char_count": sec.get("char_count"),
+        "subsection_titles": sec.get("subsection_titles", []),
+        "format_note": MANUAL_FORMAT_NOTE,
+        "warnings": warnings,
+        "manual_meta": manual_meta_block(data.meta),
+        "contract_version": CONTRACT_VERSION,
+        "disclaimer": _DISCLAIMER,
+    }
+    full_text = data.full_text[sid]
+
+    # size-tier 판정은 최종 직렬화 기준(annex 동형) — char_count 아닌 json.dumps 길이
+    full = dict(base)
+    full.update({
+        "content": full_text,
+        "content_available": True,
+        "content_format": "plain_text_verbatim",
+        "is_complete": True,
+    })
+    if len(json.dumps(full, ensure_ascii=False)) <= MANUAL_DETAIL_CHAR_BUDGET - MANUAL_DETAIL_HEADROOM:
+        if chunk is not None:
+            full["warnings"] = full["warnings"] + [
+                "chunk 무시 — 본 절은 전문이 응답 예산 내라 전체 본문을 반환했습니다(청크 조회 불필요)."
+            ]
+        return full
+
+    # oversized — 페이지 경계 분할 청크(결정론·재조립 무손실)
+    chunks = build_section_chunks(sec)
+    chunk_count = len(chunks)
+    if chunk is not None:
+        if not (1 <= chunk <= chunk_count):
+            return {
+                "errors": [{
+                    "code": "not_found",
+                    "message": (
+                        f"chunk={chunk}는 범위 밖 — 본 절({sid})의 청크는 1..{chunk_count}. "
+                        "chunk 없이 호출하면 chunk_count와 청크 안내를 확인할 수 있습니다."
+                    ),
+                }],
+                "chunk_count": chunk_count,
+                "contract_version": CONTRACT_VERSION,
+                "disclaimer": _DISCLAIMER,
+            }
+        ck = chunks[chunk - 1]
+        part = dict(base)
+        part.update({
+            "content": ck["text"],
+            "content_available": True,
+            "content_format": "plain_text_verbatim",
+            "is_complete": False,
+            "chunk_index": chunk,
+            "chunk_count": chunk_count,
+            "chunk_pages": {"page_start": ck["page_start"], "page_end": ck["page_end"]},
+            "total_char_count": len(full_text),
+            "chunk_note": (
+                f"본 절 전문(약 {len(full_text):,}자)을 페이지 경계로 분할한 {chunk_count}개 청크 중 "
+                f"{chunk}번째(인쇄 p.{ck['page_start']}~{ck['page_end']}) — content는 해당 구간 추출 "
+                "텍스트 그대로이나 절 전체가 아닙니다. 다른 구간은 chunk 값을 바꿔 조회하고, 청크 "
+                "경계는 매뉴얼 판 개정 시 달라질 수 있으므로 판(edition)이 다른 응답의 청크 번호를 "
+                "혼용하지 마십시오."
+            ),
+            "warnings": base["warnings"] + [
+                f"본 응답은 절 전문이 아니라 {chunk_count}청크 중 {chunk}번째 부분 본문입니다 — 절 전체 확인으로 오인 금지."
+            ],
+        })
+        return part
+
+    pointer = dict(base)
+    pointer.update({
+        "content": (
+            f"[본문 생략: 절 분량이 응답 한도를 초과합니다(약 {len(full_text):,}자). "
+            "이 안내 텍스트를 매뉴얼 본문으로 인용하지 마십시오. "
+            f"본문은 chunk=1..{chunk_count}로 재호출하여 페이지 경계 분할 청크로 조회하십시오.]"
+        ),
+        "content_available": False,
+        "content_format": "oversized_pointer",
+        "is_complete": False,
+        "omitted_reason": "oversized_tool_response",
+        "omitted_char_count": len(full_text),
+        "chunk_count": chunk_count,
+        "chunk_note": (
+            f"전문이 필요하면 chunk=1..{chunk_count}로 재호출하여 절 본문을 페이지 경계 분할 "
+            "청크(추출 텍스트 그대로·인쇄쪽 범위 명시)로 나눠 조회할 수 있습니다."
+        ),
+        "required_action": (
+            f"get_manual_section(section_id='{sid}', chunk=1..{chunk_count})로 본문 분할 조회. "
+            "특정 문구 위치만 필요하면 search_manual 발췌(인쇄쪽 앵커)로 먼저 좁히십시오."
+        ),
+        "warnings": base["warnings"] + [
+            f"대용량 절 — 본문 미수록. chunk 파라미터(1..{chunk_count})로 본문을 청크 단위 조회 가능."
+        ],
+    })
+    return pointer
 
 
 @mcp.prompt(
