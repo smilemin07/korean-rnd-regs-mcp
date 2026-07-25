@@ -4583,3 +4583,47 @@ def test_annex_locate_megaline_match_position_v0210():
     assert "TARGET" in m["excerpt"], "매치 중심 윈도우 — 초장문 줄에서도 매치 문구 포함"
     assert m["excerpt_truncated"] is True
     assert m["excerpt"] in mega, "발췌는 여전히 원문 연속 substring"
+
+def test_manual_track_guard_all_surfaces_v0270():
+    """v0.27.0 surface-consistency: R1 매뉴얼 트랙 프롬프트 가드가 표면별로 실렸는지 검증.
+    표면 정의(문면 /disc 3/3 — Codex 표면 분리 지적 반영): 매뉴얼 라우팅·규범성은
+    SERVER_INSTRUCTIONS + REVIEW_PROMPT(+ 매뉴얼 도구 docstring은 P2 기실재·별도 잠금),
+    하단 표준 안내(A-1/A-2/notice·중복 방지)는 SERVER_INSTRUCTIONS + REVIEW_PROMPT.
+    get_provision_detail docstring은 의도적 무수정(법령 도구 가이드 희석 방지) — 검증 대상 아님.
+    README 미러 동기화는 test_readme_embedded_prompt_matches_template가 별도 강제."""
+    import re
+
+    def _norm(s: str) -> str:
+        return re.sub(r"\s+", " ", s or "")
+
+    instructions = _norm(main_module._SERVER_INSTRUCTIONS)
+    template = _norm(main_module._REVIEW_PROMPT_TEMPLATE)
+
+    # 공통 토큰(instructions + template 양쪽): 하단 표준 안내 코어
+    common_tokens = [
+        "※ 정확한 최종 확인은 국가법령정보센터(law.go.kr)의 법령·행정규칙 원문을 기준으로 해주시기 바랍니다.",  # A-1
+        "매뉴얼은 법령·행정규칙이 아니며",  # A-2 코어
+        "manual_meta의 notice 값",  # 출처 줄 — 서버 완성형 그대로 출력
+        "요약·윤문 없이 그대로",  # 중복 방지·verbatim 출력 규칙
+    ]
+    for tok in common_tokens:
+        assert tok in instructions, f"SERVER_INSTRUCTIONS에 v0.27.0 하단 안내 토큰 '{tok}' 누락"
+        assert tok in template, f"REVIEW_PROMPT에 v0.27.0 하단 안내 토큰 '{tok}' 누락"
+
+    # instructions 전용: 매뉴얼 라우팅·0건 의미·경계 제외
+    for tok in [
+        "search_manual로 절을 찾고",
+        "규정의 부재를 뜻하지 않으므로",
+        "규정 내용 판단이 없는 답변에는 이 하단 안내를 붙이지 마십시오",
+    ]:
+        assert tok in instructions, f"SERVER_INSTRUCTIONS에 v0.27.0 라우팅 토큰 '{tok}' 누락"
+
+    # template 전용: 4절 격리·배치 절 명시·미커버 정정(자가충돌 해소)
+    for tok in [
+        "4절 근거 조항은 법령·행정규칙만으로 구성",
+        "3절 핵심 답변·7절 권고 조치의 보조 설명",
+        "혁신법 매뉴얼 별권 4종",
+    ]:
+        assert tok in template, f"REVIEW_PROMPT에 v0.27.0 매뉴얼 통합 토큰 '{tok}' 누락"
+    # 자가충돌 잔존 방지: 구 미커버 문구가 남아 있으면 안 됨
+    assert "미커버: 국가연구개발혁신법 매뉴얼" not in template, "REVIEW_PROMPT에 구 미커버 문구 잔존(자가충돌)"
