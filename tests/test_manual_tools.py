@@ -22,13 +22,18 @@ from korean_rnd_regs_mcp.main import (
     search_manual,
 )
 from korean_rnd_regs_mcp.manual import (
+    FOOTER_LAW_LINE,
+    FOOTER_MANUAL_LINE,
     MANUAL_CHUNK_CONTENT_BUDGET,
     MANUAL_DETAIL_CHAR_BUDGET,
     MANUAL_DETAIL_HEADROOM,
     ManualLoadError,
     SECTION_ID_RE,
+    build_citation,
     build_section_chunks,
+    build_standard_footer,
     load_manual,
+    manual_meta_block,
     mdot_normalize,
 )
 
@@ -317,8 +322,204 @@ def test_budget_constants_parity_with_annex():
 
 def test_manual_responses_carry_contract_version():
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.18.0"
+    assert CONTRACT_VERSION == "0.19.0"
     r = asyncio.run(search_manual("기술료"))
-    assert r["contract_version"] == "0.18.0"
+    assert r["contract_version"] == "0.19.0"
     r2 = asyncio.run(get_manual_section("1-4"))
-    assert r2["contract_version"] == "0.18.0"
+    assert r2["contract_version"] == "0.19.0"
+
+
+# === v0.28.0: 인용 앵커(citation) · 하단 표준 안내(standard_footer) 응답 구조화 ===
+
+
+def test_citation_format_and_fields():
+    """citation은 meta·section 값 조립 — 판번·장/절·제목·인쇄쪽 범위를 한 줄로."""
+    data = load_manual()
+    sec = data.by_id["3-4"]
+    c = build_citation(data.meta, sec)
+    assert c.startswith("「국가연구개발혁신법 매뉴얼(본권)」(26.4판) 제3장 ")
+    assert sec["section_label"] in c and sec["section_title"] in c
+    assert f"인쇄 p.{sec['page_start']}~{sec['page_end']}" in c
+
+
+def test_citation_reference_section_omits_chapter_zero():
+    """참고 자료(ref-N·chapter_no=0)는 '제0장'이 나오면 안 된다 — section_label이 자체 앵커."""
+    data = load_manual()
+    c = build_citation(data.meta, data.by_id["ref-2"])
+    assert "제0장" not in c
+    assert "참고 2" in c
+
+
+def test_citation_page_overrides_and_missing_degrade():
+    """청크는 실제 수록 인쇄쪽으로 앵커. 결측 필드는 예외 없이 해당 마디만 생략(never-raise)."""
+    data = load_manual()
+    sec = data.by_id["2-3"]
+    assert "인쇄 p.63~70" in build_citation(data.meta, sec, 63, 70)
+    assert "인쇄 p.99" in build_citation(data.meta, sec, 99, 99)  # 단일 페이지 청크
+    bare = build_citation({}, {"section_title": "제목만"})
+    assert "판)" not in bare and "인쇄" not in bare and "제목만" in bare
+
+
+def test_standard_footer_lines_by_manual_content():
+    """매뉴얼 해설을 실어 보낸 응답만 3줄 — 아니면 법령 확인 1줄(허위 출처 고지 차단)."""
+    three = build_standard_footer("인용 매뉴얼: 26.4판", manual_content_included=True)
+    assert three.split("\n") == [
+        FOOTER_LAW_LINE, FOOTER_MANUAL_LINE, "※ 인용 매뉴얼: 26.4판",
+    ]
+    one = build_standard_footer("인용 매뉴얼: 26.4판", manual_content_included=False)
+    assert one == FOOTER_LAW_LINE
+    assert "매뉴얼 해설 부분은" not in one
+
+
+def test_manual_meta_block_footer_and_note_present():
+    data = load_manual()
+    meta = manual_meta_block(data.meta, manual_content_included=True)
+    assert meta["standard_footer"].count("\n") == 2
+    assert meta["notice"] in meta["standard_footer"]  # notice 값이 그대로 3번째 줄에
+    assert "그대로" in meta["standard_footer_note"]
+
+
+def test_search_manual_attaches_citation_per_match():
+    r = asyncio.run(search_manual("학생인건비"))
+    assert r["matches"], "매치가 있어야 본 테스트가 의미 있음"
+    for m in r["matches"]:
+        assert m["citation"].startswith("「")
+        assert "인쇄 p." in m["citation"]
+    assert r["manual_meta"]["standard_footer"].count("\n") == 2  # 발췌 전달 → 3줄
+
+
+def test_search_manual_zero_hit_footer_is_law_line_only():
+    r = asyncio.run(search_manual("존재하지않는단어조합xyz"))
+    assert r["returned"] == 0
+    assert r["manual_meta"]["standard_footer"] == FOOTER_LAW_LINE
+
+
+def test_get_manual_section_citation_by_branch():
+    """전문=절 범위 3줄 / 포인터=본문 미전달 1줄 / 청크=chunk_pages 범위 3줄."""
+    data = load_manual()
+    full = asyncio.run(get_manual_section("1-4"))
+    assert full["content_format"] == "plain_text_verbatim"
+    sec = data.by_id["1-4"]
+    assert f"인쇄 p.{sec['page_start']}~{sec['page_end']}" in full["citation"]
+    assert full["manual_meta"]["standard_footer"].count("\n") == 2
+
+    pointer = asyncio.run(get_manual_section("2-3"))
+    assert pointer["content_format"] == "oversized_pointer"
+    assert pointer["citation"]  # 어느 절을 받아야 하는지의 앵커로는 제공
+    assert pointer["manual_meta"]["standard_footer"] == FOOTER_LAW_LINE
+
+    chunk = asyncio.run(get_manual_section("2-3", chunk=1))
+    cp = chunk["chunk_pages"]
+    assert f"인쇄 p.{cp['page_start']}~{cp['page_end']}" in chunk["citation"]
+    assert chunk["citation"] != pointer["citation"]  # 절 전체 범위로 넓혀 말하지 않음
+    assert chunk["manual_meta"]["standard_footer"].count("\n") == 2
+
+
+def test_manual_error_responses_have_no_footer_or_citation():
+    """오류 응답에는 전달한 매뉴얼 내용이 0 — footer·citation 미부착(허위 고지·노이즈 차단)."""
+    for resp in (
+        asyncio.run(get_manual_section("BP0001")),      # invalid_section_id
+        asyncio.run(get_manual_section("9-9")),          # not_found
+        asyncio.run(search_manual("x")),                 # invalid_query
+        asyncio.run(get_manual_section("2-3", chunk=99)),  # 청크 범위 밖
+    ):
+        assert resp["errors"][0]["code"] in {
+            "invalid_section_id", "not_found", "invalid_query",
+        }
+        assert "citation" not in resp
+        assert "manual_meta" not in resp
+
+
+def test_v0280_no_size_tier_regression():
+    """citation·footer 추가 후에도 절별 size-tier 판정이 v0.27.0과 동일(전문 29·포인터 12)."""
+    data = load_manual()
+    formats = [asyncio.run(get_manual_section(s["id"]))["content_format"] for s in data.sections]
+    assert formats.count("plain_text_verbatim") == 29
+    assert formats.count("oversized_pointer") == 12
+
+
+def test_v0280_responses_within_budget():
+    """추가 필드 포함 최종 직렬화가 예산 내(전문 절 상세·검색 응답 모두)."""
+    from korean_rnd_regs_mcp.main import _SEARCH_RESPONSE_CHAR_BUDGET
+    data = load_manual()
+    budget = MANUAL_DETAIL_CHAR_BUDGET - MANUAL_DETAIL_HEADROOM
+    for s in data.sections:
+        r = asyncio.run(get_manual_section(s["id"]))
+        if r["content_format"] == "plain_text_verbatim":
+            assert len(json.dumps(r, ensure_ascii=False)) <= budget, s["id"]
+    for q in ("연구개발비", "학생인건비", "기술료 징수", "국가연구개발"):
+        assert len(json.dumps(asyncio.run(search_manual(q)), ensure_ascii=False)) <= _SEARCH_RESPONSE_CHAR_BUDGET
+
+
+def test_v0280_prompt_surfaces_reference_standard_footer():
+    """3표면 문면 잠금: 하단 안내는 서버 완성형 참조 + 폴백 병기, 인용은 citation 지시."""
+    from korean_rnd_regs_mcp.main import _SERVER_INSTRUCTIONS, review_regulation_prompt
+    template = review_regulation_prompt("X")
+    for surface in (_SERVER_INSTRUCTIONS, template):
+        assert "standard_footer" in surface
+        assert "직접 조립하지" in surface
+        assert "standard_footer가 없는 경우" in surface  # 롤백 과도기 폴백 병기
+        assert FOOTER_LAW_LINE in surface  # 폴백 리터럴 보존
+    assert "citation 값을 그대로" in _SERVER_INSTRUCTIONS
+    assert "청크 응답의 citation" in _SERVER_INSTRUCTIONS  # 확인 범위 초과 표기 차단
+    assert "citation 값을 그대로" in template
+
+
+def test_citation_never_raises_on_malformed_fields():
+    """데이터 재생성 오류로 필드 타입이 어긋나도 예외 대신 한 줄 문자열(적대검토 지적)."""
+    meta = {"source_title": 12345, "edition": ["x"]}
+    sec = {"chapter_no": float("inf"), "section_label": 7, "section_title": object()}
+    out = build_citation(meta, sec)
+    assert isinstance(out, str) and "\n" not in out
+    assert "제inf장" not in out  # OverflowError 대신 장 생략
+    # 줄바꿈 포함 제목도 한 줄로 축약(지시문처럼 보이는 다중 행 삽입 차단)
+    multi = build_citation({"source_title": "제목\n둘째 줄"}, {"section_title": "본문\n행"})
+    assert "\n" not in multi and "제목 둘째 줄" in multi
+
+
+def test_search_footer_recomputed_when_budget_pops_all_matches(monkeypatch):
+    """예산 절단으로 매치가 전부 빠지면 footer도 1줄로 되돌아간다(허위 고지 차단 경로)."""
+    from korean_rnd_regs_mcp import main as main_mod
+    monkeypatch.setattr(main_mod, "_SEARCH_RESPONSE_CHAR_BUDGET", 1200)
+    r = asyncio.run(search_manual("학생인건비"))
+    assert r["returned"] == 0 and r["truncated"] is True
+    assert r["manual_meta"]["standard_footer"] == FOOTER_LAW_LINE
+
+
+def test_all_pointers_and_chunks_within_budget():
+    """포인터·청크 전수의 최종 직렬화가 예산 내(적대검토 지적 — 전문만 검사하던 공백)."""
+    data = load_manual()
+    budget = MANUAL_DETAIL_CHAR_BUDGET - MANUAL_DETAIL_HEADROOM
+    checked = 0
+    for s in data.sections:
+        p = asyncio.run(get_manual_section(s["id"]))
+        assert len(json.dumps(p, ensure_ascii=False)) <= budget, s["id"]
+        if p["content_format"] != "oversized_pointer":
+            continue
+        for i in range(1, p["chunk_count"] + 1):
+            c = asyncio.run(get_manual_section(s["id"], chunk=i))
+            assert len(json.dumps(c, ensure_ascii=False)) <= MANUAL_DETAIL_CHAR_BUDGET, (s["id"], i)
+            checked += 1
+    assert checked >= 12  # 대형 절 12개 × 최소 1청크
+
+
+def test_manual_unavailable_and_long_query_have_no_footer(fresh_cache, monkeypatch, tmp_path):
+    """로더 실패·과장 query 오류에도 citation·manual_meta 미부착(적대검토 지적)."""
+    long_q = asyncio.run(search_manual("가" * (_MANUAL_QUERY_MAX + 1)))
+    assert "citation" not in long_q and "manual_meta" not in long_q
+
+    monkeypatch.setattr(manual_mod, "_DATA_PATH", tmp_path / "gone.json")
+    r = asyncio.run(get_manual_section("1-1"))
+    assert r["errors"][0]["code"] == "manual_unavailable"
+    assert "citation" not in r and "manual_meta" not in r
+
+
+def test_v0280_prompt_defines_multi_response_footer_priority():
+    """여러 매뉴얼 응답의 footer 값이 다를 때의 선택 규칙이 3표면에 명시(적대검토 MAJOR 해소)."""
+    from korean_rnd_regs_mcp.main import _SERVER_INSTRUCTIONS, review_regulation_prompt
+    template = review_regulation_prompt("X")
+    for surface in (_SERVER_INSTRUCTIONS, template):
+        assert "마지막 응답 값을 고르지 말고" in surface
+        assert "3줄짜리 값" in surface and "1줄짜리 값" in surface
+    note = manual_meta_block(load_manual().meta, manual_content_included=True)["standard_footer_note"]
+    assert "여러 개 받았다면" in note and "3줄짜리 값" in note

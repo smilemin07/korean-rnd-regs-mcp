@@ -26,6 +26,7 @@ from .manual import (
     MANUAL_FORMAT_NOTE,
     ManualLoadError,
     SECTION_ID_RE,
+    build_citation,
     build_section_chunks,
     find_excerpts,
     load_manual,
@@ -152,13 +153,20 @@ _SERVER_INSTRUCTIONS = (
     "다만 매뉴얼은 해설 자료이며 법령·행정규칙이 아니므로, 의무·기한·금액·비율·제재 등 규범적 결론을 "
     "매뉴얼만을 근거로 단정하지 말고 본 서버의 규정 도구(search_provision·get_provision_detail)로 법령·행정규칙 조문을 교차 확인하며, "
     "매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문이 우선합니다. "
-    "매뉴얼 내용을 인용·요약·재구성할 때는 매뉴얼 해설임을 구분 표시하고 응답의 인쇄쪽 앵커(printed_page·chunk_pages)를 함께 표기하십시오. "
+    "매뉴얼 내용을 인용·요약·재구성할 때는 매뉴얼 해설임을 구분 표시하고 출처는 응답의 citation 값을 그대로 표기하십시오"
+    "(citation이 없는 응답이면 인쇄쪽 앵커 printed_page·chunk_pages로 표기). "
+    "청크 응답의 citation은 그 청크가 실제로 담은 인쇄쪽이므로, 절 전체를 확인한 것처럼 범위를 넓혀 표기하지 마십시오. "
     "매뉴얼 응답이 oversized_pointer면 본문 미수록이니 chunk=1..chunk_count로 재호출해 확인하고, "
     "search_manual 결과 0건은 매뉴얼 미수록일 뿐 규정의 부재를 뜻하지 않으므로 법령·행정규칙은 규정 도구로 별도 확인하십시오. "
     "규정 검토 답변(본 서버 도구를 호출하여 규정·매뉴얼 내용을 안내·판단한 답변)의 하단에는 다음 표준 안내를 "
-    "최종 답변의 마지막 줄(들)로 표시하십시오. 모든 규정 검토 답변에 "
-    "\"※ 정확한 최종 확인은 국가법령정보센터(law.go.kr)의 법령·행정규칙 원문을 기준으로 해주시기 바랍니다.\"를 표시하고, "
-    "매뉴얼 내용을 인용한 답변에는 이어서 "
+    "최종 답변의 마지막 줄(들)로 표시하십시오. 매뉴얼 도구를 호출한 답변은 매뉴얼 응답 manual_meta의 "
+    "standard_footer 값(서버가 완성한 안내 블록)을 그대로 옮겨 표시하면 됩니다 — 직접 조립하지 마십시오. "
+    "한 답변에서 매뉴얼 응답을 여러 개 받았다면 standard_footer 값이 서로 다를 수 있습니다"
+    "(본문·발췌를 담은 응답은 3줄, 검색 0건·본문 미수록 응답은 1줄). 이때는 마지막 응답 값을 고르지 말고, "
+    "최종 답변에 매뉴얼 내용을 인용했으면 3줄짜리 값을, 어느 매뉴얼 내용도 인용하지 않았으면 1줄짜리 값을 표시하십시오. "
+    "매뉴얼 도구를 호출하지 않은 답변, 또는 응답에 standard_footer가 없는 경우에만 "
+    "\"※ 정확한 최종 확인은 국가법령정보센터(law.go.kr)의 법령·행정규칙 원문을 기준으로 해주시기 바랍니다.\"를 직접 표시하고, "
+    "매뉴얼 내용을 인용했다면 이어서 "
     "\"※ 매뉴얼 해설 부분은 「국가연구개발혁신법 매뉴얼」을 참고한 설명입니다. 매뉴얼은 법령·행정규칙이 아니며, "
     "내용이 다를 때는 법령·행정규칙 원문이 우선합니다.\"와 매뉴얼 응답 manual_meta의 notice 값 한 줄을 이 순서 그대로 추가하십시오. "
     "각 문구는 요약·윤문 없이 그대로, 답변당 최대 1회만 표시하고, 같은 취지의 면책·확인 문구를 별도로 만들어 중복 부착하지 마십시오. "
@@ -2649,7 +2657,7 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
    - 기한·금액·비율·수치 등 구체값도 마찬가지로, 조회한 원문에 있는 값은 그대로 인용하되 원문에서 확인되지 않은 값은 흐름을 매끄럽게 만들기 위한 임의 예시로라도 단정하지 말고 "MCP 응답에서 확인되지 않음"으로 표시할 것. 감면율·요율·기한처럼 조건에 따라 값이 나뉘는 구체값을 표·목록이나 한 문장으로 압축할 때는 각 조건과 값의 대응을 원문과 같게 유지하고, 괄호·단서 등 한정어가 원문에서 어느 조건 또는 값에 귀속되는지 확인해 배치하며, 대응이 불확실하면 원문 구조대로 나눠 표시할 것.
    - 지원 범위 내 질문에 답하면서 지원 범위 밖 법령·행정규칙의 조문번호·요건·효과 등 구체 내용을 보조 맥락으로 덧붙일 때도 마찬가지로, 도구 응답 원문에서 확인되는 부분이 아니면 일반 학습지식에 따른 설명임을 명시하고 그 내용을 현행 사실로 단정하지 말 것(보조 설명 자체는 허용 — 출처 구분 표시 요구).
    - 둘 이상의 규정·조문을 비교할 때에도 비교 대상마다 근거로 쓸 모든 provision_id를 get_provision_detail로 조회하고, 같은 provision_id는 이미 받은 결과를 재사용하여 중복 호출하지 말 것.
-   - (선택) 실무 해설·세부 절차·Q&A가 유용한 경우 search_manual·get_manual_section으로 「국가연구개발혁신법 매뉴얼」(본권) 해설을 참조할 것. 단 매뉴얼은 해설 자료이며 법령·행정규칙이 아니므로 4절 근거 조항은 법령·행정규칙만으로 구성하고, 매뉴얼 내용은 3절 핵심 답변·7절 권고 조치의 보조 설명으로만 매뉴얼 해설임을 구분 표기(판번·인쇄쪽 앵커)하여 쓸 것. 매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문 우선.
+   - (선택) 실무 해설·세부 절차·Q&A가 유용한 경우 search_manual·get_manual_section으로 「국가연구개발혁신법 매뉴얼」(본권) 해설을 참조할 것. 단 매뉴얼은 해설 자료이며 법령·행정규칙이 아니므로 4절 근거 조항은 법령·행정규칙만으로 구성하고, 매뉴얼 내용은 3절 핵심 답변·7절 권고 조치의 보조 설명으로만 매뉴얼 해설임을 구분 표기하고 출처는 응답의 citation 값을 그대로 적을 것. 매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문 우선.
 
 5. 참조 조항 추적
    - 조문이 "제X조에 따라", "시행령 제X조", "별표", "고시로 정하는" 등을 참조하면 해당 조항도 조회할 것.
@@ -2728,8 +2736,9 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
 - 조건 분기는 [예]/[아니오]로 표시하고, 규정상 선후관계가 확인되지 않으면 순서로 단정하지 말고 "추가 확인 필요"로 표시할 것.
 
 ### 답변 하단 표준 안내 (항상 적용 — 위 1~8절 형식과 별개의 최종 종결부)
-- 검토 결과 답변의 하단(최종 답변의 마지막 줄)에 "※ 정확한 최종 확인은 국가법령정보센터(law.go.kr)의 법령·행정규칙 원문을 기준으로 해주시기 바랍니다."를 표시할 것.
-- 매뉴얼 내용을 인용한 답변에는 이어서 "※ 매뉴얼 해설 부분은 「국가연구개발혁신법 매뉴얼」을 참고한 설명입니다. 매뉴얼은 법령·행정규칙이 아니며, 내용이 다를 때는 법령·행정규칙 원문이 우선합니다."와 매뉴얼 응답 manual_meta의 notice 값 한 줄을 이 순서 그대로 추가할 것.
+- 매뉴얼 도구를 호출한 검토에서는 매뉴얼 응답 manual_meta의 standard_footer 값(서버가 완성한 안내 블록)을 답변 하단(최종 답변의 마지막 줄들)에 그대로 옮겨 표시할 것. 직접 조립하지 말 것.
+- 매뉴얼 응답을 여러 개 받아 standard_footer 값이 서로 다르면(본문·발췌 수록 응답은 3줄, 검색 0건·본문 미수록 응답은 1줄) 마지막 응답 값을 고르지 말고, 최종 답변에 매뉴얼 내용을 인용했으면 3줄짜리 값을, 인용하지 않았으면 1줄짜리 값을 표시할 것.
+- 매뉴얼 도구를 호출하지 않은 검토, 또는 응답에 standard_footer가 없는 경우에만 "※ 정확한 최종 확인은 국가법령정보센터(law.go.kr)의 법령·행정규칙 원문을 기준으로 해주시기 바랍니다."를 직접 표시하고, 매뉴얼 내용을 인용했다면 이어서 "※ 매뉴얼 해설 부분은 「국가연구개발혁신법 매뉴얼」을 참고한 설명입니다. 매뉴얼은 법령·행정규칙이 아니며, 내용이 다를 때는 법령·행정규칙 원문이 우선합니다."와 매뉴얼 응답 manual_meta의 notice 값 한 줄을 이 순서 그대로 추가할 것.
 - 각 문구는 요약·윤문 없이 그대로, 답변당 최대 1회만 표시하고, 같은 취지의 면책·확인 문구를 별도로 만들어 중복 부착하지 말 것.
 """
 
@@ -2756,7 +2765,8 @@ async def search_manual(query: str) -> dict:
     동일한 토큰 AND(공백 분해·2자 이상 토큰 2개 이상이면 모든 토큰 존재 시 매칭, 그 외 리터럴)이며,
     가운뎃점 표기차(ㆍ·･·)는 매칭에서 흡수합니다(발췌는 원문 그대로).
 
-    응답: matches[](절 메타·인쇄쪽 범위·매치 발췌[매치 줄 ±1줄·인쇄쪽 앵커]·matched_in) +
+    응답: matches[](절 메타·인쇄쪽 범위·매치 발췌[매치 줄 ±1줄·인쇄쪽 앵커]·matched_in·
+    citation[출처 표기용 완성형 인용 문자열 — 그대로 옮겨 적으십시오]) +
     manual_meta(규범성 — 해설 자료·법적 효력 없음·법령 우선·판번·기준일). 절 본문 전문은
     get_manual_section(section_id)으로 조회하십시오. 검색 0건은 "매뉴얼 미수록"일 뿐 규정의
     부재를 뜻하지 않습니다 — 법령·행정규칙은 기존 규정 도구로 별도 확인하십시오.
@@ -2836,6 +2846,7 @@ async def search_manual(query: str) -> dict:
             "matched_in": matched_in,
             "subsection_titles": sec.get("subsection_titles", []),
             "excerpts": find_excerpts(sec, tokens),
+            "citation": build_citation(data.meta, sec),
         })
 
     truncated = total_matched > len(matches)
@@ -2846,7 +2857,9 @@ async def search_manual(query: str) -> dict:
         "total_matched": total_matched,
         "truncated": truncated,
         "scanned_sections": len(data.sections),
-        "manual_meta": manual_meta_block(data.meta),
+        # 매치가 있으면 이 응답이 매뉴얼 해설 발췌를 실제로 전달한 것 — 하단 안내 3줄.
+        # 0건이면 전달한 매뉴얼 내용이 없으므로 법령 확인 1줄만(허위 출처 고지 차단).
+        "manual_meta": manual_meta_block(data.meta, manual_content_included=bool(matches)),
         "contract_version": CONTRACT_VERSION,
         "disclaimer": _DISCLAIMER,
         "errors": [],
@@ -2863,6 +2876,9 @@ async def search_manual(query: str) -> dict:
         matches.pop()
         response["returned"] = len(matches)
         response["truncated"] = True
+    if not matches:
+        # 예산 절단으로 매치가 모두 빠진 경우까지 하단 안내를 0건 형태로 되돌린다(전달 내용 = 0).
+        response["manual_meta"] = manual_meta_block(data.meta, manual_content_included=False)
     return response
 
 
@@ -2875,9 +2891,11 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
     chunk=1..chunk_count로 재호출하여 본문을 페이지 경계 분할 청크(추출 텍스트 그대로)로
     나눠 조회하십시오. 각 청크는 인쇄쪽 범위(chunk_pages)를 명시합니다.
 
-    응답에는 항상 manual_meta(규범성 — 해설 자료·법적 효력 없음·법령 우선·판번·기준일)와
-    인쇄쪽 앵커가 동반됩니다. 표 포함 절은 PDF 추출 특성상 셀 텍스트 순서·제목 위치가 원본
-    배치와 다를 수 있으므로 수치·조건 인용 시 인쇄쪽 원문 대조를 권장합니다.
+    비오류 응답에는 항상 manual_meta(규범성 — 해설 자료·법적 효력 없음·법령 우선·판번·기준일·답변 하단
+    표준 안내 완성형 standard_footer)와 citation(출처 표기용 완성형 인용 문자열 — 그대로 옮겨
+    적으십시오. 청크 응답은 그 청크가 실제 담은 인쇄쪽으로 표기됩니다)이 동반됩니다(오류 응답에는 없음). 표 포함 절은
+    PDF 추출 특성상 셀 텍스트 순서·제목 위치가 원본 배치와 다를 수 있으므로 수치·조건 인용 시
+    인쇄쪽 원문 대조를 권장합니다.
     """
     sid = (section_id or "").strip()
     if not SECTION_ID_RE.match(sid):
@@ -2935,10 +2953,12 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
         "subsection_titles": sec.get("subsection_titles", []),
         "format_note": MANUAL_FORMAT_NOTE,
         "warnings": warnings,
-        "manual_meta": manual_meta_block(data.meta),
         "contract_version": CONTRACT_VERSION,
         "disclaimer": _DISCLAIMER,
     }
+    # citation·manual_meta는 분기마다 다르다(청크는 실제 수록 인쇄쪽, 포인터는 본문 미전달) —
+    # base에 넣지 않고 각 분기에서 부착한다.
+    section_citation = build_citation(data.meta, sec)
     full_text = data.full_text[sid]
 
     # size-tier 판정은 최종 직렬화 기준(annex 동형) — char_count 아닌 json.dumps 길이
@@ -2948,6 +2968,8 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
         "content_available": True,
         "content_format": "plain_text_verbatim",
         "is_complete": True,
+        "citation": section_citation,
+        "manual_meta": manual_meta_block(data.meta, manual_content_included=True),
     })
     if len(json.dumps(full, ensure_ascii=False)) <= MANUAL_DETAIL_CHAR_BUDGET - MANUAL_DETAIL_HEADROOM:
         if chunk is not None:
@@ -2980,6 +3002,9 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
             "content_available": True,
             "content_format": "plain_text_verbatim",
             "is_complete": False,
+            # 청크 인용은 절 전체가 아니라 이 청크가 실제 담은 인쇄쪽으로 앵커(확인 범위 초과 표기 차단)
+            "citation": build_citation(data.meta, sec, ck["page_start"], ck["page_end"]),
+            "manual_meta": manual_meta_block(data.meta, manual_content_included=True),
             "chunk_index": chunk,
             "chunk_count": chunk_count,
             "chunk_pages": {"page_start": ck["page_start"], "page_end": ck["page_end"]},
@@ -2999,6 +3024,10 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
 
     pointer = dict(base)
     pointer.update({
+        # 포인터는 본문 미전달 — citation은 어느 절을 받아야 하는지의 앵커로만 제공하고,
+        # 하단 안내는 매뉴얼 인용 면책 없이 법령 확인 1줄만(전달한 해설 내용 0).
+        "citation": section_citation,
+        "manual_meta": manual_meta_block(data.meta, manual_content_included=False),
         "content": (
             f"[본문 생략: 절 분량이 응답 한도를 초과합니다(약 {len(full_text):,}자). "
             "이 안내 텍스트를 매뉴얼 본문으로 인용하지 마십시오. "

@@ -26,7 +26,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-CONTRACT_VERSION = "0.18.0"
+CONTRACT_VERSION = "0.19.0"
 VALID_DOC_TYPES = frozenset({"law", "admrul"})
 # JO = 조문(article): 4자리(본조문) 또는 6자리(가지조문, 번호4+가지2 — v0.14.0). 가지 2자리는 01~99만.
 #   ★가지 '00'(=(?:00))은 4자리 본조문(JO0007)과 의미가 겹쳐(오도달·aliasing) reject → (?:0[1-9]|[1-9]\d).
