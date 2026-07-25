@@ -1,6 +1,6 @@
 # korean-rnd-regs-mcp API Contract
 
-- contract_version: **0.19.0** (0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 → 0.12.0 → 0.13.0 → 0.14.0 → 0.15.0 → 0.16.0 → 0.17.0 → 0.18.0 → 0.19.0 minor bump, §6 변경 이력 참조)
+- contract_version: **0.20.0** (0.1.0 첫 publish → … → 0.17.0 → 0.18.0 → 0.19.0 → 0.20.0 minor bump, §6 변경 이력 참조)
 - 작성일: 2026-05-24 (0.2.0 개정: 2026-06-04, 0.3.0 개정: 2026-06-07, 0.4.0 개정: 2026-06-09, 0.5.0 개정: 2026-06-10, 0.6.0 개정: 2026-06-13, 0.7.0 개정: 2026-06-21, 0.8.0 개정: 2026-06-21, 0.9.0 개정: 2026-06-22, 0.10.0 개정: 2026-07-07)
 - semver 정책: 0.x.x 대역은 unstable signal — minor bump(0.1.0 → 0.2.0)도 breaking change 허용. v0.2 가지조문 확장 시 0.2.0 minor bump로 자연스럽게 처리 (1.0.x 유지 시 2.0 major bump 필요했음)
 - 변경 정책: 본 문서 변경은 외부 사용자 코드·Claude Desktop 캐시·README 예시를 깰 수 있으므로 0.1.0 publish 이후 신중히 (§6 참조)
@@ -315,9 +315,17 @@ law:189938:BP000102              # 법령 별표 1의2 형식 (가지별표 인�
 - **프롬프트(계약 외)**: 3표면(instructions 하단 안내·인용 지시, `review_regulation` 템플릿 하단 안내·4단계 보조 불릿)에서 "호스트가 3문구를 조립" → "`standard_footer` 값을 그대로 표시(직접 조립 금지)"로 치환하고, **롤백 등으로 응답에 `standard_footer`가 없는 경우의 폴백 리터럴을 병기**(구 문구 보존 — 검증 /disc 2:1). 인용 지시는 "인쇄쪽 앵커 표기" → "`citation` 값 그대로 표기 + 청크는 범위를 넓히지 말 것"으로 치환.
 - 응답 additive 필드만·**입력 스키마 무변(웹 커넥터 재연결 불요)**·기존 필드 무변·기존 5종 규정 도구·검색/랭킹/fallback/fan-out·캐시·transport·외부 URL·규정 64종 완전 불변 → contract_version **0.19.0**(0.18.0 → 0.19.0).
 
+### 5.21 규정 상세 응답 하단 표준 안내 — standard_footer (0.20.0 minor — 응답 additive·입력 스키마 무변)
+
+- **동기**: v0.28.0 배포 후 eval의 같은 세션 A/B 대조 — 서버 완성형 문자열이 존재한 매뉴얼 경로는 하단 표준 안내 부착 2/2(1건 글자 단위 일치), 호스트가 프롬프트 지시로 직접 조립해야 하는 규정-only 경로는 0/2(직전 릴리스 포함 **누적 0/5**). "형식은 프롬프트가 아니라 응답 구조로"가 실증됐으므로, **매뉴얼을 쓰지 않은 규정 답변**에도 서버 완성형을 공급한다.
+- **`standard_footer`** (get_provision_detail **성공 응답 3경로**[문서레벨·조문 JO·별표 BP] additive): 값 = 법령 확인 1줄(`manual.FOOTER_LAW_LINE` **단일 출처** — 매뉴얼 3줄 footer의 첫 줄과 동일 문자열이라 호스트 dedup 자연 성립). 부착은 모든 tier 판정·백스톱·사후주입(version 메타·revision_notice·amendment·old_and_new·locate) **이후 마지막 단계**에서 후보 사본으로 수행 — 최종 직렬화가 16,000자를 넘으면 원본 무변경 생략(whole-or-omit·headroom 15,700 기준 아님[사전 예산용]·기존 필드·거동 완전 불변). warnings 동반 성공·locate 0매치·old_and_new available=false·oversized_pointer·deleted_stub 등 **본문·메타를 전달한 비오류 응답은 전부 부착**, 오류 envelope(invalid_provision_id·not_found·parse 실패·청크 범위 밖)은 미부착.
+- **★커버 한정(over-claim 금지 — 검증 /disc 3/3)**: 본 변경이 보장하는 것은 "**get_provision_detail 성공 응답을 받은** 규정 답변"이다. search_provision(fan-out·16k pop 루프 접촉 회피)·suggest_review_sources(후보 목록만 보고 답하는 비정상 흐름 — instructions가 원문 확인을 지시)는 제외했으므로 그 경로만으로 답하는 답변의 미부착 갭은 **잔존**(후속 eval로 빈도 관측 후 재판단). health·list_rule_sets는 규정 내용을 전달하지 않는 메타 도구라 미부착이 정의와 일관.
+- **프롬프트(계약 외)**: 하단 안내 지시를 "매뉴얼 인용 여부" **단일 분기**로 재편 — 인용했으면 매뉴얼 3줄 값(첫 줄에 법령 확인 포함 — 규정 1줄을 덧붙이지 말 것), 아니면 규정 응답 1줄 값(여러 응답에 같은 값이면 아무 하나만), 선택에 맞는 값이 없는 구버전 응답만 리터럴 폴백. footer 블록은 답변당 정확히 1개(연결·반복 금지). 2표면+README byte-sync.
+- 응답 additive 필드만·**입력 스키마 무변(웹 커넥터 재연결 불요)**·기존 5·매뉴얼 2 도구의 기존 필드·검색/랭킹/fallback/fan-out·캐시·transport·외부 URL·규정 64종 완전 불변 → contract_version **0.20.0**(0.19.0 → 0.20.0).
+
 ## 6. contract_version 관리
 
-- 본 문서 contract_version: **0.19.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 → 0.12.0 → 0.13.0 → 0.14.0 → 0.15.0 → 0.16.0 → 0.17.0 → 0.18.0 → 0.19.0 minor)
+- 본 문서 contract_version: **0.20.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 → 0.12.0 → 0.13.0 → 0.14.0 → 0.15.0 → 0.16.0 → 0.17.0 → 0.18.0 → 0.19.0 → 0.20.0 minor)
 - 코드 상수: `korean_rnd_regs_mcp.provision_id.CONTRACT_VERSION`
 - 변경 정책 (0.x.x — unstable signal):
 
@@ -386,3 +394,4 @@ law:189938:BP000102              # 법령 별표 1의2 형식 (가지별표 인�
 
 - 도구 응답에 `contract_version` 필드 포함 권장 (search_provision·get_provision_detail·suggest_review_sources). 클라이언트가 호환 여부 확인 가능.
 | **0.19.0** | 2026-07-25 | **minor bump** (패키지 **0.28.0**). 매뉴얼 인용 앵커·하단 표준 안내 응답 구조화(§5.20) — 매뉴얼 도구 2종 응답에 `citation`(완성형 인용 한 줄·검색 매치별/전문/포인터=절 범위·**청크=chunk_pages 범위**) + `manual_meta.standard_footer`(완성형 하단 안내 블록 — 응답이 매뉴얼 해설을 실제 전달했으면 3줄, 아니면[검색 0건·oversized_pointer] 법령 확인 1줄만: 허위 출처 고지 차단) + `manual_meta.standard_footer_note` additive. 기존 데이터(page/chunk_pages/printed_page/notice) 재조립이라 **신규 파싱 0·추가 네트워크 0**·`notice` 등 기존 필드 무변. 오류 응답(`manual_unavailable`·`invalid_section_id`·`not_found`·`invalid_query`·청크 범위 밖)은 citation·manual_meta 미부착 유지. 실측: size-tier 판정 불변(전문 29·포인터 12·전문 최대 12,968<15,700), search 최대 8,442<16,000(매치 pop 0). 동기=v0.27.0 eval·매뉴얼-온리 테스트의 인쇄쪽 인용 0/3·하단 안내 0/3(프롬프트 축 수확체감 확정 → 응답 구조 축). 부수(계약 외): 프롬프트 3표면을 "standard_footer/citation 값 그대로 표시(직접 조립 금지)"로 치환 + 롤백 대비 폴백 리터럴 병기(README byte-sync). **입력 스키마 무변 → 웹 커넥터 재연결 불요**. 기존 5종 도구·검색/랭킹/fallback/fan-out·transport·캐시·외부 URL·규정 수(64) 불변. 설계 `/disc`(Codex quota 소진으로 Gemini 2종 + Claude 3-way): citation 형식·부착 3곳·발췌 단위 기각 3/3, footer 단일 완성형 2:1, 폴백 병기 2:1 → 응답 additive 필드 → 0.18.0 → 0.19.0 |
+| **0.20.0** | 2026-07-25 | **minor bump** (패키지 **0.29.0**). 규정 상세 응답 하단 표준 안내(§5.21) — `get_provision_detail` 성공 응답 3경로(문서레벨·JO·BP)에 `standard_footer`(법령 확인 1줄·`manual.FOOTER_LAW_LINE` 단일 출처 = 매뉴얼 3줄 footer 첫 줄과 동일 문자열) additive. 부착은 모든 tier/백스톱/사후주입 이후 마지막 단계·후보 사본 직렬화 16,000 초과 시 원본 무변경 생략(whole-or-omit). 오류 envelope 미부착. 동기 = v0.28.0 eval 같은 세션 A/B 대조(서버 완성형 2/2 부착 vs 프롬프트 조립 누적 0/5). ★커버 한정: get_provision_detail 성공 응답 기반 답변만 — search/suggest-only 경로 갭 잔존(후속 eval 관측·over-claim 금지). 부수(계약 외): 하단 안내 프롬프트를 "매뉴얼 인용 여부" 단일 분기로 재편(3줄 우선·1줄은 아무 하나만·답변당 정확히 1개·구버전 리터럴 폴백 보존·README byte-sync). **입력 스키마 무변 → 재연결 불요**. 기존 필드·검색/랭킹/fan-out·transport·캐시·외부 URL·규정 수(64) 불변. 설계 /disc 3-AI 3/3 수정 GO(성공 반환점 3곳 정정·16,000 기준 확정·단일 분기 문면 채택) → 0.19.0 → 0.20.0 |

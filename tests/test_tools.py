@@ -558,7 +558,7 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
     """suggest 응답에 현행 contract_version(0.10.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.19.0"
+    assert result["contract_version"] == "0.20.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -883,7 +883,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.19.0"
+    assert result["contract_version"] == "0.20.0"
 
 
 # === _build_article_content  ===
@@ -3825,7 +3825,7 @@ def test_get_provision_detail_small_article_unchanged_v060(mock_client):
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None
     assert "content_available" not in result
-    assert result["contract_version"] == "0.19.0"
+    assert result["contract_version"] == "0.20.0"
 
 
 def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):
@@ -4627,3 +4627,96 @@ def test_manual_track_guard_all_surfaces_v0270():
         assert tok in template, f"REVIEW_PROMPT에 v0.27.0 매뉴얼 통합 토큰 '{tok}' 누락"
     # 자가충돌 잔존 방지: 구 미커버 문구가 남아 있으면 안 됨
     assert "미커버: 국가연구개발혁신법 매뉴얼" not in template, "REVIEW_PROMPT에 구 미커버 문구 잔존(자가충돌)"
+
+
+# === v0.29.0: 규정 상세 응답 하단 표준 안내(standard_footer) — A-1 경로 응답 구조화 ===
+
+
+def test_attach_std_footer_unit_boundary():
+    """헬퍼 단위: 부착·경계 16,000 부착·16,001 무변경 생략(whole-or-omit)."""
+    import json as _json
+    from korean_rnd_regs_mcp.main import _attach_std_footer, _STD_FOOTER_RESPONSE_MAX
+    from korean_rnd_regs_mcp.manual import FOOTER_LAW_LINE
+
+    small = {"content": "짧은 응답"}
+    out = _attach_std_footer(small)
+    assert out["standard_footer"] == FOOTER_LAW_LINE
+    assert small == {"content": "짧은 응답"}  # 원본 무변경(사본 반환)
+
+    # 정확히 16,000 → 부착 / 16,001 → 원본 그대로(footer 부재)
+    def candidate_len(n):
+        c = {"x": "a" * n, "standard_footer": FOOTER_LAW_LINE}
+        return len(_json.dumps(c, ensure_ascii=False))
+    lo, hi = 1, 20000
+    while lo < hi:  # candidate_len == 16,000이 되는 n 탐색(단조 증가)
+        mid = (lo + hi) // 2
+        if candidate_len(mid) < _STD_FOOTER_RESPONSE_MAX:
+            lo = mid + 1
+        else:
+            hi = mid
+    n_exact = lo
+    assert candidate_len(n_exact) == _STD_FOOTER_RESPONSE_MAX
+    at_boundary = _attach_std_footer({"x": "a" * n_exact})
+    assert at_boundary.get("standard_footer") == FOOTER_LAW_LINE
+    over = {"x": "a" * (n_exact + 1)}
+    out_over = _attach_std_footer(over)
+    assert "standard_footer" not in out_over
+    assert out_over is over  # 초과 시 원본 객체 그대로(무변경)
+
+
+def test_std_footer_on_success_paths_v0290(mock_client):
+    """통합: 문서레벨·JO·BP(별표) 성공 응답 3경로 전부 footer 부착 + 문면 = FOOTER_LAW_LINE 단일 출처."""
+    from korean_rnd_regs_mcp.manual import FOOTER_LAW_LINE, build_standard_footer
+    doc = asyncio.run(get_provision_detail("law:283849"))
+    jo = asyncio.run(get_provision_detail("law:283849:JO0015"))
+    base = mock_client.get_law_detail.return_value
+    mock_client.get_law_detail.return_value = {
+        **base,
+        "annexes": [{"별표번호": "1", "별표제목": "지원기준",
+                     "별표내용": "중소기업 75% 이하", "별표서식파일링크": ""}],
+        "annex_parse_error": None,
+    }
+    bp = asyncio.run(get_provision_detail("law:285767:BP0001"))
+    assert doc["standard_footer"] == FOOTER_LAW_LINE
+    assert jo["standard_footer"] == FOOTER_LAW_LINE
+    assert bp["standard_footer"] == FOOTER_LAW_LINE  # 별표 경로(적대검토 지적 — BP 명시 잠금)
+    assert bp["content_format"] == "plain_text_verbatim"  # 기존 tier 무회귀
+    # 매뉴얼 3줄 footer의 첫 줄과 동일 문자열(문면 단일 출처 — 호스트 dedup 자연 성립)
+    assert build_standard_footer("x", True).split("\n")[0] == FOOTER_LAW_LINE
+
+
+def test_std_footer_absent_on_error_paths_v0290(mock_client):
+    """오류 응답 미부착: invalid id·JO not_found·BP not_found — 규정 내용을 전달하지 않은 응답."""
+    bad = asyncio.run(get_provision_detail("bogus-format"))
+    assert bad["errors"] and "standard_footer" not in bad
+    nf = asyncio.run(get_provision_detail("law:283849:JO9999"))
+    assert nf["errors"] and "standard_footer" not in nf
+    bp_nf = asyncio.run(get_provision_detail("law:283849:BP0099"))
+    assert bp_nf["errors"] and "standard_footer" not in bp_nf
+
+
+def test_std_footer_whole_or_omit_on_real_path_v0290(mock_client, monkeypatch):
+    """실제 성공 경로(사후주입 포함)에서 whole-or-omit — 상한을 낮추면 footer만 빠지고 응답은 동일."""
+    from korean_rnd_regs_mcp import main as main_mod
+    baseline = asyncio.run(get_provision_detail("law:283849"))
+    assert "standard_footer" in baseline
+    monkeypatch.setattr(main_mod, "_STD_FOOTER_RESPONSE_MAX", 10)
+    omitted = asyncio.run(get_provision_detail("law:283849"))
+    assert "standard_footer" not in omitted
+    stripped = dict(baseline)
+    stripped.pop("standard_footer")
+    assert omitted == stripped  # footer 외 전 필드 동일(기존 거동 완전 불변)
+
+
+def test_v0290_prompt_surfaces_single_branch_rule():
+    """프롬프트 2표면 문면 잠금: 단일 분기(인용 여부)·아무 하나만·정확히 1개·덧붙이지 말 것·폴백 보존."""
+    from korean_rnd_regs_mcp.main import _SERVER_INSTRUCTIONS, review_regulation_prompt
+    from korean_rnd_regs_mcp.manual import FOOTER_LAW_LINE
+    template = review_regulation_prompt("X")
+    for surface in (_SERVER_INSTRUCTIONS, template):
+        assert "인용했는지로 정" in surface             # 단일 분기 기준(정하십시오/정할 것 공통)
+        assert "아무 하나만" in surface                  # 동일 1줄 다중 응답 dedup
+        assert "정확히 1개만" in surface                 # 답변당 1블록
+        assert "덧붙이지 말" in surface                  # 3줄+1줄 연결 금지
+        assert "선택에 맞는 standard_footer가 없는 경우" in surface  # 구버전 폴백
+        assert FOOTER_LAW_LINE in surface                # 폴백 리터럴 보존

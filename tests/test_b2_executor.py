@@ -68,22 +68,22 @@ def test_cache_lock_never_wraps_network_or_parse():
     assert lock_blocks >= 8, f"_cache_lock 블록이 {lock_blocks}개뿐 — 캐시 touch 직렬화 누락 의심"
 
 
-def test_contract_version_0_19_0():
+def test_contract_version_0_20_0():
     """v0.27.0(R1-P2): 매뉴얼 트랙 도구 2종(search_manual·get_manual_section) 신설(§5.19) —
     입력 스키마 신설 2건 + 응답 schema 신규(manual_meta 규범성 블록·페이지 경계 청크) additive
     → contract 0.17.0 → 0.18.0 minor bump.
     직전 v0.21.0: 대용량 별표 내 검색 locate(§5.18 — 0.16.0 → 0.17.0)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.19.0"
+    assert CONTRACT_VERSION == "0.20.0"
 
 
-def test_package_version_0_28_0():
+def test_package_version_0_29_0():
     """패키지 버전 0.27.0(R1 혁신법 매뉴얼 트랙 — 도구 2종 search_manual·get_manual_section 신설·
     contract 0.18.0·프롬프트 가드·입력 스키마 신설=웹 커넥터 재연결 안내).
     직전 0.26.1(별표 방식 라벨 실효 트리거 정밀화 — 프롬프트 문자열-only 7번째·
     로직 0줄·contract 0.17.0 유지·입력 스키마 무변=재연결 불요)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.28.0"
+    assert __version__ == "0.29.0"
 
 
 def test_cache_maxsize_96_v0240():

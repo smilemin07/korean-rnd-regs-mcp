@@ -20,6 +20,7 @@ from . import __version__
 from .live_api import LawApiClient, LawApiError, ResolvedDocId
 from .manifest import ApiTarget, Retrieval, UnitTypes, load_manifest
 from .manual import (
+    FOOTER_LAW_LINE,
     MANUAL_CHUNK_CONTENT_BUDGET,
     MANUAL_DETAIL_CHAR_BUDGET,
     MANUAL_DETAIL_HEADROOM,
@@ -158,18 +159,17 @@ _SERVER_INSTRUCTIONS = (
     "청크 응답의 citation은 그 청크가 실제로 담은 인쇄쪽이므로, 절 전체를 확인한 것처럼 범위를 넓혀 표기하지 마십시오. "
     "매뉴얼 응답이 oversized_pointer면 본문 미수록이니 chunk=1..chunk_count로 재호출해 확인하고, "
     "search_manual 결과 0건은 매뉴얼 미수록일 뿐 규정의 부재를 뜻하지 않으므로 법령·행정규칙은 규정 도구로 별도 확인하십시오. "
-    "규정 검토 답변(본 서버 도구를 호출하여 규정·매뉴얼 내용을 안내·판단한 답변)의 하단에는 다음 표준 안내를 "
-    "최종 답변의 마지막 줄(들)로 표시하십시오. 매뉴얼 도구를 호출한 답변은 매뉴얼 응답 manual_meta의 "
-    "standard_footer 값(서버가 완성한 안내 블록)을 그대로 옮겨 표시하면 됩니다 — 직접 조립하지 마십시오. "
-    "한 답변에서 매뉴얼 응답을 여러 개 받았다면 standard_footer 값이 서로 다를 수 있습니다"
-    "(본문·발췌를 담은 응답은 3줄, 검색 0건·본문 미수록 응답은 1줄). 이때는 마지막 응답 값을 고르지 말고, "
-    "최종 답변에 매뉴얼 내용을 인용했으면 3줄짜리 값을, 어느 매뉴얼 내용도 인용하지 않았으면 1줄짜리 값을 표시하십시오. "
-    "매뉴얼 도구를 호출하지 않은 답변, 또는 응답에 standard_footer가 없는 경우에만 "
+    "규정 검토 답변(본 서버 도구를 호출하여 규정·매뉴얼 내용을 안내·판단한 답변)의 하단에는 도구 응답의 "
+    "standard_footer 값(서버가 완성한 안내 블록)을 최종 답변의 마지막 줄(들)로 요약·윤문 없이 그대로 옮겨 표시하십시오 "
+    "— 직접 조립하지 마십시오. 값 선택은 마지막 응답 값을 고르지 말고 최종 답변에 매뉴얼 내용을 인용했는지로 정하십시오: "
+    "인용했으면 매뉴얼 응답 manual_meta의 3줄짜리 값을(첫 줄에 법령 확인 안내가 이미 포함 — 규정 응답의 1줄을 덧붙이지 말 것), "
+    "인용하지 않았으면 규정 조회(get_provision_detail) 응답의 1줄짜리 값을(여러 응답에 같은 값이 있으면 아무 하나만) 사용하십시오. "
+    "선택에 맞는 standard_footer가 없는 경우(구버전 응답·크기 상한으로 생략된 응답)에만 "
     "\"※ 정확한 최종 확인은 국가법령정보센터(law.go.kr)의 법령·행정규칙 원문을 기준으로 해주시기 바랍니다.\"를 직접 표시하고, "
     "매뉴얼 내용을 인용했다면 이어서 "
     "\"※ 매뉴얼 해설 부분은 「국가연구개발혁신법 매뉴얼」을 참고한 설명입니다. 매뉴얼은 법령·행정규칙이 아니며, "
     "내용이 다를 때는 법령·행정규칙 원문이 우선합니다.\"와 매뉴얼 응답 manual_meta의 notice 값 한 줄을 이 순서 그대로 추가하십시오. "
-    "각 문구는 요약·윤문 없이 그대로, 답변당 최대 1회만 표시하고, 같은 취지의 면책·확인 문구를 별도로 만들어 중복 부착하지 마십시오. "
+    "footer 블록은 답변당 정확히 1개만 표시하고, 여러 값을 연결·반복하거나 같은 취지의 면책·확인 문구를 별도로 만들어 중복 부착하지 마십시오. "
     "단 도구 상태 확인·설치 안내처럼 규정 내용 판단이 없는 답변에는 이 하단 안내를 붙이지 마십시오."
 )
 
@@ -2147,11 +2147,33 @@ async def suggest_review_sources(
     return response
 
 
+_STD_FOOTER_RESPONSE_MAX = 16000  # 최종 상한(도구 응답 16k 예산) — 부착은 모든 tier/백스톱 이후 마지막 단계라 headroom(15,700) 기준 아님
+
+
+def _attach_std_footer(resp: dict) -> dict:
+    """규정 상세 성공 응답에 답변 하단 표준 안내(법령 확인 1줄) 부착 (v0.29.0).
+
+    문면은 manual.FOOTER_LAW_LINE 단일 출처(매뉴얼 3줄 footer의 첫 줄과 동일 문자열).
+    후보 사본의 최종 직렬화가 16,000자를 넘으면 원본을 전혀 변경하지 않고 생략(whole-or-omit)
+    — 기존 tier 판정·백스톱·필드 완전 불변. 커버 대상은 get_provision_detail 성공 응답 기반
+    답변이며, search/suggest만 보고 답하는 경로는 잔존(후속 eval 관측 — v0.29.0 /disc 3/3).
+    """
+    candidate = dict(resp)
+    candidate["standard_footer"] = FOOTER_LAW_LINE
+    if len(json.dumps(candidate, ensure_ascii=False)) <= _STD_FOOTER_RESPONSE_MAX:
+        return candidate
+    return resp
+
+
 @mcp.tool()
 async def get_provision_detail(provision_id: str, include_old_and_new: bool = False, annex_chunk: int | None = None, annex_locate: str | None = None) -> dict:
     """사용 시점: search_provision 또는 suggest_review_sources가 반환한 provision_id의 원문·삭제 여부·현행 내용을 확인할 때 호출하십시오. provision_id 없이 조문 내용을 추측하지 마십시오. 이 도구의 content가 규정 조문·별표 본문의 권위 출처이므로, 본문은 외부 웹(law.go.kr 직접 열람·웹검색 결과)에서 가져오지 말고 이 도구로 확인하십시오. content_format이 plain_text_verbatim이 아니면 응답이 제공한 attached_file_url·document_source_url의 공식 원문을 확인하십시오. 행정규칙(admrul) 응답에는 발령번호·종류가 issuance_number·regulation_kind·version_label 필드로 포함되니 이를 사용하되, 이 값은 조회된 규정의 것이며 현행임을 보증하지 않으므로(검색 실패 시 등록 버전일 수 있음) 현행 여부 단정이 필요하면 1차 출처에서 확인하고, 응답에 없는 고시·예규 번호 등은 외부 값으로 단정하지 마십시오. 기한·금액·비율·수치 등 구체값도 마찬가지로, 응답 원문에 있는 값은 그대로 인용하되 원문에서 확인되지 않은 값은 임의 예시로라도 단정하지 말고 확인되지 않았음을 명시하십시오. 감면율·요율·기한처럼 조건에 따라 값이 나뉘는 구체값을 표·목록이나 한 문장으로 압축할 때는 각 조건과 값의 대응을 원문과 같게 유지하고, 괄호·단서 등 한정어가 원문에서 어느 조건 또는 값에 귀속되는지 확인해 배치하며, 대응이 불확실하면 원문 구조대로 나눠 표시하십시오. 지원 범위 내 질문에 답하면서 지원 범위 밖 법령·행정규칙의 조문번호·요건·효과 등 구체 내용을 보조 맥락으로 덧붙일 때도 마찬가지로, 도구 응답 원문에서 확인되는 부분이 아니면 일반 학습지식에 따른 설명임을 명시하고 그 내용을 현행 사실로 단정하지 마십시오(보조 설명 자체는 허용 — 출처 구분 표시 요구).
 
     provision_id로 단일 조문/별표 본문 재조회 — 응답은 법령 원문 verbatim.
+    비오류 응답에는 답변 하단 표준 안내 완성형 standard_footer(법령 확인 1줄)가 원칙적으로
+    동반됩니다(응답이 크기 상한에 달한 극단 케이스는 생략될 수 있음) — 규정 검토 답변의 마지막
+    줄로 그대로 표시하십시오(매뉴얼 내용을 인용한 답변은 매뉴얼 응답의 3줄짜리 standard_footer를
+    대신 사용 — 첫 줄에 동일 안내가 이미 포함).
 
     중요 (LLM 표시 정책): 응답의 `content`와 `article_structure` 는 국가법령정보 OpenAPI의
     법령 원문을 그대로 재구성한 것입니다. 사용자에게 표시할 때 임의 부제 추가·요약·paraphrase
@@ -2443,7 +2465,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
             result["warnings"] = result["warnings"] + [
                 "annex_locate는 대용량 별표(BP) 상세 조회에서만 지원 — 문서레벨 조회에서는 무시됨."
             ]
-        return result
+        return _attach_std_footer(result)
 
     # article (JO)
     if pid.unit_id.startswith("JO"):
@@ -2494,7 +2516,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 resp["warnings"] = resp.get("warnings", []) + [
                     "annex_locate는 대용량 별표(BP) 상세 조회에서만 지원 — 조문(JO) 조회에서는 무시됨."
                 ]
-            return resp
+            return _attach_std_footer(resp)
 
     # annex (BP)
     elif pid.unit_id.startswith("BP"):
@@ -2544,7 +2566,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 resp.update(_version_meta)
                 if _revision:
                     resp["revision_notice"] = _revision
-            return resp
+            return _attach_std_footer(resp)
 
     _msg = f"{provision_id}의 unit을 detail 응답에서 찾지 못함"
     if pid.unit_id.startswith("BP"):
@@ -2736,10 +2758,10 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
 - 조건 분기는 [예]/[아니오]로 표시하고, 규정상 선후관계가 확인되지 않으면 순서로 단정하지 말고 "추가 확인 필요"로 표시할 것.
 
 ### 답변 하단 표준 안내 (항상 적용 — 위 1~8절 형식과 별개의 최종 종결부)
-- 매뉴얼 도구를 호출한 검토에서는 매뉴얼 응답 manual_meta의 standard_footer 값(서버가 완성한 안내 블록)을 답변 하단(최종 답변의 마지막 줄들)에 그대로 옮겨 표시할 것. 직접 조립하지 말 것.
-- 매뉴얼 응답을 여러 개 받아 standard_footer 값이 서로 다르면(본문·발췌 수록 응답은 3줄, 검색 0건·본문 미수록 응답은 1줄) 마지막 응답 값을 고르지 말고, 최종 답변에 매뉴얼 내용을 인용했으면 3줄짜리 값을, 인용하지 않았으면 1줄짜리 값을 표시할 것.
-- 매뉴얼 도구를 호출하지 않은 검토, 또는 응답에 standard_footer가 없는 경우에만 "※ 정확한 최종 확인은 국가법령정보센터(law.go.kr)의 법령·행정규칙 원문을 기준으로 해주시기 바랍니다."를 직접 표시하고, 매뉴얼 내용을 인용했다면 이어서 "※ 매뉴얼 해설 부분은 「국가연구개발혁신법 매뉴얼」을 참고한 설명입니다. 매뉴얼은 법령·행정규칙이 아니며, 내용이 다를 때는 법령·행정규칙 원문이 우선합니다."와 매뉴얼 응답 manual_meta의 notice 값 한 줄을 이 순서 그대로 추가할 것.
-- 각 문구는 요약·윤문 없이 그대로, 답변당 최대 1회만 표시하고, 같은 취지의 면책·확인 문구를 별도로 만들어 중복 부착하지 말 것.
+- 하단 표준 안내는 도구 응답의 standard_footer 값(서버가 완성한 안내 블록)을 답변 하단(최종 답변의 마지막 줄들)에 요약·윤문 없이 그대로 옮겨 표시할 것. 직접 조립하지 말 것.
+- 값 선택은 마지막 응답 값을 고르지 말고 최종 답변에 매뉴얼 내용을 인용했는지로 정할 것: 인용했으면 매뉴얼 응답 manual_meta의 3줄짜리 값(첫 줄에 법령 확인 안내가 이미 포함 — 규정 응답의 1줄을 덧붙이지 말 것), 인용하지 않았으면 규정 조회(get_provision_detail) 응답의 1줄짜리 값(여러 응답에 같은 값이 있으면 아무 하나만).
+- 선택에 맞는 standard_footer가 없는 경우(구버전 응답·크기 상한으로 생략된 응답)에만 "※ 정확한 최종 확인은 국가법령정보센터(law.go.kr)의 법령·행정규칙 원문을 기준으로 해주시기 바랍니다."를 직접 표시하고, 매뉴얼 내용을 인용했다면 이어서 "※ 매뉴얼 해설 부분은 「국가연구개발혁신법 매뉴얼」을 참고한 설명입니다. 매뉴얼은 법령·행정규칙이 아니며, 내용이 다를 때는 법령·행정규칙 원문이 우선합니다."와 매뉴얼 응답 manual_meta의 notice 값 한 줄을 이 순서 그대로 추가할 것.
+- footer 블록은 답변당 정확히 1개만 표시하고, 여러 값을 연결·반복하거나 같은 취지의 면책·확인 문구를 별도로 만들어 중복 부착하지 말 것.
 """
 
 
