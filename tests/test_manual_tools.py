@@ -24,6 +24,7 @@ from korean_rnd_regs_mcp.main import (
 from korean_rnd_regs_mcp.manual import (
     FOOTER_LAW_LINE,
     FOOTER_MANUAL_LINE,
+    FOOTER_MANUAL_SOURCE_LINE,
     MANUAL_CHUNK_CONTENT_BUDGET,
     MANUAL_DETAIL_CHAR_BUDGET,
     MANUAL_DETAIL_HEADROOM,
@@ -361,20 +362,21 @@ def test_citation_page_overrides_and_missing_degrade():
 
 
 def test_standard_footer_lines_by_manual_content():
-    """매뉴얼 해설을 실어 보낸 응답만 3줄 — 아니면 법령 확인 1줄(허위 출처 고지 차단)."""
-    three = build_standard_footer("인용 매뉴얼: 26.4판", manual_content_included=True)
-    assert three.split("\n") == [
-        FOOTER_LAW_LINE, FOOTER_MANUAL_LINE, "※ 인용 매뉴얼: 26.4판",
+    """매뉴얼 해설을 실어 보낸 응답만 인용 고지 포함 4줄 — 아니면 법령·매뉴얼 원문 안내 2줄
+    (허위 출처 고지 차단·v0.30.0 매뉴얼 원문 안내 줄 공통 삽입)."""
+    four = build_standard_footer("인용 매뉴얼: 26.4판", manual_content_included=True)
+    assert four.split("\n") == [
+        FOOTER_LAW_LINE, FOOTER_MANUAL_SOURCE_LINE, FOOTER_MANUAL_LINE, "※ 인용 매뉴얼: 26.4판",
     ]
-    one = build_standard_footer("인용 매뉴얼: 26.4판", manual_content_included=False)
-    assert one == FOOTER_LAW_LINE
-    assert "매뉴얼 해설 부분은" not in one
+    two = build_standard_footer("인용 매뉴얼: 26.4판", manual_content_included=False)
+    assert two == FOOTER_LAW_LINE + "\n" + FOOTER_MANUAL_SOURCE_LINE
+    assert "매뉴얼 해설 부분은" not in two
 
 
 def test_manual_meta_block_footer_and_note_present():
     data = load_manual()
     meta = manual_meta_block(data.meta, manual_content_included=True)
-    assert meta["standard_footer"].count("\n") == 2
+    assert meta["standard_footer"].count("\n") == 3
     assert meta["notice"] in meta["standard_footer"]  # notice 값이 그대로 3번째 줄에
     assert "그대로" in meta["standard_footer_note"]
 
@@ -385,34 +387,34 @@ def test_search_manual_attaches_citation_per_match():
     for m in r["matches"]:
         assert m["citation"].startswith("「")
         assert "인쇄 p." in m["citation"]
-    assert r["manual_meta"]["standard_footer"].count("\n") == 2  # 발췌 전달 → 3줄
+    assert r["manual_meta"]["standard_footer"].count("\n") == 3  # 발췌 전달 → 인용 고지 포함 4줄
 
 
 def test_search_manual_zero_hit_footer_is_law_line_only():
     r = asyncio.run(search_manual("존재하지않는단어조합xyz"))
     assert r["returned"] == 0
-    assert r["manual_meta"]["standard_footer"] == FOOTER_LAW_LINE
+    assert r["manual_meta"]["standard_footer"] == FOOTER_LAW_LINE + "\n" + FOOTER_MANUAL_SOURCE_LINE
 
 
 def test_get_manual_section_citation_by_branch():
-    """전문=절 범위 3줄 / 포인터=본문 미전달 1줄 / 청크=chunk_pages 범위 3줄."""
+    """전문=절 범위 4줄 / 포인터=본문 미전달 2줄 / 청크=chunk_pages 범위 4줄(v0.30.0 공통 2번째 줄 포함)."""
     data = load_manual()
     full = asyncio.run(get_manual_section("1-4"))
     assert full["content_format"] == "plain_text_verbatim"
     sec = data.by_id["1-4"]
     assert f"인쇄 p.{sec['page_start']}~{sec['page_end']}" in full["citation"]
-    assert full["manual_meta"]["standard_footer"].count("\n") == 2
+    assert full["manual_meta"]["standard_footer"].count("\n") == 3
 
     pointer = asyncio.run(get_manual_section("2-3"))
     assert pointer["content_format"] == "oversized_pointer"
     assert pointer["citation"]  # 어느 절을 받아야 하는지의 앵커로는 제공
-    assert pointer["manual_meta"]["standard_footer"] == FOOTER_LAW_LINE
+    assert pointer["manual_meta"]["standard_footer"] == FOOTER_LAW_LINE + "\n" + FOOTER_MANUAL_SOURCE_LINE
 
     chunk = asyncio.run(get_manual_section("2-3", chunk=1))
     cp = chunk["chunk_pages"]
     assert f"인쇄 p.{cp['page_start']}~{cp['page_end']}" in chunk["citation"]
     assert chunk["citation"] != pointer["citation"]  # 절 전체 범위로 넓혀 말하지 않음
-    assert chunk["manual_meta"]["standard_footer"].count("\n") == 2
+    assert chunk["manual_meta"]["standard_footer"].count("\n") == 3
 
 
 def test_manual_error_responses_have_no_footer_or_citation():
@@ -478,12 +480,12 @@ def test_citation_never_raises_on_malformed_fields():
 
 
 def test_search_footer_recomputed_when_budget_pops_all_matches(monkeypatch):
-    """예산 절단으로 매치가 전부 빠지면 footer도 1줄로 되돌아간다(허위 고지 차단 경로)."""
+    """예산 절단으로 매치가 전부 빠지면 footer도 2줄(미인용형)로 되돌아간다(허위 고지 차단 경로)."""
     from korean_rnd_regs_mcp import main as main_mod
     monkeypatch.setattr(main_mod, "_SEARCH_RESPONSE_CHAR_BUDGET", 1200)
     r = asyncio.run(search_manual("학생인건비"))
     assert r["returned"] == 0 and r["truncated"] is True
-    assert r["manual_meta"]["standard_footer"] == FOOTER_LAW_LINE
+    assert r["manual_meta"]["standard_footer"] == FOOTER_LAW_LINE + "\n" + FOOTER_MANUAL_SOURCE_LINE
 
 
 def test_all_pointers_and_chunks_within_budget():
@@ -520,6 +522,43 @@ def test_v0280_prompt_defines_multi_response_footer_priority():
     template = review_regulation_prompt("X")
     for surface in (_SERVER_INSTRUCTIONS, template):
         assert "마지막 응답 값을 고르지 말고" in surface
-        assert "3줄짜리 값" in surface and "1줄짜리 값" in surface
+        assert "처음 두 줄에 법령·매뉴얼 원문 확인 안내" in surface
     note = manual_meta_block(load_manual().meta, manual_content_included=True)["standard_footer_note"]
-    assert "여러 개 받았다면" in note and "3줄짜리 값" in note
+    assert "여러 개 받았다면" in note and "매뉴얼 인용 고지가 포함된 값" in note
+
+
+# ── v0.30.0: 출처·원문 확인 경로 정비(source_url·매뉴얼 원문 안내 줄) ──────────
+
+def test_v0300_source_url_and_footer_locks():
+    """v0.30.0 잠금: meta.source_url 정확값·데이터 불변·구데이터 fail-safe·KISTEP 줄 문면·
+    규정-매뉴얼 footer 처음 두 줄 동일(dedup)."""
+    data = load_manual()
+    url = "https://www.kistep.re.kr/board.es?mid=a10301000000&bid=0003&act=view&list_no=94702"
+    assert data.meta["source_url"] == url  # 임베드 26.4판 게시물 — 판 갱신 시 재추출과 함께 변경
+    # 주입 작업이 본문을 건드리지 않았음을 잠금(원본 PDF 해시·절 수 불변)
+    assert data.meta["pdf_sha256"] == (
+        "f0a953b409b0f07dbb65b7324df93ef2e87733501375aa7820f5e86593bc7fbb"
+    )
+    assert data.meta["section_count"] == 41
+
+    block = manual_meta_block(data.meta, manual_content_included=True)
+    assert block["source_url"] == url
+
+    # 구데이터(source_url 키 부재) fail-safe — 필드 생략·footer 구조는 동일
+    legacy = manual_meta_block(
+        {"edition": "26.4", "manual_basis_date": "2026-03"}, manual_content_included=True
+    )
+    assert "source_url" not in legacy
+    assert legacy["standard_footer"].count("\n") == 3
+
+    # KISTEP 줄 문면 잠금 — URL 쿼리·판번을 넣지 않는 홈페이지 안내형(Andy 확정 문안)
+    assert FOOTER_MANUAL_SOURCE_LINE.startswith("※ ")
+    assert "www.kistep.re.kr" in FOOTER_MANUAL_SOURCE_LINE
+    assert "list_no" not in FOOTER_MANUAL_SOURCE_LINE
+    assert "26.4" not in FOOTER_MANUAL_SOURCE_LINE
+
+    # 규정 상세 footer(2줄)와 매뉴얼 footer 처음 두 줄이 동일 문자열 — 호스트 dedup 성립
+    from korean_rnd_regs_mcp.main import _attach_std_footer
+    prov = _attach_std_footer({"x": 1})["standard_footer"]
+    assert prov == FOOTER_LAW_LINE + "\n" + FOOTER_MANUAL_SOURCE_LINE
+    assert block["standard_footer"].startswith(prov + "\n")

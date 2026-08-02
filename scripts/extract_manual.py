@@ -2,8 +2,13 @@
 """국가연구개발혁신법 매뉴얼(본권) 본문 해설부 추출 파이프라인 (R1-P1).
 
 사용법:
-    /Users/andykim/my_project/venv/bin/python scripts/extract_manual.py
+    /Users/andykim/my_project/venv/bin/python scripts/extract_manual.py \
+        --source-url "https://www.kistep.re.kr/board.es?...&list_no=<게시물번호>"
     (옵션) --pdf <경로> --out-json <경로> --out-report <경로>
+
+    --source-url은 필수(기본값 없음) — 추출한 판의 KISTEP 게시물 URL. 데이터 본문과 출처
+    URL이 항상 한 실행에서 함께 생성되므로 "본문은 새 판인데 URL은 옛 게시물" 불일치가
+    구조적으로 발생하지 않는다(v0.30.0). https + kistep.re.kr 호스트만 허용(fail-closed).
 
 의존성: PyMuPDF(fitz) — 이 오프라인 스크립트 전용이며 패키지 런타임 의존성이 아님.
     shared venv(/Users/andykim/my_project/venv)에 설치되어 있음. pyproject.toml에 추가하지 말 것.
@@ -12,13 +17,15 @@
     src/korean_rnd_regs_mcp/manual_body.json   (절 단위 구조화 데이터 — 패키지 데이터 동봉 대상)
     scripts/manual_extract_report.md           (품질 리포트 — 경계 감사·검수용)
 
-결정론: 같은 PDF + 같은 스크립트 + 같은 PyMuPDF 버전이면 JSON은 byte-identical.
+결정론: 같은 PDF + 같은 --source-url + 같은 스크립트 + 같은 PyMuPDF 버전이면 JSON은 byte-identical.
     (추출 일시는 JSON에 넣지 않고 리포트에만 기록.)
 
-차년도 판 갱신 절차(연 1회, 매년 3~5월 개정판 배포 시):
+판 갱신 절차(★일정 기반 아님 — KISTEP에 새 판이 게시되면 수행. 2026년에 4월·7월 두 차례
+개정이 실증되어 "연 1회" 가정은 폐기함. 새 판 게시 여부는 KISTEP 발간물 게시판에서 확인):
     1. 새 판 PDF로 본 스크립트 실행 → 목차가 EXPECTED 스냅샷과 다르면 fail-closed 오류로 중단됨.
     2. 오류 메시지의 목차 대조표를 보고 아래 EXPECTED_* 상수(장·절 제목/시작쪽·부록 시작쪽·오프셋)와
-       EDITION/BASIS 상수를 새 판에 맞게 갱신.
+       EDITION/BASIS 상수를 새 판에 맞게 갱신하고, --source-url에 새 판 게시물 URL을 지정
+       (게시물 제목·판번·첨부 구성이 새 판과 일치하는지 확인).
     3. 재실행 → 리포트의 경계 감사표를 육안 검수 → JSON 교체 커밋.
     이 fail-closed 게이트는 편집 구조가 바뀐 판을 침묵 속에 오추출하는 사고를 막기 위한 것임.
 """
@@ -31,6 +38,7 @@ import hashlib
 import json
 import re
 import sys
+import urllib.parse
 from pathlib import Path
 
 import fitz
@@ -298,7 +306,19 @@ def main() -> int:
     ap.add_argument("--pdf", type=Path, default=DEFAULT_PDF)
     ap.add_argument("--out-json", type=Path, default=DEFAULT_JSON)
     ap.add_argument("--out-report", type=Path, default=DEFAULT_REPORT)
+    ap.add_argument(
+        "--source-url", required=True,
+        help="추출한 판의 KISTEP 게시물 URL (필수 — meta.source_url로 기록. https + kistep.re.kr만 허용)",
+    )
     args = ap.parse_args()
+
+    # v0.30.0 fail-closed: 출처 URL은 https + kistep.re.kr 계열 호스트만 허용.
+    host = urllib.parse.urlparse(args.source_url).hostname or ""
+    if not args.source_url.startswith("https://") or not (
+        host == "kistep.re.kr" or host.endswith(".kistep.re.kr")
+    ):
+        print(f"[오류] --source-url은 https://…kistep.re.kr… 형태여야 합니다: {args.source_url}", file=sys.stderr)
+        return 1
 
     if not args.pdf.exists():
         print(f"[오류] PDF가 없습니다: {args.pdf}", file=sys.stderr)
@@ -476,6 +496,7 @@ def main() -> int:
         "excluded_note": "[부록] 관련 서식(인쇄 p.327~527)과 별권 4종은 수록 제외 — 장 표제 간지쪽 제외",
         "pymupdf_version": fitz.__version__ if hasattr(fitz, "__version__") else fitz.VersionBind,
         "extractor": "scripts/extract_manual.py",
+        "source_url": args.source_url,
         "id_format": "^(\\d+-\\d+|ref-\\d+)$",
         "section_count": len(sections_json),
         "chapters": [

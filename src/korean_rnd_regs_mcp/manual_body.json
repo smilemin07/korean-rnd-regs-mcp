@@ -43,6 +43,7 @@
   "excluded_note": "[부록] 관련 서식(인쇄 p.327~527)과 별권 4종은 수록 제외 — 장 표제 간지쪽 제외",
   "pymupdf_version": "1.27.1",
   "extractor": "scripts/extract_manual.py",
+  "source_url": "https://www.kistep.re.kr/board.es?mid=a10301000000&bid=0003&act=view&list_no=94702",
   "id_format": "^(\\d+-\\d+|ref-\\d+)$",
   "section_count": 41,
   "chapters": [

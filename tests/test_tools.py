@@ -4636,16 +4636,17 @@ def test_attach_std_footer_unit_boundary():
     """헬퍼 단위: 부착·경계 16,000 부착·16,001 무변경 생략(whole-or-omit)."""
     import json as _json
     from korean_rnd_regs_mcp.main import _attach_std_footer, _STD_FOOTER_RESPONSE_MAX
-    from korean_rnd_regs_mcp.manual import FOOTER_LAW_LINE
+    from korean_rnd_regs_mcp.manual import FOOTER_LAW_LINE, FOOTER_MANUAL_SOURCE_LINE
+    provision_footer = FOOTER_LAW_LINE + "\n" + FOOTER_MANUAL_SOURCE_LINE
 
     small = {"content": "짧은 응답"}
     out = _attach_std_footer(small)
-    assert out["standard_footer"] == FOOTER_LAW_LINE
+    assert out["standard_footer"] == provision_footer
     assert small == {"content": "짧은 응답"}  # 원본 무변경(사본 반환)
 
     # 정확히 16,000 → 부착 / 16,001 → 원본 그대로(footer 부재)
     def candidate_len(n):
-        c = {"x": "a" * n, "standard_footer": FOOTER_LAW_LINE}
+        c = {"x": "a" * n, "standard_footer": provision_footer}
         return len(_json.dumps(c, ensure_ascii=False))
     lo, hi = 1, 20000
     while lo < hi:  # candidate_len == 16,000이 되는 n 탐색(단조 증가)
@@ -4657,7 +4658,7 @@ def test_attach_std_footer_unit_boundary():
     n_exact = lo
     assert candidate_len(n_exact) == _STD_FOOTER_RESPONSE_MAX
     at_boundary = _attach_std_footer({"x": "a" * n_exact})
-    assert at_boundary.get("standard_footer") == FOOTER_LAW_LINE
+    assert at_boundary.get("standard_footer") == provision_footer
     over = {"x": "a" * (n_exact + 1)}
     out_over = _attach_std_footer(over)
     assert "standard_footer" not in out_over
@@ -4665,8 +4666,9 @@ def test_attach_std_footer_unit_boundary():
 
 
 def test_std_footer_on_success_paths_v0290(mock_client):
-    """통합: 문서레벨·JO·BP(별표) 성공 응답 3경로 전부 footer 부착 + 문면 = FOOTER_LAW_LINE 단일 출처."""
-    from korean_rnd_regs_mcp.manual import FOOTER_LAW_LINE, build_standard_footer
+    """통합: 문서레벨·JO·BP(별표) 성공 응답 3경로 전부 footer 부착 + 문면 = 상수 2종 단일 출처(v0.30.0 2줄)."""
+    from korean_rnd_regs_mcp.manual import FOOTER_LAW_LINE, FOOTER_MANUAL_SOURCE_LINE, build_standard_footer
+    provision_footer = FOOTER_LAW_LINE + "\n" + FOOTER_MANUAL_SOURCE_LINE
     doc = asyncio.run(get_provision_detail("law:283849"))
     jo = asyncio.run(get_provision_detail("law:283849:JO0015"))
     base = mock_client.get_law_detail.return_value
@@ -4677,12 +4679,12 @@ def test_std_footer_on_success_paths_v0290(mock_client):
         "annex_parse_error": None,
     }
     bp = asyncio.run(get_provision_detail("law:285767:BP0001"))
-    assert doc["standard_footer"] == FOOTER_LAW_LINE
-    assert jo["standard_footer"] == FOOTER_LAW_LINE
-    assert bp["standard_footer"] == FOOTER_LAW_LINE  # 별표 경로(적대검토 지적 — BP 명시 잠금)
+    assert doc["standard_footer"] == provision_footer
+    assert jo["standard_footer"] == provision_footer
+    assert bp["standard_footer"] == provision_footer  # 별표 경로(적대검토 지적 — BP 명시 잠금)
     assert bp["content_format"] == "plain_text_verbatim"  # 기존 tier 무회귀
-    # 매뉴얼 3줄 footer의 첫 줄과 동일 문자열(문면 단일 출처 — 호스트 dedup 자연 성립)
-    assert build_standard_footer("x", True).split("\n")[0] == FOOTER_LAW_LINE
+    # 매뉴얼 footer의 처음 두 줄과 동일 문자열(문면 단일 출처 — 호스트 dedup 자연 성립)
+    assert "\n".join(build_standard_footer("x", True).split("\n")[:2]) == provision_footer
 
 
 def test_std_footer_absent_on_error_paths_v0290(mock_client):

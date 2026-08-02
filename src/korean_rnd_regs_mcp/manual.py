@@ -125,6 +125,12 @@ def _reset_cache_for_tests() -> None:
 FOOTER_LAW_LINE = (
     "※ 정확한 최종 확인은 국가법령정보센터(law.go.kr)의 법령·행정규칙 원문을 기준으로 해주시기 바랍니다."
 )
+# v0.30.0: 매뉴얼 원문 안내(Andy 확정 문안) — 게시물 URL·판번을 넣지 않는 홈페이지 안내형이라
+# 판 개정·게시물 이동에도 문면이 유효(링크 로트·구판 오인 없음). 전 footer 경로 공통 2번째 줄.
+FOOTER_MANUAL_SOURCE_LINE = (
+    "※ 「국가연구개발혁신법 매뉴얼」 등 연구행정 관련 매뉴얼 원문은 "
+    "KISTEP 홈페이지(www.kistep.re.kr)에서 확인하시기 바랍니다."
+)
 FOOTER_MANUAL_LINE = (
     "※ 매뉴얼 해설 부분은 「국가연구개발혁신법 매뉴얼」을 참고한 설명입니다. "
     "매뉴얼은 법령·행정규칙이 아니며, 내용이 다를 때는 법령·행정규칙 원문이 우선합니다."
@@ -132,14 +138,16 @@ FOOTER_MANUAL_LINE = (
 
 
 def build_standard_footer(notice: str, manual_content_included: bool) -> str:
-    """답변 하단 표준 안내 완성형 블록 (v0.28.0).
+    """답변 하단 표준 안내 완성형 블록 (v0.28.0·v0.30.0 매뉴얼 원문 안내 줄 추가).
 
     manual_content_included = 이 응답이 매뉴얼 해설 텍스트를 실제로 실어 보냈는가
-    (검색 매치 발췌 존재 / 상세 content_available). 참이면 3줄, 거짓이면(검색 0건·본문 미수록
-    포인터) 법령 확인 1줄만 — 매뉴얼을 전달하지 않은 응답에 매뉴얼 인용 면책을 붙이면 근거
-    출처를 사실과 다르게 고지하게 되므로 서버가 아는 범위에서 결정론으로 차단한다(검증 /disc).
+    (검색 매치 발췌 존재 / 상세 content_available). 참이면 매뉴얼 인용 고지·판번 notice까지
+    포함하고, 거짓이면(검색 0건·본문 미수록 포인터) 법령 확인·매뉴얼 원문 안내 두 줄만 —
+    매뉴얼을 전달하지 않은 응답에 매뉴얼 인용 면책을 붙이면 근거 출처를 사실과 다르게
+    고지하게 되므로 서버가 아는 범위에서 결정론으로 차단한다(검증 /disc).
+    처음 두 줄은 규정 상세(_attach_std_footer)와 동일 문자열 — 호스트 dedup 자연 성립.
     """
-    lines = [FOOTER_LAW_LINE]
+    lines = [FOOTER_LAW_LINE, FOOTER_MANUAL_SOURCE_LINE]
     if manual_content_included:
         lines.append(FOOTER_MANUAL_LINE)
         lines.append(f"※ {notice}")
@@ -162,6 +170,9 @@ def manual_meta_block(meta: dict, manual_content_included: bool = False) -> dict
     else:
         notice = "인용 매뉴얼: 판번·기준일 확인 불가"
     basis_phrase = f"법령 시행일 {basis} 기준으로 작성되어" if basis else "특정 시점 기준으로 작성되어"
+    # v0.30.0: 임베드 판의 정확한 출처(게시물 URL) — 기계 가독 출처 귀속. footer 문면(홈페이지
+    # 안내형)과 분리되며, 구데이터(키 부재)에서는 필드 자체를 생략(fail-safe).
+    source_url = meta.get("source_url") or None
     return {
         "source_type": meta.get("source_type", "manual_explanation"),
         "legal_effect": meta.get("legal_effect", "not_binding"),
@@ -170,6 +181,7 @@ def manual_meta_block(meta: dict, manual_content_included: bool = False) -> dict
         "manual_basis_date": basis or None,
         "basis_note": meta.get("basis_note"),
         "basis_laws": meta.get("basis_laws", []),
+        **({"source_url": source_url} if source_url else {}),
         "law_priority_note": (
             "본 내용은 「국가연구개발혁신법 매뉴얼」의 해설이며 법령·행정규칙이 아닙니다. "
             "조문 원문 확인은 search_provision·get_provision_detail을 사용하고, "
@@ -182,9 +194,9 @@ def manual_meta_block(meta: dict, manual_content_included: bool = False) -> dict
         "standard_footer_note": (
             "위 standard_footer는 답변 마지막에 그대로(요약·윤문 없이) 1회 표시할 완성형 안내입니다. "
             "한 답변에서 매뉴얼 응답을 여러 개 받았다면 값이 서로 다를 수 있으니, 최종 답변에 매뉴얼 "
-            "내용을 인용했다면 3줄짜리 값을(어느 응답에서 받았든) 표시하고, 어느 매뉴얼 내용도 "
-            "인용하지 않았다면 규정 조회(get_provision_detail) 응답의 1줄짜리 값을(없으면 이 블록의 "
-            "첫 줄만) 표시하십시오. 같은 취지의 안내를 따로 만들어 중복 부착하지 마십시오."
+            "내용을 인용했다면 매뉴얼 인용 고지가 포함된 값을(어느 응답에서 받았든) 표시하고, 어느 매뉴얼 "
+            "내용도 인용하지 않았다면 규정 조회(get_provision_detail) 응답의 값을(없으면 이 블록의 "
+            "처음 두 줄만) 표시하십시오. 같은 취지의 안내를 따로 만들어 중복 부착하지 마십시오."
         ),
     }
 
