@@ -2,7 +2,7 @@
 
 - 실행일: 2026-08-02 · PyMuPDF 1.27.1
 - PDF: `91-1 - 국가연구개발혁신법 매뉴얼(26.7) - 본권.pdf` · 343쪽 · sha256 `1b2a5089ab5f1cd168c7…`
-- JSON: `/Users/andykim/.claude/jobs/7c699d8d/tmp/manual_body_267_final.json` · sha256 `75304359508d1d185eeb…`
+- JSON: `src/korean_rnd_regs_mcp/manual_body.json` · sha256 `75304359508d1d185eeb…`
 - 목차 검증: PASS (장 5·절 40·참고 3·부록 시작 없음(별도 PDF 분리)) · 오프셋 +10 균일(마커 316쪽)
 - 절 43개 · 총 388,172자 · 러닝헤더/푸터 제거 632줄
 
