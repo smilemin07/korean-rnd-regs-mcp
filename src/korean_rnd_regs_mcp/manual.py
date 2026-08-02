@@ -24,7 +24,7 @@ MANUAL_DETAIL_CHAR_BUDGET = 16000
 MANUAL_DETAIL_HEADROOM = 300
 MANUAL_CHUNK_CONTENT_BUDGET = 12000
 
-SECTION_ID_RE = re.compile(r"^(\d+-\d+|ref-\d+)$")
+SECTION_ID_RE = re.compile(r"^(?:\d+-\d+|ref-\d+|b3-(?:\d+-\d+|ref-\d+))$")
 
 _DATA_PATH = Path(__file__).parent / "manual_body.json"
 
@@ -49,6 +49,12 @@ class ManualData:
 
 _LOCK = threading.Lock()
 _CACHE: ManualData | ManualLoadError | None = None
+
+# 별권 3 「국가연구개발사업 제재처분 가이드라인」 — 본권과 독립된 파일·캐시·오류
+# (R2-P0 동결 D4: 별권 결함이 본권 서빙에 전파되지 않도록 작은 병렬 경로로 복제·본권 로더 무변).
+_B3_DATA_PATH = Path(__file__).parent / "manual_b3.json"
+_B3_LOCK = threading.Lock()
+_B3_CACHE: ManualData | ManualLoadError | None = None
 
 
 def mdot_normalize(s: str) -> str:
@@ -113,11 +119,86 @@ def _load_uncached() -> ManualData | ManualLoadError:
     return data
 
 
+def load_manual_b3() -> ManualData | ManualLoadError:
+    """manual_b3.json lazy 싱글턴 로드 — 본권 load_manual과 동일 패턴의 독립 병렬 경로.
+
+    실패는 별권 조회·검색 병합에서만 격리 처리되고 본권·규정 도구에 영향을 주지 않는다(동결 D4·D5).
+    """
+    global _B3_CACHE
+    if _B3_CACHE is not None:
+        return _B3_CACHE
+    with _B3_LOCK:
+        if _B3_CACHE is not None:
+            return _B3_CACHE
+        _B3_CACHE = _load_b3_uncached()
+        return _B3_CACHE
+
+
+def _load_b3_uncached() -> ManualData | ManualLoadError:
+    """메시지는 별권 자신의 상태만 말한다 — 본권·규정 도구 상태 단정은 호출부(envelope)가
+    실제 확인 후 조립(P2 적대검토: 모두 불가 조합에서 허위 "정상" 단정 차단)."""
+    if not _B3_DATA_PATH.exists():
+        return ManualLoadError(
+            reason="file_missing",
+            message="별권 3 데이터 파일(manual_b3.json)이 패키지에 없습니다 — 패키징 누락 가능.",
+        )
+    try:
+        with open(_B3_DATA_PATH, encoding="utf-8") as f:
+            payload = json.load(f)
+    except (ValueError, OSError) as exc:
+        return ManualLoadError(
+            reason="json_parse_failed",
+            message=f"별권 3 데이터 파일 파싱 실패({type(exc).__name__}).",
+        )
+    if not isinstance(payload, dict):
+        return ManualLoadError(
+            reason="schema_invalid",
+            message="별권 3 데이터 스키마 이상(최상위가 객체 아님).",
+        )
+    meta = payload.get("meta")
+    sections = payload.get("sections")
+    if not isinstance(meta, dict) or not isinstance(sections, list) or not sections:
+        return ManualLoadError(
+            reason="schema_invalid",
+            message="별권 3 데이터 스키마 이상(meta/sections 부재).",
+        )
+    # 인덱스 구축 전체를 방어 — 구조가 어긋난 손상 파일(비객체 section·비리스트 pages 등)이
+    # 예외를 전파하면 병합 검색까지 죽어 "별권 결함 격리" 계약(D4)이 깨진다(P2 적대검토 MAJOR).
+    try:
+        data = ManualData(meta=meta, sections=sections)
+        for sec in sections:
+            if not isinstance(sec, dict):
+                raise TypeError(f"section 원소 타입 이상: {type(sec).__name__}")
+            sid = sec.get("id", "")
+            if not isinstance(sid, str) or not sid:
+                raise TypeError("section id 이상")
+            pages = sec.get("pages", [])
+            if not isinstance(pages, list):
+                raise TypeError("pages 타입 이상")
+            data.by_id[sid] = sec
+            full = "\n".join(p.get("text", "") for p in pages if isinstance(p, dict))
+            data.full_text[sid] = full
+            data.norm_body[sid] = mdot_normalize(full)
+            title_fields = " ".join(
+                [str(sec.get("section_title", "")), str(sec.get("chapter_title", "")), str(sec.get("section_label", ""))]
+                + [str(x) for x in sec.get("subsection_titles", []) if isinstance(x, str)]
+            )
+            data.norm_title[sid] = mdot_normalize(title_fields)
+    except Exception as exc:
+        return ManualLoadError(
+            reason="schema_invalid",
+            message=f"별권 3 데이터 구조 손상({type(exc).__name__}) — 인덱스 구축 실패.",
+        )
+    return data
+
+
 def _reset_cache_for_tests() -> None:
     """테스트 전용 — 캐시 초기화(운영 코드에서 호출 금지)."""
-    global _CACHE
+    global _CACHE, _B3_CACHE
     with _LOCK:
         _CACHE = None
+    with _B3_LOCK:
+        _B3_CACHE = None
 
 
 # 답변 하단 표준 안내 — 서버 프롬프트(instructions·review 템플릿)와 문면이 일치해야 하는
@@ -169,13 +250,23 @@ def manual_meta_block(
     """
     edition = meta.get("edition") or ""
     basis = meta.get("manual_basis_date") or ""
+    # 별권 계열(시리즈 필드 보유)은 자료명을 notice에 병기 — 혼합 답변에서 어느 자료의 판번인지 식별
+    series_title = meta.get("series_title") or ""
+    series_part = meta.get("series_part") or ""
+    src_title = _one_line(meta.get("source_title"))
+    subject = f"「{src_title}」({series_title} {series_part})" if (series_title and series_part and src_title) else None
     if edition and basis:
         notice = f"인용 매뉴얼: {edition}판 · 법령 시행일 {basis} 기준"
+    elif edition:
+        # v0.32.0(R2-P0 D7): 판번만 있고 기준일이 원문에 없는 자료(별권 3) — "확인 불가"로
+        # 뭉개지 않고 사실대로 표기. provenance 단서는 데이터 edition_note 보유 시에만.
+        head = f"인용 자료: {subject} " if subject else "인용 매뉴얼: "
+        provenance = "(판번은 게시 세트 기준)" if meta.get("edition_note") else ""
+        notice = f"{head}{edition}판{provenance} · 법령 기준일 원문 미표기"
     elif basis:
         notice = f"인용 매뉴얼: 법령 시행일 {basis} 기준"
     else:
         notice = "인용 매뉴얼: 판번·기준일 확인 불가"
-    basis_phrase = f"법령 시행일 {basis} 기준으로 작성되어" if basis else "특정 시점 기준으로 작성되어"
     # v0.30.0: 임베드 판의 정확한 출처(게시물 URL) — 기계 가독 출처 귀속. footer 문면(홈페이지
     # 안내형)과 분리되며, 구데이터(키 부재)·비문자열 값에서는 필드 자체를 생략(fail-safe).
     raw_source_url = meta.get("source_url")
@@ -205,13 +296,7 @@ def manual_meta_block(
         "basis_laws": meta.get("basis_laws", []),
         **({"source_url": source_url} if source_url else {}),
         **({"renumbering_note": renumbering_note} if renumbering_note else {}),
-        "law_priority_note": (
-            "본 내용은 「국가연구개발혁신법 매뉴얼」의 해설이며 법령·행정규칙이 아닙니다. "
-            "조문 원문 확인은 search_provision·get_provision_detail을 사용하고, "
-            "매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문이 우선합니다. "
-            f"매뉴얼은 {basis_phrase} 이후 법령 개정이 반영되지 않았을 수 있고, "
-            "매뉴얼 미수록·검색 0건이 규정의 부재를 뜻하지 않습니다."
-        ),
+        "law_priority_note": _law_priority_note(meta, subject, basis, edition),
         "notice": notice,
         "standard_footer": build_standard_footer(notice, manual_content_included),
         "standard_footer_note": (
@@ -222,6 +307,85 @@ def manual_meta_block(
             "처음 두 줄만) 표시하십시오. 같은 취지의 안내를 따로 만들어 중복 부착하지 마십시오."
         ),
     }
+
+
+def _law_priority_note(meta: dict, subject: str | None, basis: str, edition: str) -> str:
+    """규범성 안내 문면 조립 — 본권(basis 보유)은 기존 문면과 글자 단위 동일 유지(v0.28.0 잠금).
+
+    별권 3(basis 없음·시리즈 필드 보유): 자료명 병기 + 기준일 미표기 사실 문면 + 데이터
+    law_priority_extra(별표 6·7 교차확인·제5장 비일반화 — R2-P0 D8 동결 문장) append.
+    비정형 데이터는 폴백 문면으로 fail-safe(기존 else 분기 문면 유지).
+    """
+    label = subject if subject else "「국가연구개발혁신법 매뉴얼」"
+    if basis:
+        basis_sentence = f"매뉴얼은 법령 시행일 {basis} 기준으로 작성되어 이후 법령 개정이 반영되지 않았을 수 있고, "
+    elif edition and meta.get("basis_note"):
+        basis_sentence = "이 자료는 법령 기준일이 원문에 명시되어 있지 않아 이후 법령 개정 반영 여부를 알 수 없고, "
+    else:
+        basis_sentence = "매뉴얼은 특정 시점 기준으로 작성되어 이후 법령 개정이 반영되지 않았을 수 있고, "
+    note = (
+        f"본 내용은 {label}의 해설이며 법령·행정규칙이 아닙니다. "
+        "조문 원문 확인은 search_provision·get_provision_detail을 사용하고, "
+        "매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문이 우선합니다. "
+        + basis_sentence
+        + "매뉴얼 미수록·검색 0건이 규정의 부재를 뜻하지 않습니다."
+    )
+    extra = meta.get("law_priority_extra")
+    if isinstance(extra, list) and extra and all(isinstance(x, str) for x in extra):
+        note = note + " " + " ".join(extra)
+    return note
+
+
+def mixed_manual_meta_block(
+    meta_main: dict, meta_b3: dict, manual_content_included: bool = False
+) -> dict:
+    """본권+별권 매치가 한 검색 응답에 함께 반환될 때의 병기 완성형 meta 블록 (R2-P0 D7).
+
+    호스트에게 조립을 맡기지 않고 notice·standard_footer를 서버가 병기 완성형으로 제공한다.
+    구조는 본권 블록 기반(edition·basis_laws 등은 본권 값) + 별권 식별 정보 병기:
+    source_titles 2건·notice 병기(" / " 구분)·law_priority_note에 별권 확장 문장 append.
+    """
+    main_block = manual_meta_block(meta_main, manual_content_included)
+    b3_block = manual_meta_block(meta_b3, manual_content_included)
+    notice = f"{main_block['notice']} / {b3_block['notice']}"
+    # 별권 기준일 부재를 law_priority_note에도 명시 — 구조 필드(manual_basis_date 등)가 본권
+    # 값이라 별권에 전이 오독될 수 있는 벡터 차단(P2 적대검토 MAJOR).
+    law_note = (
+        main_block["law_priority_note"]
+        + " 별권 3은 법령 기준일이 원문에 명시되어 있지 않아 이후 법령 개정 반영 여부를 알 수 없습니다."
+    )
+    extra = meta_b3.get("law_priority_extra")
+    if isinstance(extra, list) and extra and all(isinstance(x, str) for x in extra):
+        law_note = law_note + " " + " ".join(extra)
+    out = dict(main_block)
+    out.update({
+        "source_titles": [main_block.get("source_title"), b3_block.get("source_title")],
+        # 소스별 구조화 provenance — 단일 필드(edition·manual_basis_date·source_url 등)는 본권
+        # 기준임을 기계 가독으로 보완(호스트가 구조 필드만 읽고 별권에 본권 기준일을 적용하는 오독 차단)
+        "sources": {
+            "main": {
+                "source_title": main_block.get("source_title"),
+                "edition": main_block.get("edition"),
+                "manual_basis_date": main_block.get("manual_basis_date"),
+                **({"source_url": main_block["source_url"]} if main_block.get("source_url") else {}),
+            },
+            "b3": {
+                "source_title": b3_block.get("source_title"),
+                "edition": b3_block.get("edition"),
+                "manual_basis_date": b3_block.get("manual_basis_date"),
+                **({"source_url": b3_block["source_url"]} if b3_block.get("source_url") else {}),
+            },
+        },
+        "provenance_note": (
+            "이 블록의 단일 값 필드(edition·manual_basis_date·basis_note·basis_laws·source_url)는 "
+            "본권 기준입니다. 별권 3의 판번·기준일은 sources.b3와 notice를 따르십시오"
+            "(별권 3은 법령 기준일 원문 미표기)."
+        ),
+        "notice": notice,
+        "law_priority_note": law_note,
+        "standard_footer": build_standard_footer(notice, manual_content_included),
+    })
+    return out
 
 
 def _one_line(value: object) -> str:
@@ -288,6 +452,14 @@ MANUAL_FORMAT_NOTE = (
     "본 content는 「국가연구개발혁신법 매뉴얼」 본권 PDF에서 추출한 해설 텍스트 그대로입니다"
     "(법령 원문 아님·법적 효력 없음). 표 포함 페이지는 PDF 추출 특성상 셀 텍스트 순서·제목 위치가 "
     "원본 배치와 다를 수 있으므로, 수치·조건을 인용할 때는 표기된 인쇄쪽으로 원문 대조를 권장합니다."
+)
+
+# 별권 3 전용 format note — 본권 문면의 "본권 PDF" 하드코딩을 소스별로 분리(R2-P0 D7·P1 검토).
+MANUAL_FORMAT_NOTE_B3 = (
+    "본 content는 「국가연구개발사업 제재처분 가이드라인」(국가연구개발혁신법 매뉴얼 별권 3) PDF에서 "
+    "추출한 해설 텍스트 그대로입니다(법령 원문 아님·법적 효력 없음). 표 포함 페이지는 PDF 추출 특성상 "
+    "셀 텍스트 순서·제목 위치가 원본 배치와 다를 수 있으므로, 수치·조건을 인용할 때는 표기된 인쇄쪽으로 "
+    "원문 대조를 권장합니다."
 )
 
 

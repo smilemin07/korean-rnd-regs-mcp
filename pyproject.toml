@@ -74,6 +74,8 @@ packages = ["src/korean_rnd_regs_mcp"]
 "src/korean_rnd_regs_mcp/rule_sets.yaml" = "korean_rnd_regs_mcp/rule_sets.yaml"
 # v0.27.0(R1-P2): 매뉴얼 절 단위 데이터 — 누락 시 매뉴얼 도구 2종만 manual_unavailable(기존 도구 무영향)
 "src/korean_rnd_regs_mcp/manual_body.json" = "korean_rnd_regs_mcp/manual_body.json"
+# v0.32.0(R2-P2): 별권 3 제재처분 가이드라인 — 누락 시 별권 조회만 manual_b3_unavailable(본권·규정 무영향)
+"src/korean_rnd_regs_mcp/manual_b3.json" = "korean_rnd_regs_mcp/manual_b3.json"
 
 [tool.hatch.build.targets.sdist]
 # sdist에서 개발 전용 노트는 제외 — README/CHANGELOG/SECURITY/LICENSE만 PyPI 노출.

@@ -2,7 +2,7 @@
 
 - 실행일: 2026-08-03 · PyMuPDF 1.27.1
 - PDF: `91-1-3 - 국가연구개발혁신법 매뉴얼(26.7) - 별권 3 - 제재처분 가이드라인.pdf` · 100쪽 · sha256 `30c1cac2ef31c639c512…`
-- JSON: `src/korean_rnd_regs_mcp/manual_b3.json` · sha256 `0aac357e6fee8d04323e…`
+- JSON: `src/korean_rnd_regs_mcp/manual_b3.json` · sha256 `80981e33de472ae3b319…`
 - 목차 검증: PASS (장 5·절 22·부록 1·검색 제목군 46) · 오프셋 +10 균일(마커 89쪽)
 - 단위 23개 · 총 87,844자 · 러닝헤더/푸터 제거 178줄
 

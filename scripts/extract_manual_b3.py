@@ -60,6 +60,11 @@ BASIS_NOTE = (
     "별권 3 원문에는 본권과 달리 법령 기준일이 명시되어 있지 않습니다. "
     "본권의 기준일(2026-06)을 별권에 준용하지 않았습니다."
 )
+# 규범성 확장 문장 (R2-P0 D8 동결 문면 — law_priority_note 말미에 append·데이터 단일 출처)
+LAW_PRIORITY_EXTRA = [
+    "참여제한 기간·제재부가금 비율 등 구체값을 인용할 때는 get_provision_detail로 시행령 별표 6·별표 7 원문을 교차 확인하십시오.",
+    "이 가이드라인 중 제5장의 쟁점·검토결과는 개별 사안별 검토 결과 모음이므로, 사실관계가 다른 유사 사안에 그대로 일반화할 수 없습니다.",
+]
 
 # ── EXPECTED 스냅샷 (fail-closed 정본 — 별권3 26.7판 인쇄 목차 실측 2026-08-02) ──
 EXPECTED_PAGE_OFFSET = 10  # PDF쪽 = 인쇄쪽 + 10
@@ -606,6 +611,7 @@ def main() -> int:
         "manual_basis_date": None,
         "basis_note": BASIS_NOTE,
         "basis_laws": [],
+        "law_priority_extra": LAW_PRIORITY_EXTRA,
         "source_type": "manual_explanation",
         "legal_effect": "not_binding",
         "pdf_sha256": pdf_sha,

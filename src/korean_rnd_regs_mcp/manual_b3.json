@@ -9,6 +9,10 @@
   "manual_basis_date": null,
   "basis_note": "별권 3 원문에는 본권과 달리 법령 기준일이 명시되어 있지 않습니다. 본권의 기준일(2026-06)을 별권에 준용하지 않았습니다.",
   "basis_laws": [],
+  "law_priority_extra": [
+   "참여제한 기간·제재부가금 비율 등 구체값을 인용할 때는 get_provision_detail로 시행령 별표 6·별표 7 원문을 교차 확인하십시오.",
+   "이 가이드라인 중 제5장의 쟁점·검토결과는 개별 사안별 검토 결과 모음이므로, 사실관계가 다른 유사 사안에 그대로 일반화할 수 없습니다."
+  ],
   "source_type": "manual_explanation",
   "legal_effect": "not_binding",
   "pdf_sha256": "30c1cac2ef31c639c512168f33a45a91b8aaa395937bc81e74ed0de8aa10134a",

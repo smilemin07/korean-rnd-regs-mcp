@@ -26,12 +26,15 @@ from .manual import (
     MANUAL_DETAIL_CHAR_BUDGET,
     MANUAL_DETAIL_HEADROOM,
     MANUAL_FORMAT_NOTE,
+    MANUAL_FORMAT_NOTE_B3,
     ManualLoadError,
     SECTION_ID_RE,
     build_citation,
     build_section_chunks,
     find_excerpts,
     load_manual,
+    load_manual_b3,
+    mixed_manual_meta_block,
     manual_meta_block,
     mdot_normalize,
 )
@@ -150,8 +153,9 @@ _SERVER_INSTRUCTIONS = (
     "rows가 생략(rows_omitted)되면 document_source_url의 공식 원문에서 대비표를 확인하도록 안내하십시오. "
     "MCP에 등록되었거나 list_rule_sets·search_provision으로 검색·조회된 규정을 외부 검색에서 찾지 못했다는 이유만으로 "
     "존재하지 않는다고 단정하지 말고 get_provision_detail 결과와 응답이 제공한 공식 URL로 확인하십시오. "
-    "본 서버는 규정 원문 도구 외에 「국가연구개발혁신법 매뉴얼」(본권) 해설 조회 도구 search_manual·get_manual_section을 제공합니다. "
-    "혁신법령 관련 실무 해설·세부 절차·Q&A·사례 설명이 필요하면 search_manual로 절을 찾고 get_manual_section으로 본문을 확인하십시오. "
+    "본 서버는 규정 원문 도구 외에 「국가연구개발혁신법 매뉴얼」(본권 및 별권 3 「국가연구개발사업 제재처분 가이드라인」) 해설 조회 도구 search_manual·get_manual_section을 제공합니다. "
+    "혁신법령 관련 실무 해설·세부 절차·Q&A·사례 설명이 필요하면 search_manual로 절을 찾고 get_manual_section으로 본문을 확인하십시오"
+    "(검색은 본권·별권 3을 함께 훑으며 매치의 source·citation으로 어느 자료인지 구분됩니다. 제재처분 기간·비율 등 구체값은 시행령 별표 6·별표 7 원문을 get_provision_detail로 교차 확인). "
     "다만 매뉴얼은 해설 자료이며 법령·행정규칙이 아니므로, 의무·기한·금액·비율·제재 등 규범적 결론을 "
     "매뉴얼만을 근거로 단정하지 말고 본 서버의 규정 도구(search_provision·get_provision_detail)로 법령·행정규칙 조문을 교차 확인하며, "
     "매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문이 우선합니다. "
@@ -2631,8 +2635,8 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
 - Tier 2 (공통 행정규칙): 연구개발비 사용 기준·동시수행 제한·시설장비 표준지침·연구노트 지침·혁신도전형 연구개발사업군 지정 및 분류 기준 고시·국가연구개발정보처리기준·국가연구개발사업 보안대책·과학기술정보통신부 소관 과학기술분야 연구개발사업 처리규정·정보통신·방송 연구개발 관리규정·정보통신·방송 연구윤리 진실성 확보 등에 관한 규정·연구윤리 확보를 위한 지침(교육부)
 - Tier 2 (사업 운영규정·요령): 국토교통부소관 연구개발사업 운영규정, (국토교통부) 자율주행기술개발혁신사업 운영관리규정, 산업기술혁신사업 공통 운영요령, 산업기술혁신사업 보안관리요령, 산업기술혁신사업 기술개발 평가관리지침, 중소기업기술개발 지원사업 운영요령, 기술료 징수 및 관리에 관한 통합요령(산업부), 중소기업기술개발 지원사업 기술료 관리규정(중기부), 보건의료기술 연구개발사업 운영·관리규정(보건복지부), 국방기술 연구개발 업무처리지침(방위사업청), 국방과학 기술료 산정ㆍ징수방법 및 징수절차 등에 관한 고시(방위사업청), 미래도전국방기술 연구개발 업무처리지침(방위사업청), 국방연구개발 시설·장비의 관리 등에 관한 규정(방위사업청), 무기체계 연구개발 표준협약서(방위사업청)
 - Tier 2 (Sector — 질병관리청 R&D 행정규칙): 질병관리청 연구개발 관리 규정, 전문기관 지정 고시, 시설·장비 관리 규정, 범부처 이어달리기 공통운영 지침(질병관리청 사본)
-- 해설 자료(별도 도구): 「국가연구개발혁신법 매뉴얼」(본권) 해설은 search_manual·get_manual_section으로 조회 가능 — 단 해설 자료이며 법령·행정규칙이 아니므로 근거 조항을 대체할 수 없음.
-- 미커버: 기관 내부 기준, 기타 부처별 매뉴얼·가이드, 혁신법 매뉴얼 별권 4종(학생인건비·기술료·제재처분·연구시설장비)
+- 해설 자료(별도 도구): 「국가연구개발혁신법 매뉴얼」(본권·별권 3 제재처분 가이드라인) 해설은 search_manual·get_manual_section으로 조회 가능 — 단 해설 자료이며 법령·행정규칙이 아니므로 근거 조항을 대체할 수 없음.
+- 미커버: 기관 내부 기준, 기타 부처별 매뉴얼·가이드, 혁신법 매뉴얼 별권 중 3종(학생인건비·기술료·연구시설장비 — 별권 3 제재처분 가이드라인은 v0.32.0부터 수록)
 - 미커버 자료가 결론에 필요하면 단정하지 말고 "추가 확인 필요"로 표시할 것.
 - 일반법 vs 특별법 적용 우선순위는 사안의 특성에 따라 판단할 것.
 
@@ -2681,7 +2685,7 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
    - 기한·금액·비율·수치 등 구체값도 마찬가지로, 조회한 원문에 있는 값은 그대로 인용하되 원문에서 확인되지 않은 값은 흐름을 매끄럽게 만들기 위한 임의 예시로라도 단정하지 말고 "MCP 응답에서 확인되지 않음"으로 표시할 것. 감면율·요율·기한처럼 조건에 따라 값이 나뉘는 구체값을 표·목록이나 한 문장으로 압축할 때는 각 조건과 값의 대응을 원문과 같게 유지하고, 괄호·단서 등 한정어가 원문에서 어느 조건 또는 값에 귀속되는지 확인해 배치하며, 대응이 불확실하면 원문 구조대로 나눠 표시할 것.
    - 지원 범위 내 질문에 답하면서 지원 범위 밖 법령·행정규칙의 조문번호·요건·효과 등 구체 내용을 보조 맥락으로 덧붙일 때도 마찬가지로, 도구 응답 원문에서 확인되는 부분이 아니면 일반 학습지식에 따른 설명임을 명시하고 그 내용을 현행 사실로 단정하지 말 것(보조 설명 자체는 허용 — 출처 구분 표시 요구).
    - 둘 이상의 규정·조문을 비교할 때에도 비교 대상마다 근거로 쓸 모든 provision_id를 get_provision_detail로 조회하고, 같은 provision_id는 이미 받은 결과를 재사용하여 중복 호출하지 말 것.
-   - (선택) 실무 해설·세부 절차·Q&A가 유용한 경우 search_manual·get_manual_section으로 「국가연구개발혁신법 매뉴얼」(본권) 해설을 참조할 것. 단 매뉴얼은 해설 자료이며 법령·행정규칙이 아니므로 4절 근거 조항은 법령·행정규칙만으로 구성하고, 매뉴얼 내용은 3절 핵심 답변·7절 권고 조치의 보조 설명으로만 매뉴얼 해설임을 구분 표기하고 출처는 응답의 citation 값을 그대로 적을 것. 매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문 우선.
+   - (선택) 실무 해설·세부 절차·Q&A가 유용한 경우 search_manual·get_manual_section으로 「국가연구개발혁신법 매뉴얼」(본권·별권 3 제재처분 가이드라인) 해설을 참조할 것. 단 매뉴얼은 해설 자료이며 법령·행정규칙이 아니므로 4절 근거 조항은 법령·행정규칙만으로 구성하고, 매뉴얼 내용은 3절 핵심 답변·7절 권고 조치의 보조 설명으로만 매뉴얼 해설임을 구분 표기하고 출처는 응답의 citation 값을 그대로 적을 것. 매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문 우선.
 
 5. 참조 조항 추적
    - 조문이 "제X조에 따라", "시행령 제X조", "별표", "고시로 정하는" 등을 참조하면 해당 조항도 조회할 것.
@@ -2781,19 +2785,48 @@ def _manual_unavailable_envelope(err: ManualLoadError) -> dict:
     }
 
 
+def _manual_b3_unavailable_envelope(err: ManualLoadError, main_ok: bool | None = None) -> dict:
+    """별권 3 데이터 로드 실패 envelope (v0.32.0·R2-P0 D6).
+
+    타 소스 상태는 실제 확인된 경우에만 말한다(P2 적대검토: 미확인 "정상" 단정 금지) —
+    main_ok=True일 때만 본권 정상 문구 포함. 호스트 행동 지침: 별권 3 조회만 불가하므로
+    재시도를 반복하지 말고, 제재처분 근거는 규정 트랙(시행령 별표 6·7)·KISTEP 원문 안내.
+    """
+    main_clause = "본권 매뉴얼 검색·조회와 규정 도구는 정상입니다. " if main_ok else "규정 도구는 정상입니다. "
+    return {
+        "errors": [{
+            "code": "manual_b3_unavailable",
+            "message": (
+                f"{err.message} (reason: {err.reason}) — 별권 3(제재처분 가이드라인) 데이터 조회 불가. "
+                + main_clause +
+                "제재처분 근거가 필요하면 "
+                "규정 트랙(get_provision_detail·시행령 별표 6·별표 7)을 사용하고, 가이드라인 원문은 "
+                "KISTEP 홈페이지(www.kistep.re.kr)에서 확인하도록 안내하십시오."
+            ),
+        }],
+        "manual_meta_available": False,
+        "contract_version": CONTRACT_VERSION,
+        "disclaimer": _DISCLAIMER,
+    }
+
+
 @mcp.tool()
 async def search_manual(query: str) -> dict:
-    """사용 시점: 「국가연구개발혁신법 매뉴얼(본권, 범부처 공통 해설서)」에서 혁신법령의 실무 해설·세부 절차·Q&A·사례를 찾을 때 호출하십시오. 이 도구는 법령·행정규칙 조문 원문 검색이 아닙니다 — 조문 원문·현행 여부 확인은 search_provision·get_provision_detail을 사용하고, 매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문이 우선합니다.
+    """사용 시점: 「국가연구개발혁신법 매뉴얼」 본권(범부처 공통 해설서)과 별권 3 「국가연구개발사업 제재처분 가이드라인」에서 혁신법령의 실무 해설·세부 절차·Q&A·사례·제재처분 절차와 기준 해설을 찾을 때 호출하십시오. 이 도구는 법령·행정규칙 조문 원문 검색이 아닙니다 — 조문 원문·현행 여부 확인은 search_provision·get_provision_detail을 사용하고, 매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문이 우선합니다.
 
-    매뉴얼 본문(43개 절·인쇄 1~332쪽·부록 제외)을 절 단위로 검색합니다. 매칭은 search_provision과
-    동일한 토큰 AND(공백 분해·2자 이상 토큰 2개 이상이면 모든 토큰 존재 시 매칭, 그 외 리터럴)이며,
-    가운뎃점 표기차(ㆍ·･·)는 매칭에서 흡수합니다(발췌는 원문 그대로).
+    본권(43개 절·인쇄 1~332쪽·부록 제외)과 별권 3(23개 단위·인쇄 1~89쪽)을 함께 절 단위로
+    검색합니다. 매칭은 search_provision과 동일한 토큰 AND(공백 분해·2자 이상 토큰 2개 이상이면
+    모든 토큰 존재 시 매칭, 그 외 리터럴)이며, 가운뎃점 표기차(ㆍ·･·)는 매칭에서 흡수합니다
+    (발췌는 원문 그대로). 정렬은 제목 매치 우선·같은 단계에서는 본권 우선입니다.
 
-    응답: matches[](절 메타·인쇄쪽 범위·매치 발췌[매치 줄 ±1줄·인쇄쪽 앵커]·matched_in·
-    citation[출처 표기용 완성형 인용 문자열 — 그대로 옮겨 적으십시오]) +
-    manual_meta(규범성 — 해설 자료·법적 효력 없음·법령 우선·판번·기준일). 절 본문 전문은
-    get_manual_section(section_id)으로 조회하십시오. 검색 0건은 "매뉴얼 미수록"일 뿐 규정의
-    부재를 뜻하지 않습니다 — 법령·행정규칙은 기존 규정 도구로 별도 확인하십시오.
+    응답: matches[](source["main"=본권|"b3"=별권 3]·절 메타·인쇄쪽 범위·매치 발췌[매치 줄
+    ±1줄·인쇄쪽 앵커]·matched_in·citation[출처 표기용 완성형 인용 문자열 — 그대로 옮겨
+    적으십시오]) + 소스별 계수(total_matched_by_source·returned_by_source·searched_sources) +
+    manual_meta(규범성 — 해설 자료·법적 효력 없음·법령 우선·판번·기준일. 본권·별권 혼합 반환
+    시 병기 완성형). 한쪽 소스만 로드 실패하면 나머지로 검색하고 unavailable_sources·
+    source_warnings로 알립니다(전체 실패 아님). 절 본문 전문은 get_manual_section(section_id)으로
+    조회하십시오. 검색 0건은 "매뉴얼 미수록"일 뿐 규정의 부재를 뜻하지 않습니다 —
+    법령·행정규칙은 기존 규정 도구로 별도 확인하십시오.
     """
     query = (query or "").strip()
     if len(query) < 2:
@@ -2818,9 +2851,52 @@ async def search_manual(query: str) -> dict:
             "contract_version": CONTRACT_VERSION,
             "disclaimer": _DISCLAIMER,
         }
-    data = load_manual()
-    if isinstance(data, ManualLoadError):
-        return _manual_unavailable_envelope(data)
+    # v0.32.0(R2-P0 D5): 본권+별권3 병합 검색 — 로더 장애 4조합 envelope.
+    # 별권 결함은 source_warnings로 격리(errors에 넣으면 호스트가 전체 실패로 오독).
+    data_main = load_manual()
+    data_b3 = load_manual_b3()
+    main_ok = not isinstance(data_main, ManualLoadError)
+    b3_ok = not isinstance(data_b3, ManualLoadError)
+    if not main_ok and not b3_ok:
+        # 모두 불가 전용 문면 — 각 오류가 자기 소스만 말하게 조립(P2 적대검토: 허위 "정상" 차단)
+        return {
+            "errors": [
+                {"code": "manual_unavailable",
+                 "message": f"{data_main.message} (reason: {data_main.reason})"},
+                {"code": "manual_b3_unavailable",
+                 "message": (
+                     f"{data_b3.message} (reason: {data_b3.reason}) — 본권·별권 3 매뉴얼 데이터가 모두 "
+                     "로드 불가합니다. 규정 도구(search_provision·get_provision_detail 등)는 정상이며, "
+                     "매뉴얼 원문은 KISTEP 홈페이지(www.kistep.re.kr)에서 확인하도록 안내하십시오."
+                 )},
+            ],
+            "manual_meta_available": False,
+            "contract_version": CONTRACT_VERSION,
+            "disclaimer": _DISCLAIMER,
+        }
+
+    # (source_rank, source_id, ManualData) — 정렬 키 (tier, source_rank, local_index):
+    # 별권 무매치 질의에서 기존 본권 matches[] 내용·순서 불변·같은 tier 안에서 본권 우선.
+    pools: list[tuple[int, str, object]] = []
+    if main_ok:
+        pools.append((0, "main", data_main))
+    if b3_ok:
+        pools.append((1, "b3", data_b3))
+    searched_sources = [p[1] for p in pools]
+    unavailable_sources = [s for s, ok in (("main", main_ok), ("b3", b3_ok)) if not ok]
+    source_warnings: list[dict] = []
+    if not main_ok:
+        source_warnings.append({
+            "source": "main",
+            "code": "manual_unavailable",
+            "message": f"{data_main.message} (reason: {data_main.reason}) — 본 응답은 별권 3만 검색한 부분 결과입니다.",
+        })
+    if not b3_ok:
+        source_warnings.append({
+            "source": "b3",
+            "code": "manual_b3_unavailable",
+            "message": f"{data_b3.message} (reason: {data_b3.reason}) — 본 응답은 본권만 검색한 부분 결과입니다.",
+        })
 
     # 토큰 규칙은 search_provision과 동일 — 매칭만 가운뎃점 정규화(발췌·응답 텍스트는 raw)
     _meaningful = [t for t in query.split() if len(t) >= 2]
@@ -2828,34 +2904,38 @@ async def search_manual(query: str) -> dict:
     norm_tokens = [mdot_normalize(t) for t in tokens]
 
     scored: list[tuple] = []
-    for sec in data.sections:
-        sid = sec["id"]
-        title_norm = data.norm_title[sid]
-        body_norm = data.norm_body[sid]
-        if not all((t in title_norm) or (t in body_norm) for t in norm_tokens):
-            continue
-        matched_in = sorted(
-            {("title" if any(t in title_norm for t in norm_tokens) else None),
-             ("body" if any(t in body_norm for t in norm_tokens) else None)} - {None}
-        )
-        # 3단 정렬: 전 토큰 제목 매치(0) > 일부 토큰 제목 매치(1) > 본문만 매치(2) — 각 단 내 문서 순서
-        if all(t in title_norm for t in norm_tokens):
-            tier = 0
-        elif "title" in matched_in:
-            tier = 1
-        else:
-            tier = 2
-        scored.append((tier, sec.get("section_index", 0), sec, matched_in))
-    scored.sort(key=lambda x: (x[0], x[1]))
+    total_by_source: dict[str, int] = {src: 0 for _r, src, _d in pools}
+    for source_rank, source_id, data in pools:
+        for sec in data.sections:
+            sid = sec["id"]
+            title_norm = data.norm_title[sid]
+            body_norm = data.norm_body[sid]
+            if not all((t in title_norm) or (t in body_norm) for t in norm_tokens):
+                continue
+            matched_in = sorted(
+                {("title" if any(t in title_norm for t in norm_tokens) else None),
+                 ("body" if any(t in body_norm for t in norm_tokens) else None)} - {None}
+            )
+            # 3단 정렬: 전 토큰 제목 매치(0) > 일부 토큰 제목 매치(1) > 본문만 매치(2) — 각 단 내 문서 순서
+            if all(t in title_norm for t in norm_tokens):
+                tier = 0
+            elif "title" in matched_in:
+                tier = 1
+            else:
+                tier = 2
+            total_by_source[source_id] += 1
+            scored.append((tier, source_rank, sec.get("section_index", 0), source_id, sec, matched_in, data))
+    scored.sort(key=lambda x: (x[0], x[1], x[2]))
 
     total_matched = len(scored)
     matches: list[dict] = []
-    for _, _, sec, matched_in in scored[:_MANUAL_SEARCH_MATCHES_MAX]:
+    for _tier, _rank, _idx, source_id, sec, matched_in, data in scored[:_MANUAL_SEARCH_MATCHES_MAX]:
         sid = sec["id"]
         serialized = json.dumps(data.full_text[sid], ensure_ascii=False)
         oversized = len(serialized) > MANUAL_DETAIL_CHAR_BUDGET - MANUAL_DETAIL_HEADROOM
         matches.append({
             "section_id": sid,
+            "source": source_id,
             "chapter_no": sec.get("chapter_no"),
             "chapter_title": sec.get("chapter_title"),
             "section_label": sec.get("section_label"),
@@ -2873,24 +2953,43 @@ async def search_manual(query: str) -> dict:
             "citation": build_citation(data.meta, sec),
         })
 
+    def _mixed_meta(current: list[dict], included: bool) -> dict:
+        """실제 반환된 소스 기준 manual_meta 조립(R2-P0 D7) — 예산 절단 후 재계산용."""
+        srcs = {m["source"] for m in current}
+        if srcs == {"b3"}:
+            return manual_meta_block(data_b3.meta, manual_content_included=included)
+        if "b3" in srcs and "main" in srcs:
+            return mixed_manual_meta_block(data_main.meta, data_b3.meta, manual_content_included=included)
+        # 본권 단독·0건: 본권 meta 기준(본권 불가·별권만 검색된 0건은 별권 meta)
+        if main_ok:
+            return manual_meta_block(data_main.meta, manual_content_included=included)
+        return manual_meta_block(data_b3.meta, manual_content_included=included)
+
+    scanned_total = sum(len(p[2].sections) for p in pools)
     truncated = total_matched > len(matches)
     response = {
         "query": query,
         "matches": matches,
         "returned": len(matches),
         "total_matched": total_matched,
+        "total_matched_by_source": total_by_source,
+        "returned_by_source": {src: sum(1 for m in matches if m["source"] == src) for _r, src, _d in pools},
+        "searched_sources": searched_sources,
         "truncated": truncated,
-        "scanned_sections": len(data.sections),
+        "scanned_sections": scanned_total,
         # 매치가 있으면 이 응답이 매뉴얼 해설 발췌를 실제로 전달한 것 — 매뉴얼 인용 고지 포함 footer.
         # 0건이면 전달한 매뉴얼 내용이 없으므로 법령·매뉴얼 원문 안내 두 줄만(허위 출처 고지 차단).
-        "manual_meta": manual_meta_block(data.meta, manual_content_included=bool(matches)),
+        "manual_meta": _mixed_meta(matches, bool(matches)),
         "contract_version": CONTRACT_VERSION,
         "disclaimer": _DISCLAIMER,
         "errors": [],
     }
+    if unavailable_sources:
+        response["unavailable_sources"] = unavailable_sources
+        response["source_warnings"] = source_warnings
     if not matches:
         response["note"] = (
-            f"매뉴얼 본문 {len(data.sections)}개 절 전체를 스캔했으나 매치가 없습니다 — "
+            f"매뉴얼 본문 {scanned_total}개 절 전체를 스캔했으나 매치가 없습니다 — "
             "매뉴얼 미수록이 규정의 부재를 뜻하지 않으므로, 법령·행정규칙 근거는 "
             "search_provision·suggest_review_sources로 별도 확인하십시오. "
             "(스캔은 줄 단위 텍스트 기준이며 이미지·도식 페이지는 검색되지 않습니다.)"
@@ -2900,17 +2999,28 @@ async def search_manual(query: str) -> dict:
         matches.pop()
         response["returned"] = len(matches)
         response["truncated"] = True
+        # 절단 후 실제 반환 소스 기준으로 소스별 계수·meta 재계산(D7 — 절단으로 소스 구성이 변할 수 있음)
+        response["returned_by_source"] = {src: sum(1 for m in matches if m["source"] == src) for _r, src, _d in pools}
+        response["manual_meta"] = _mixed_meta(matches, bool(matches))
     if not matches:
         # 예산 절단으로 매치가 모두 빠진 경우까지 하단 안내를 0건 형태로 되돌린다(전달 내용 = 0).
-        response["manual_meta"] = manual_meta_block(data.meta, manual_content_included=False)
+        response["manual_meta"] = _mixed_meta(matches, False)
+        if total_matched > 0:
+            response["note"] = (
+                "매치는 있었으나 응답 예산 초과로 전부 절단되었습니다(returned 0·truncated true) — "
+                "query를 더 구체적인 문구로 좁혀 재호출하십시오."
+            )
     return response
 
 
 @mcp.tool()
 async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
-    """사용 시점: search_manual로 찾은 「국가연구개발혁신법 매뉴얼(본권)」 절의 본문 전문이 필요할 때 호출하십시오. 이 도구는 해설 자료 조회이며 법령·행정규칙 원문 조회가 아닙니다 — 조문 원문은 get_provision_detail을 사용하고, 매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문이 우선합니다.
+    """사용 시점: search_manual로 찾은 「국가연구개발혁신법 매뉴얼」 본권 또는 별권 3 「국가연구개발사업 제재처분 가이드라인」 절의 본문 전문이 필요할 때 호출하십시오. 이 도구는 해설 자료 조회이며 법령·행정규칙 원문 조회가 아닙니다 — 조문 원문은 get_provision_detail을 사용하고, 매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문이 우선합니다.
 
-    section_id: 매뉴얼 절 id — "장-절"(예: "3-4"=제3장 제4절 학생인건비) 또는 "ref-N"(참고 자료).
+    section_id: 본권 절 id "장-절"(예: "3-4"=제3장 제4절 학생인건비)·"ref-N"(참고 자료) 또는
+    별권 3 id "b3-장-절"(예: "b3-4-2"=제4장 2. 제재처분사유별 가중･감경 세부기준)·"b3-ref-1"(부록).
+    별권 3의 제재처분 기간·비율 등 구체값 인용 시에는 시행령 별표 6·별표 7 원문(get_provision_detail)을
+    교차 확인하십시오.
     chunk: 대형 절 전용 — 응답이 content_format="oversized_pointer"면 본문 미수록이니
     chunk=1..chunk_count로 재호출하여 본문을 페이지 경계 분할 청크(추출 텍스트 그대로)로
     나눠 조회하십시오. 각 청크는 인쇄쪽 범위(chunk_pages)를 명시합니다.
@@ -2927,24 +3037,42 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
             "errors": [{
                 "code": "invalid_section_id",
                 "message": (
-                    f"section_id 형식 위반: {sid!r} — 허용 형식은 '장-절'(예: '1-1', '3-4') 또는 "
-                    "'ref-N'(예: 'ref-1'). 절 목록·id는 search_manual 결과의 section_id로 확인하십시오."
+                    f"section_id 형식 위반: {sid!r} — 허용 형식은 본권 '장-절'(예: '1-1', '3-4')·"
+                    "'ref-N'(예: 'ref-1') 또는 별권 3 'b3-장-절'(예: 'b3-4-2')·'b3-ref-1'. "
+                    "절 목록·id는 search_manual 결과의 section_id로 확인하십시오."
                 ),
             }],
             "contract_version": CONTRACT_VERSION,
             "disclaimer": _DISCLAIMER,
         }
-    data = load_manual()
-    if isinstance(data, ManualLoadError):
-        return _manual_unavailable_envelope(data)
+    # v0.32.0(R2-P0 D6): id prefix로 소스 라우팅 — 별권 3 로드 실패는 별권 조회에만 격리
+    is_b3 = sid.startswith("b3-")
+    if is_b3:
+        data = load_manual_b3()
+        if isinstance(data, ManualLoadError):
+            _main_state_ok = not isinstance(load_manual(), ManualLoadError)
+            return _manual_b3_unavailable_envelope(data, main_ok=_main_state_ok)
+    else:
+        data = load_manual()
+        if isinstance(data, ManualLoadError):
+            return _manual_unavailable_envelope(data)
     sec = data.by_id.get(sid)
     if sec is None:
+        if is_b3:
+            valid_range = (
+                "별권 3(제재처분 가이드라인) 유효 범위: 제1장 b3-1-1~b3-1-3 · 제2장 b3-2-1~b3-2-3 · "
+                "제3장 b3-3-1~b3-3-9 · 제4장 b3-4-1~b3-4-2 · 제5장 b3-5-1~b3-5-5 · 부록 b3-ref-1"
+            )
+        else:
+            valid_range = (
+                "유효 범위: 제1장 1-1~1-5 · "
+                "제2장 2-1~2-11 · 제3장 3-1~3-20 · 제4장 4-1~4-2 · 제5장 5-1~5-2 · 참고 ref-1~ref-3"
+            )
         return {
             "errors": [{
                 "code": "not_found",
                 "message": (
-                    f"section_id {sid!r}에 해당하는 절이 없습니다. 유효 범위: 제1장 1-1~1-5 · "
-                    "제2장 2-1~2-11 · 제3장 3-1~3-20 · 제4장 4-1~4-2 · 제5장 5-1~5-2 · 참고 ref-1~ref-3. "
+                    f"section_id {sid!r}에 해당하는 절이 없습니다. {valid_range}. "
                     "search_manual로 절을 먼저 찾는 것을 권장합니다."
                 ),
             }],
@@ -2963,6 +3091,13 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
             f"인쇄 p.{', '.join(str(p) for p in sec['image_only_pages'])}은(는) 이미지·도식 위주라 "
             "텍스트가 추출되지 않았습니다 — 해당 내용은 PDF 원문 확인이 필요합니다."
         )
+    # v0.32.0(R2-P1 표 장부): 데이터에 표적 구조 손실 고지가 있으면 warnings로 표면화
+    # (예: 별권 3 b3-4-2 병합 셀 적용 범위 소실·예시표 경계 구분선 부재 — fail-safe: 문자열만)
+    _tsn = sec.get("table_structure_notes")
+    if isinstance(_tsn, list):
+        for _note in _tsn:
+            if isinstance(_note, str) and _note:
+                warnings.append(_note)
     base = {
         "section_id": sid,
         "chapter_no": sec.get("chapter_no"),
@@ -2975,7 +3110,7 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
         "pdf_page_end": sec.get("pdf_page_end"),
         "char_count": sec.get("char_count"),
         "subsection_titles": sec.get("subsection_titles", []),
-        "format_note": MANUAL_FORMAT_NOTE,
+        "format_note": MANUAL_FORMAT_NOTE_B3 if is_b3 else MANUAL_FORMAT_NOTE,
         "warnings": warnings,
         "contract_version": CONTRACT_VERSION,
         "disclaimer": _DISCLAIMER,
@@ -3086,8 +3221,8 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
         "부처별 R&D family·핵심 행정규칙(연구개발비 사용기준·정보처리·보안·성과평가·기술료 등)의 근거 조항을 "
         "verbatim 인용과 함께 답변. Tier 1 → Tier 2 위계 순서 + provision_id 인용을 "
         "본 MCP server 도구(suggest_review_sources, get_provision_detail)로 자동 적용. "
-        "「국가연구개발혁신법 매뉴얼」(본권) 해설은 매뉴얼 도구(search_manual·get_manual_section)로 조회 가능(해설 자료 — 법령·행정규칙 아님·법령 우선). "
-        "기관 내부 기준·본 manifest 미등록 전문기관 지침·매뉴얼 별권 4종은 본 server 미커버 — 별도 자료 확인 필요."
+        "「국가연구개발혁신법 매뉴얼」(본권·별권 3 제재처분 가이드라인) 해설은 매뉴얼 도구(search_manual·get_manual_section)로 조회 가능(해설 자료 — 법령·행정규칙 아님·법령 우선). "
+        "기관 내부 기준·본 manifest 미등록 전문기관 지침·매뉴얼 별권 중 3종(학생인건비·기술료·연구시설장비)은 본 server 미커버 — 별도 자료 확인 필요."
     ),
 )
 def review_regulation_prompt(situation: str) -> str:
