@@ -515,6 +515,7 @@ def main() -> int:
     args.out_json.parent.mkdir(parents=True, exist_ok=True)
     with open(args.out_json, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=1)
+        f.write("\n")  # 기존 파일 형식(말미 개행) 유지 — diff 최소화
         f.write("\n")
     json_sha = sha256_of(args.out_json)
 

@@ -550,6 +550,10 @@ def test_v0300_source_url_and_footer_locks():
     )
     assert "source_url" not in legacy
     assert legacy["standard_footer"].count("\n") == 3
+    # 비문자열·빈 값도 생략(fail-safe — diff 적대검토 MINOR 반영)
+    for bad in (123, ["u"], "", None):
+        b = manual_meta_block({"source_url": bad}, manual_content_included=False)
+        assert "source_url" not in b
 
     # KISTEP 줄 문면 잠금 — URL 쿼리·판번을 넣지 않는 홈페이지 안내형(Andy 확정 문안)
     assert FOOTER_MANUAL_SOURCE_LINE.startswith("※ ")

@@ -171,8 +171,9 @@ def manual_meta_block(meta: dict, manual_content_included: bool = False) -> dict
         notice = "인용 매뉴얼: 판번·기준일 확인 불가"
     basis_phrase = f"법령 시행일 {basis} 기준으로 작성되어" if basis else "특정 시점 기준으로 작성되어"
     # v0.30.0: 임베드 판의 정확한 출처(게시물 URL) — 기계 가독 출처 귀속. footer 문면(홈페이지
-    # 안내형)과 분리되며, 구데이터(키 부재)에서는 필드 자체를 생략(fail-safe).
-    source_url = meta.get("source_url") or None
+    # 안내형)과 분리되며, 구데이터(키 부재)·비문자열 값에서는 필드 자체를 생략(fail-safe).
+    raw_source_url = meta.get("source_url")
+    source_url = raw_source_url if isinstance(raw_source_url, str) and raw_source_url else None
     return {
         "source_type": meta.get("source_type", "manual_explanation"),
         "legal_effect": meta.get("legal_effect", "not_binding"),
