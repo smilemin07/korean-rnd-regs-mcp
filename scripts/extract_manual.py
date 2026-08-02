@@ -26,6 +26,8 @@
     2. 오류 메시지의 목차 대조표를 보고 아래 EXPECTED_* 상수(장·절 제목/시작쪽·부록 시작쪽·오프셋)와
        EDITION/BASIS 상수를 새 판에 맞게 갱신하고, --source-url에 새 판 게시물 URL을 지정
        (게시물 제목·판번·첨부 구성이 새 판과 일치하는지 확인).
+       ★구판↔신판 절 id→제목 전수 비교로 재번호(같은 id·다른 주제)를 판정하고,
+       RENUMBERING_NOTE/RENUMBERING_NOTE_SECTION_IDS를 갱신(재번호 없으면 비움 — 상수 주석 참조).
     3. 재실행 → 리포트의 경계 감사표를 육안 검수 → JSON 교체 커밋.
     이 fail-closed 게이트는 편집 구조가 바뀐 판을 침묵 속에 오추출하는 사고를 막기 위한 것임.
 """
@@ -45,34 +47,49 @@ import fitz
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PDF = Path(
-    "/Users/andykim/mhk/31 - 규정/91-1 - 국가연구개발혁신법 매뉴얼(26.4) - 본권.pdf"
+    "/Users/andykim/mhk/31 - 규정/91-1 - 국가연구개발혁신법 매뉴얼(26.7) - 본권.pdf"
 )
 DEFAULT_JSON = REPO_ROOT / "src" / "korean_rnd_regs_mcp" / "manual_body.json"
 DEFAULT_REPORT = REPO_ROOT / "scripts" / "manual_extract_report.md"
 
-# ── 판(edition) 메타 — 차년도 갱신 대상 ──────────────────────────────────────
-EDITION = "26.4"
-MANUAL_BASIS_DATE = "2026-03"
-BASIS_NOTE = "이 매뉴얼에 기재되어 있는 법령의 시행일(2026.3월 기준) — PDF p.2 머리말"
+# ── 판(edition) 메타 — 판 갱신 대상 ──────────────────────────────────────────
+EDITION = "26.7"
+MANUAL_BASIS_DATE = "2026-06"
+BASIS_NOTE = "이 매뉴얼에 기재되어 있는 법령의 시행일(2026.6월 기준) — PDF p.2 머리말"
 # PDF p.2 머리말의 법령 기준표를 기재 그대로 옮김 (혁신법 시행일은 매뉴얼 자체 기재값)
 BASIS_LAWS = [
     {"name": "국가연구개발혁신법", "effective": "2026-09-11", "amended": "2026-03-10", "number": "법률 제21421호"},
-    {"name": "국가연구개발혁신법 시행령", "effective": "2026-06-11", "amended": "2026-03-10", "number": "대통령령 제36163호"},
-    {"name": "국가연구개발혁신법 시행규칙", "effective": "2026-03-25", "amended": "2026-03-25", "number": "과학기술정보통신부령 제166호"},
-    {"name": "국가연구개발사업 연구개발비 사용기준", "effective": "2026-03-11", "amended": "2026-03-11", "number": "과학기술정보통신부고시 제2026-13호"},
+    {"name": "국가연구개발혁신법 시행령", "effective": "2026-06-11", "amended": "2026-05-06", "number": "대통령령 제36291호"},
+    {"name": "국가연구개발혁신법 시행규칙", "effective": "2026-06-11", "amended": "2026-06-09", "number": "과학기술정보통신부령 제169호"},
+    {"name": "국가연구개발사업 연구개발비 사용기준", "effective": "2026-05-06", "amended": "2026-05-06", "number": "과학기술정보통신부고시 제2026-38호"},
 ]
 
-# ── EXPECTED 스냅샷 (fail-closed 정본 — 26.4판 인쇄 목차 실측) ────────────────
-EXPECTED_PAGE_OFFSET = 10  # PDF쪽 = 인쇄쪽 + 10 (본문부 마커 308쪽 전수 단일값 실측)
-EXPECTED_BODY_END = 326  # 인쇄쪽 기준 본문 끝
-EXPECTED_APPENDIX_START = 327  # [부록] 관련 서식 시작(제외 대상)
+# ── 판 전환 절 번호 이동 고지 (직전 판 대비 재번호가 있을 때만 채움 — 없으면 둘 다 비움) ──
+# 수명: 현행 수록 판에 연동. 다음 판 갱신 시 전수 id→제목 비교 후 재번호 없으면 비우고,
+# 다시 재번호되면 직전 판→현행 판 내용으로 교체(여러 세대 이력 누적 금지).
+RENUMBERING_NOTE = (
+    "26.7판에서 제3장 제12절 「연구혁신비 사용용도 및 사용기준」이 신설되어, "
+    "26.4판 제3장 제12~19절의 주제는 26.7판 제13~20절로 각각 이동했습니다. "
+    "section_id는 현행 수록 판(26.7판)의 장-절 번호입니다. 구판 번호로 조회했다면 "
+    "이 응답의 section_title·citation을 확인하고, 필요한 절은 search_manual로 다시 찾으십시오."
+)
+RENUMBERING_NOTE_SECTION_IDS = [
+    "3-12", "3-13", "3-14", "3-15", "3-16", "3-17", "3-18", "3-19", "3-20",
+]
+
+# ── EXPECTED 스냅샷 (fail-closed 정본 — 26.7판 인쇄 목차 실측) ────────────────
+EXPECTED_PAGE_OFFSET = 10  # PDF쪽 = 인쇄쪽 + 10 (본문부 마커 316쪽 전수 단일값 실측)
+EXPECTED_BODY_END = 332  # 인쇄쪽 기준 본문 끝 (PDF 343쪽 중 마지막 1쪽은 마커 없는 뒤표지)
+# 26.7판부터 [부록] 관련 서식은 별도 PDF로 분리 발간 — 본권 목차에 쪽 번호 없이 안내만 남음.
+# None = 본권 내 부록 없음(목차 파서의 appendix_start 미검출과 일치해야 통과).
+EXPECTED_APPENDIX_START = None
 
 EXPECTED_CHAPTERS = [
     (1, "국가연구개발혁신법 개요", 1),
     (2, "국가연구개발사업의 추진", 47),
     (3, "연구개발비의 지급 및 관리", 173),
-    (4, "국가연구개발사업 정보 관리 시스템", 283),
-    (5, "국가연구개발사업 추진 지원", 299),
+    (4, "국가연구개발사업 정보 관리 시스템", 289),
+    (5, "국가연구개발사업 추진 지원", 305),
 ]
 
 # (chapter_no, section_no, title, start_printed)
@@ -104,24 +121,26 @@ EXPECTED_SECTIONS = [
     (3, 9, "보안수당 사용용도 및 사용기준", 243),
     (3, 10, "위탁연구개발비 사용용도 및 사용기준", 245),
     (3, 11, "국제공동연구개발비 및 연구개발부담비 사용용도 및 사용기준", 247),
-    (3, 12, "간접비 사용용도 및 사용기준", 249),
-    (3, 13, "사용절차 및 사전승인대상", 256),
-    (3, 14, "연구개발비 이자 사용용도", 263),
-    (3, 15, "연구개발비 정산･회수 절차", 265),
-    (3, 16, "간접비고시비율 산출", 273),
-    (3, 17, "연구비통합관리시스템", 275),
-    (3, 18, "학생인건비통합관리", 277),
-    (3, 19, "연구시설･장비비 통합관리", 280),
-    (4, 1, "연구개발정보의 관리", 285),
-    (4, 2, "범부처 통합 연구지원시스템(IRIS)", 289),
-    (5, 1, "연구지원기준 및 연구지원체계평가", 301),
-    (5, 2, "전문기관 지정･운영 실태조사", 305),
+    (3, 12, "연구혁신비 사용용도 및 사용기준", 249),
+    (3, 13, "간접비 사용용도 및 사용기준", 253),
+    (3, 14, "사용절차 및 사전승인대상", 261),
+    (3, 15, "연구개발비 이자 사용용도", 268),
+    (3, 16, "연구개발비 정산･회수 절차", 270),
+    (3, 17, "간접비고시비율 산출", 278),
+    (3, 18, "연구비통합관리시스템", 280),
+    (3, 19, "학생인건비통합관리", 282),
+    (3, 20, "연구시설･장비비 통합관리", 285),
+    (4, 1, "연구개발정보의 관리", 291),
+    (4, 2, "범부처 통합 연구지원시스템(IRIS)", 295),
+    (5, 1, "연구지원기준 및 연구지원체계평가", 307),
+    (5, 2, "전문기관 지정･운영 실태조사", 311),
 ]
 
-# [참고] 2건 — 제N절 헤딩 없음, 페이지 경계 정렬(시작쪽 상단부터 시작)
+# [참고] 3건 — 제N절 헤딩 없음, 페이지 경계 정렬(시작쪽 상단부터 시작)
 EXPECTED_REFS = [
-    (1, "초기 중견기업의 기관부담 연구개발비 가이드라인", 313),
-    (2, "국외수혜정보 보고 가이드", 315),
+    (1, "초기 중견기업의 기관부담 연구개발비 가이드라인", 319),
+    (2, "국외수혜정보 보고 가이드", 321),
+    (3, "국가연구개발사업 행정서식 관리체계", 330),
 ]
 
 # ── 러닝헤더/푸터 제거 규칙 (bbox 제한 — 과제거 방지) ─────────────────────────
@@ -149,10 +168,12 @@ def sha256_of(path: Path) -> str:
     return h.hexdigest()
 
 
-# ── 목차(TOC) 파싱 — 연 1회 판 갱신 드리프트 감지기 ──────────────────────────
+# ── 목차(TOC) 파싱 — 판 갱신 드리프트 감지기 ─────────────────────────────────
 
-_TOC_SKIP = re.compile(r"^(CONTENTS|목\s*차|표 목차|그림 목차|◆.*별권.*)$")
-_TOC_ENTRY = re.compile(r"^(제\s*(\d+)\s*장|제\s*(\d+)\s*절|(\d+)\.)\s*(.+?)\s*·{2,}\s*(\d+)\s*$")
+_TOC_SKIP = re.compile(r"^(CONTENTS|목\s*차|표 목차|그림 목차|◆.*별권.*|본\s*권)$")
+# 점선은 ·{1,} — 26.7판 실측: 3-11(최장 제목)은 점선이 1개뿐("…사용기준· 247").
+# 제목 내 가운뎃점은 ･(U+FF65)라 점선 ·(U+00B7)과 충돌하지 않음.
+_TOC_ENTRY = re.compile(r"^(제\s*(\d+)\s*장|제\s*(\d+)\s*절|(\d+)\.)\s*(.+?)\s*·{1,}\s*(\d+)\s*$")
 
 
 def parse_printed_toc(doc):
@@ -163,8 +184,8 @@ def parse_printed_toc(doc):
         text = doc[i].get_text()
         if not re.search(r"목\s*차", text[:60]):
             continue
-        if not re.search(r"제\s*\d+\s*[장절].*·{2,}\s*\d+", text):
-            continue  # 표 목차·그림 목차 쪽 제외
+        if not re.search(r"제\s*\d+\s*[장절].*·{1,}\s*\d+", text):
+            continue  # 표 목차·그림 목차 쪽 제외 (점선 1개 엔트리만 있는 쪽도 포섭 — 엔트리 정규식과 정합)
         toc_lines.extend(text.split("\n"))
 
     # 줄 병합: 점선+쪽번호로 끝나야 엔트리 확정 (긴 제목 줄바꿈 대응)
@@ -181,7 +202,7 @@ def parse_printed_toc(doc):
             merged.append(line)
             continue
         buf = (buf + " " + line).strip() if buf else line
-        if re.search(r"·{2,}\s*\d+\s*$", buf):
+        if re.search(r"·{1,}\s*\d+\s*$", buf):
             merged.append(buf)
             buf = ""
     if buf:
@@ -387,7 +408,7 @@ def main() -> int:
         for pp in range(cp, first_sec_of_chapter[c]):
             interstitials.add(pp)
 
-    # 5) 절 단위 조립 (유닛 순서: 39절 + 참고 2건)
+    # 5) 절 단위 조립 (유닛 순서: EXPECTED_SECTIONS 절 + EXPECTED_REFS 참고)
     units = []
     for c, n, t, p in EXPECTED_SECTIONS:
         units.append({
@@ -436,7 +457,7 @@ def main() -> int:
             pages.append({"printed_page": pp, "partial": False, "lines": page_lines[pp]})
         assembled.append({"unit": u, "pages": pages})
 
-    # 6) 커버리지 검증: 본문 1~326 = 간지 ∪ (각 절 전체쪽) — 분리쪽은 두 절에 걸치되 1회만 계수
+    # 6) 커버리지 검증: 본문 1~EXPECTED_BODY_END = 간지 ∪ (각 절 전체쪽) — 분리쪽은 두 절에 걸치되 1회만 계수
     covered = set(interstitials)
     for a in assembled:
         for pg in a["pages"]:
@@ -493,11 +514,19 @@ def main() -> int:
         "pdf_pages": doc.page_count,
         "page_offset": off,
         "body_pages_printed": [1, EXPECTED_BODY_END],
-        "excluded_note": "[부록] 관련 서식(인쇄 p.327~527)과 별권 4종은 수록 제외 — 장 표제 간지쪽 제외",
+        "excluded_note": "[부록] 관련 서식(26.7판부터 별도 PDF 분리 발간)과 별권 4종은 수록 제외 — 장 표제 간지쪽 제외",
         "pymupdf_version": fitz.__version__ if hasattr(fitz, "__version__") else fitz.VersionBind,
         "extractor": "scripts/extract_manual.py",
         "source_url": args.source_url,
         "id_format": "^(\\d+-\\d+|ref-\\d+)$",
+        **(
+            {
+                "renumbering_note": RENUMBERING_NOTE,
+                "renumbering_note_section_ids": RENUMBERING_NOTE_SECTION_IDS,
+            }
+            if RENUMBERING_NOTE and RENUMBERING_NOTE_SECTION_IDS
+            else {}
+        ),
         "section_count": len(sections_json),
         "chapters": [
             {"no": c, "title": t, "page_start": p} for c, t, p in EXPECTED_CHAPTERS
@@ -505,9 +534,10 @@ def main() -> int:
     }
     payload = {"meta": meta, "sections": sections_json}
 
-    # 8) 자체 정합성 assert (fail-closed)
+    # 8) 자체 정합성 assert (fail-closed) — 기대 절 수는 EXPECTED 스냅샷에서 파생(판 갱신 시 자동 추종)
+    expected_units = len(EXPECTED_SECTIONS) + len(EXPECTED_REFS)
     ids = [s["id"] for s in sections_json]
-    assert len(ids) == len(set(ids)) == 41, f"절 id 수 이상: {len(ids)}"
+    assert len(ids) == len(set(ids)) == expected_units, f"절 id 수 이상: {len(ids)} (기대 {expected_units})"
     for s in sections_json:
         assert s["char_count"] == len("\n".join(p["text"] for p in s["pages"]))
     total_chars = sum(s["char_count"] for s in sections_json)
@@ -531,8 +561,16 @@ def main() -> int:
     rep.append("# 매뉴얼 본권 추출 품질 리포트 (R1-P1)\n")
     rep.append(f"- 실행일: {today} · PyMuPDF {meta['pymupdf_version']}")
     rep.append(f"- PDF: `{args.pdf.name}` · {doc.page_count}쪽 · sha256 `{pdf_sha[:20]}…`")
-    rep.append(f"- JSON: `{args.out_json.relative_to(REPO_ROOT)}` · sha256 `{json_sha[:20]}…`")
-    rep.append(f"- 목차 검증: PASS (장 5·절 39·참고 2·부록 시작 {EXPECTED_APPENDIX_START}) · 오프셋 +{off} 균일(마커 {marker_pages}쪽)")
+    try:
+        json_path_disp = args.out_json.relative_to(REPO_ROOT)
+    except ValueError:  # 검수용 임시 경로(repo 밖) 추출 지원
+        json_path_disp = args.out_json
+    rep.append(f"- JSON: `{json_path_disp}` · sha256 `{json_sha[:20]}…`")
+    appendix_desc = EXPECTED_APPENDIX_START if EXPECTED_APPENDIX_START is not None else "없음(별도 PDF 분리)"
+    rep.append(
+        f"- 목차 검증: PASS (장 {len(EXPECTED_CHAPTERS)}·절 {len(EXPECTED_SECTIONS)}·참고 {len(EXPECTED_REFS)}"
+        f"·부록 시작 {appendix_desc}) · 오프셋 +{off} 균일(마커 {marker_pages}쪽)"
+    )
     rep.append(f"- 절 {len(sections_json)}개 · 총 {total_chars:,}자 · 러닝헤더/푸터 제거 {audit['removed']}줄")
     if table_flag_error:
         rep.append(f"- ⚠ 표 플래그 일부 실패(advisory): {table_flag_error}")
@@ -587,16 +625,15 @@ def main() -> int:
         rep.append(f"- U+{ord(ch):04X} {ch!r}: {cnt:,}회")
     rep.append("")
 
-    rep.append("## 알려진 추출 아티팩트 (2026-07-25 검수 5쪽 시각 대조 확정 — 원문 유래·재구성 금지 정책상 유지)\n")
-    rep.append("- 표 페이지에서 페이지 상단 제목·표 캡션이 추출 순서상 본문 뒤로 밀릴 수 있음(예: 인쇄 p.231 '<표 3-17>' 캡션이 말미). 셀-값 결속은 시각 대조 5쪽(p.5·135·204·231·314) 전건 보존 확인.")
-    rep.append("- 일부 불릿 글리프(•)가 텍스트 레이어에서 '쉒' 등 한글 음절로 매핑됨(폰트 서브셋 아티팩트 — ref-1에서 3회 실측). 값·문장에는 영향 없음.")
+    rep.append("## 알려진 추출 아티팩트 (26.7판 2026-08-02 재검수 — 원문 유래·재구성 금지 정책상 유지)\n")
+    rep.append("- 표 페이지에서 페이지 상단 제목·표 캡션이 추출 순서상 본문 뒤로 밀릴 수 있음(26.7 실측 예: 인쇄 p.13 '<표 1-8>'·p.35 '<표 1-11>'·p.73 '<표 2-5>' 캡션이 쪽 텍스트 말미). 본문 손실 아님 — 표 밀집 절 포함 6개 절(1-1·3-4·3-9·3-12·2-11·ref-3) 토큰 무손실 대조 전건 통과(누락 0).")
+    rep.append("- 일부 불릿 글리프(•)가 텍스트 레이어에서 '쉒' 등 한글 음절로 매핑됨(폰트 서브셋 아티팩트 — 26.7에서도 ref-1에서 3회 실측). 값·문장에는 영향 없음.")
     rep.append("- 표 셀 텍스트의 붙어쓰기(예: '기업또는')·공백 유실이 드물게 존재 — PDF 텍스트 레이어 원문 그대로임.")
     rep.append("")
 
-    rep.append("## P2 이월 메모\n")
-    rep.append("- pyproject.toml wheel force-include에 `manual_body.json` 추가 필요(현재 rule_sets.yaml만) + 패키지 포함 테스트.")
-    rep.append("- 대형 절(최대 27k자대) 분할 서빙은 get_manual_section에서 annex_chunk 패턴 재사용.")
-    rep.append("- source_type/legal_effect 등 규범성 메타는 meta 1곳에 있음 — P2가 응답마다 복사해 동반할 것.")
+    rep.append("## 서빙 통합 메모 (R1-P2에서 구현 완료 — 현행 상태 확인용)\n")
+    rep.append("- wheel force-include·sdist 동봉, 대형 절 페이지 경계 청크 서빙, manual_meta 응답 동반 모두 구현·테스트 잠금 상태.")
+    rep.append("- 판 갱신 시 확인: 재추출 후 pytest 전건 + wheel/sdist 실물에서 manual_body.json sha 일치 검증.")
     rep.append("")
 
     with open(args.out_report, "w", encoding="utf-8") as f:
