@@ -68,21 +68,21 @@ def test_cache_lock_never_wraps_network_or_parse():
     assert lock_blocks >= 8, f"_cache_lock 블록이 {lock_blocks}개뿐 — 캐시 touch 직렬화 누락 의심"
 
 
-def test_contract_version_0_21_0():
-    """v0.30.0: 출처·원문 확인 경로 정비(§5.22) — FOOTER_LAW_LINE 중립 문면 교체 +
-    FOOTER_MANUAL_SOURCE_LINE 전 경로 공통 2번째 줄 + manual_meta.source_url additive
-    → contract 0.20.0 → 0.21.0 minor bump(입력 스키마 무변 — 재연결 불요).
-    직전 0.20.0: 규정 상세 standard_footer(§5.21)."""
+def test_contract_version_0_22_0():
+    """v0.31.0: 매뉴얼 본권 26.7판 현행화(§5.23) — 데이터 판 교체(41→43절·재번호 8건) +
+    manual_meta.renumbering_note 조건부 additive(get_manual_section 대상 절 한정)
+    → contract 0.21.0 → 0.22.0 minor bump(입력 스키마 무변 — 재연결 불요).
+    직전 0.21.0: 출처·원문 확인 경로 정비(§5.22)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.21.0"
+    assert CONTRACT_VERSION == "0.22.0"
 
 
-def test_package_version_0_30_0():
-    """패키지 버전 0.30.0(출처·원문 확인 경로 정비 — footer 중립 문면·KISTEP 안내 줄·
-    source_url·contract 0.21.0·입력 스키마 무변=재연결 불요).
-    직전 0.29.0(규정 상세 standard_footer — contract 0.20.0)."""
+def test_package_version_0_31_0():
+    """패키지 버전 0.31.0(매뉴얼 본권 26.7판 현행화 — 26.4 데이터 삭제·43절·재번호 고지·
+    contract 0.22.0·입력 스키마 무변=재연결 불요).
+    직전 0.30.0(출처·원문 확인 경로 정비 — contract 0.21.0)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.30.0"
+    assert __version__ == "0.31.0"
 
 
 def test_cache_maxsize_96_v0240():
