@@ -1,6 +1,6 @@
 # korean-rnd-regs-mcp API Contract
 
-- contract_version: **0.20.0** (0.1.0 첫 publish → … → 0.17.0 → 0.18.0 → 0.19.0 → 0.20.0 minor bump, §6 변경 이력 참조)
+- contract_version: **0.21.0** (0.1.0 첫 publish → … → 0.18.0 → 0.19.0 → 0.20.0 → 0.21.0 minor bump, §6 변경 이력 참조)
 - 작성일: 2026-05-24 (0.2.0 개정: 2026-06-04, 0.3.0 개정: 2026-06-07, 0.4.0 개정: 2026-06-09, 0.5.0 개정: 2026-06-10, 0.6.0 개정: 2026-06-13, 0.7.0 개정: 2026-06-21, 0.8.0 개정: 2026-06-21, 0.9.0 개정: 2026-06-22, 0.10.0 개정: 2026-07-07)
 - semver 정책: 0.x.x 대역은 unstable signal — minor bump(0.1.0 → 0.2.0)도 breaking change 허용. v0.2 가지조문 확장 시 0.2.0 minor bump로 자연스럽게 처리 (1.0.x 유지 시 2.0 major bump 필요했음)
 - 변경 정책: 본 문서 변경은 외부 사용자 코드·Claude Desktop 캐시·README 예시를 깰 수 있으므로 0.1.0 publish 이후 신중히 (§6 참조)
@@ -323,9 +323,18 @@ law:189938:BP000102              # 법령 별표 1의2 형식 (가지별표 인�
 - **프롬프트(계약 외)**: 하단 안내 지시를 "매뉴얼 인용 여부" **단일 분기**로 재편 — 인용했으면 매뉴얼 3줄 값(첫 줄에 법령 확인 포함 — 규정 1줄을 덧붙이지 말 것), 아니면 규정 응답 1줄 값(여러 응답에 같은 값이면 아무 하나만), 선택에 맞는 값이 없는 구버전 응답만 리터럴 폴백. footer 블록은 답변당 정확히 1개(연결·반복 금지). 2표면+README byte-sync.
 - 응답 additive 필드만·**입력 스키마 무변(웹 커넥터 재연결 불요)**·기존 5·매뉴얼 2 도구의 기존 필드·검색/랭킹/fallback/fan-out·캐시·transport·외부 URL·규정 64종 완전 불변 → contract_version **0.20.0**(0.19.0 → 0.20.0).
 
+### 5.22 출처·원문 확인 경로 정비 — footer 문면·source_url (0.21.0 minor — 문면 변경 + 응답 additive·입력 스키마 무변)
+
+- **동기 2건**: ① v0.29.0 배포 후 관측(6회·Chrome 자동화)에서 법률-only 답변이 footer 첫 줄의 "행정규칙" 단어를 2/2 삭제(맥락 부정합 — 답변이 다루지 않은 대상을 문구가 언급하면 호스트가 지움). ② 매뉴얼 본문을 임베드·재배포하면서 원문 배포처(KISTEP) 안내가 응답 어디에도 없던 출처 귀속 갭 + 서버 미수록 별권·서식의 사용자 접근 경로 부재. (사용자 지시로 문면 확정 — 게시물 URL·판번을 넣지 않는 홈페이지 안내형.)
+- **`FOOTER_LAW_LINE` 문면 변경**(비-additive·값 변경): "…법령·행정규칙 원문을 기준으로…" → "…**관련 규정 원문**을 기준으로…". "관련 규정"은 법률·시행령·행정규칙·혼합 어느 답변 맥락과도 충돌하지 않는 중립 상위 표현(축약 유인 제거·/disc 3-AI 확정). 프롬프트 폴백 리터럴 2표면·README byte-sync 동기 교체.
+- **`FOOTER_MANUAL_SOURCE_LINE` 신설**(문면: "※ 「국가연구개발혁신법 매뉴얼」 등 연구행정 관련 매뉴얼 원문은 KISTEP 홈페이지(www.kistep.re.kr)에서 확인하시기 바랍니다."): standard_footer가 나가는 **전 경로 공통 고정 2번째 줄**. 규정 상세(get_provision_detail) = 2줄 / 매뉴얼 인용(manual_content_included=True) = 4줄(+ 면책 + 판번 notice) / 매뉴얼 미인용(검색 0건·포인터) = 2줄. **처음 두 줄이 전 경로 동일 문자열**이라 v0.29.0의 호스트 dedup 구조(단일 분기: 매뉴얼 인용 여부)가 그대로 유지. URL·판번 미포함이므로 판 개정·게시물 이동에도 문면 유효(링크 로트·구판 오인 원천 차단).
+- **`manual_meta.source_url`** (additive·매뉴얼 도구 2종 비오류 응답 상시): 임베드한 판의 KISTEP 게시물 전체 URL — 기계 가독 출처 귀속(footer 문면과 분리). 값의 출처는 manual_body.json meta 한 곳(코드 상수 아님 — 판번·기준일과 같은 파일에서 함께 갱신). 구데이터(키 부재)에서는 필드 생략(fail-safe·footer 구조 무영향). 재추출 스크립트는 `--source-url` 필수 인자화(https+kistep.re.kr fail-closed) + 절차를 일정 기반("연 1회")에서 새 판 게시 기반으로 정정(2026년 4월·7월 연 2회 개정 실증).
+- **프롬프트(계약 외)**: 줄 수 고정 표기("3줄짜리/1줄짜리")를 의미 기반("매뉴얼 인용 고지가 포함된 값 / 규정 조회 응답의 값")으로 교체 — source_url 없는 구데이터는 의도적으로 3줄이므로 줄 수 재고정 금지. 단일 분기·답변당 1개·폴백 규칙 불변.
+- footer 값 변경 + 응답 additive 필드·**입력 스키마 무변(웹 커넥터 재연결 불요)**·검색/랭킹/fallback/fan-out·캐시·transport·외부 URL·규정 64종 완전 불변 → contract_version **0.21.0**(0.20.0 → 0.21.0).
+
 ## 6. contract_version 관리
 
-- 본 문서 contract_version: **0.20.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 → 0.12.0 → 0.13.0 → 0.14.0 → 0.15.0 → 0.16.0 → 0.17.0 → 0.18.0 → 0.19.0 → 0.20.0 minor)
+- 본 문서 contract_version: **0.21.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 → 0.12.0 → 0.13.0 → 0.14.0 → 0.15.0 → 0.16.0 → 0.17.0 → 0.18.0 → 0.19.0 → 0.20.0 → 0.21.0 minor)
 - 코드 상수: `korean_rnd_regs_mcp.provision_id.CONTRACT_VERSION`
 - 변경 정책 (0.x.x — unstable signal):
 
@@ -395,3 +404,4 @@ law:189938:BP000102              # 법령 별표 1의2 형식 (가지별표 인�
 - 도구 응답에 `contract_version` 필드 포함 권장 (search_provision·get_provision_detail·suggest_review_sources). 클라이언트가 호환 여부 확인 가능.
 | **0.19.0** | 2026-07-25 | **minor bump** (패키지 **0.28.0**). 매뉴얼 인용 앵커·하단 표준 안내 응답 구조화(§5.20) — 매뉴얼 도구 2종 응답에 `citation`(완성형 인용 한 줄·검색 매치별/전문/포인터=절 범위·**청크=chunk_pages 범위**) + `manual_meta.standard_footer`(완성형 하단 안내 블록 — 응답이 매뉴얼 해설을 실제 전달했으면 3줄, 아니면[검색 0건·oversized_pointer] 법령 확인 1줄만: 허위 출처 고지 차단) + `manual_meta.standard_footer_note` additive. 기존 데이터(page/chunk_pages/printed_page/notice) 재조립이라 **신규 파싱 0·추가 네트워크 0**·`notice` 등 기존 필드 무변. 오류 응답(`manual_unavailable`·`invalid_section_id`·`not_found`·`invalid_query`·청크 범위 밖)은 citation·manual_meta 미부착 유지. 실측: size-tier 판정 불변(전문 29·포인터 12·전문 최대 12,968<15,700), search 최대 8,442<16,000(매치 pop 0). 동기=v0.27.0 eval·매뉴얼-온리 테스트의 인쇄쪽 인용 0/3·하단 안내 0/3(프롬프트 축 수확체감 확정 → 응답 구조 축). 부수(계약 외): 프롬프트 3표면을 "standard_footer/citation 값 그대로 표시(직접 조립 금지)"로 치환 + 롤백 대비 폴백 리터럴 병기(README byte-sync). **입력 스키마 무변 → 웹 커넥터 재연결 불요**. 기존 5종 도구·검색/랭킹/fallback/fan-out·transport·캐시·외부 URL·규정 수(64) 불변. 설계 `/disc`(Codex quota 소진으로 Gemini 2종 + Claude 3-way): citation 형식·부착 3곳·발췌 단위 기각 3/3, footer 단일 완성형 2:1, 폴백 병기 2:1 → 응답 additive 필드 → 0.18.0 → 0.19.0 |
 | **0.20.0** | 2026-07-25 | **minor bump** (패키지 **0.29.0**). 규정 상세 응답 하단 표준 안내(§5.21) — `get_provision_detail` 성공 응답 3경로(문서레벨·JO·BP)에 `standard_footer`(법령 확인 1줄·`manual.FOOTER_LAW_LINE` 단일 출처 = 매뉴얼 3줄 footer 첫 줄과 동일 문자열) additive. 부착은 모든 tier/백스톱/사후주입 이후 마지막 단계·후보 사본 직렬화 16,000 초과 시 원본 무변경 생략(whole-or-omit). 오류 envelope 미부착. 동기 = v0.28.0 eval 같은 세션 A/B 대조(서버 완성형 2/2 부착 vs 프롬프트 조립 누적 0/5). ★커버 한정: get_provision_detail 성공 응답 기반 답변만 — search/suggest-only 경로 갭 잔존(후속 eval 관측·over-claim 금지). 부수(계약 외): 하단 안내 프롬프트를 "매뉴얼 인용 여부" 단일 분기로 재편(3줄 우선·1줄은 아무 하나만·답변당 정확히 1개·구버전 리터럴 폴백 보존·README byte-sync). **입력 스키마 무변 → 재연결 불요**. 기존 필드·검색/랭킹/fan-out·transport·캐시·외부 URL·규정 수(64) 불변. 설계 /disc 3-AI 3/3 수정 GO(성공 반환점 3곳 정정·16,000 기준 확정·단일 분기 문면 채택) → 0.19.0 → 0.20.0 |
+| **0.21.0** | 2026-08-02 | **minor bump** (패키지 **0.30.0**). 출처·원문 확인 경로 정비(§5.22) — ① `FOOTER_LAW_LINE` 문면 중립화("법령·행정규칙 원문"→"관련 규정 원문" — v0.29.0 배포 후 관측에서 법률-only 답변 2/2가 '행정규칙'을 삭제한 맥락 부정합 해소·프롬프트 폴백 리터럴·README byte-sync 동기 교체) ② `FOOTER_MANUAL_SOURCE_LINE` 신설(KISTEP 홈페이지 안내·URL/판번 미포함) — standard_footer 전 경로 공통 2번째 줄(규정 상세 2줄/매뉴얼 인용 4줄·처음 두 줄 동일 문자열로 dedup 유지) ③ `manual_meta.source_url` additive(임베드 판 게시물 URL·manual_body.json meta 단일 출처·구데이터 생략 fail-safe) + 재추출 `--source-url` 필수 인자화·절차 새 판 게시 기반 정정. 프롬프트는 줄 수 고정 표기를 의미 기반으로 교체(계약 외). **입력 스키마 무변 → 재연결 불요**. 검색/랭킹/fan-out·transport·캐시·외부 URL·규정 수(64) 불변. 계획 /disc 3라운드(scope·문면·구현 세부) 3-AI 확정·부착 범위는 사용자 확정(전 경로 공통) → 0.20.0 → 0.21.0 |
