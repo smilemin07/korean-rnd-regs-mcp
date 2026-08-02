@@ -154,12 +154,18 @@ def build_standard_footer(notice: str, manual_content_included: bool) -> str:
     return "\n".join(lines)
 
 
-def manual_meta_block(meta: dict, manual_content_included: bool = False) -> dict:
+def manual_meta_block(
+    meta: dict, manual_content_included: bool = False, section_id: str | None = None
+) -> dict:
     """규범성 메타 블록 — 두 매뉴얼 도구의 모든 비오류 응답에 상시 동반(계획 /disc 3/3).
 
     값은 데이터 파일 meta에서 복사(판번·기준일 하드코딩 금지 — 갱신 지점 = 데이터 파일 한 곳).
     notice는 서버 완성형(계획 문서 §3-5) — edition 부재 시 판번 생략(확인 불가 처리).
     standard_footer(v0.28.0)는 답변 하단에 그대로 옮겨 붙일 완성형 블록.
+
+    section_id(v0.31.0): get_manual_section 비오류 응답에서만 전달 — 데이터 meta의
+    renumbering_note(판 전환 절 번호 이동 고지)를 대상 절(renumbering_note_section_ids)에만
+    조건부 부착한다. search_manual은 현행 제목·id를 함께 반환하므로 미부착(설계 /disc 라운드 2).
     """
     edition = meta.get("edition") or ""
     basis = meta.get("manual_basis_date") or ""
@@ -174,6 +180,21 @@ def manual_meta_block(meta: dict, manual_content_included: bool = False) -> dict
     # 안내형)과 분리되며, 구데이터(키 부재)·비문자열 값에서는 필드 자체를 생략(fail-safe).
     raw_source_url = meta.get("source_url")
     source_url = raw_source_url if isinstance(raw_source_url, str) and raw_source_url else None
+    # v0.31.0: 판 전환 재번호 고지 — 데이터 키 2종이 모두 유효(str·list[str])하고 조회 절이
+    # 대상 목록에 있을 때만 부착(구데이터·비정형 값·비대상 절은 필드 자체 생략 fail-safe).
+    # 재번호 없는 판에서는 데이터에서 두 키를 비우면 코드 무변으로 소멸(수명 = 수록 판 연동).
+    renumbering_note = None
+    if section_id is not None:
+        raw_note = meta.get("renumbering_note")
+        raw_ids = meta.get("renumbering_note_section_ids")
+        if (
+            isinstance(raw_note, str)
+            and raw_note
+            and isinstance(raw_ids, list)
+            and all(isinstance(x, str) for x in raw_ids)
+            and section_id in raw_ids
+        ):
+            renumbering_note = raw_note
     return {
         "source_type": meta.get("source_type", "manual_explanation"),
         "legal_effect": meta.get("legal_effect", "not_binding"),
@@ -183,6 +204,7 @@ def manual_meta_block(meta: dict, manual_content_included: bool = False) -> dict
         "basis_note": meta.get("basis_note"),
         "basis_laws": meta.get("basis_laws", []),
         **({"source_url": source_url} if source_url else {}),
+        **({"renumbering_note": renumbering_note} if renumbering_note else {}),
         "law_priority_note": (
             "본 내용은 「국가연구개발혁신법 매뉴얼」의 해설이며 법령·행정규칙이 아닙니다. "
             "조문 원문 확인은 search_provision·get_provision_detail을 사용하고, "

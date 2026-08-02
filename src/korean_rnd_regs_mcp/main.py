@@ -2785,7 +2785,7 @@ def _manual_unavailable_envelope(err: ManualLoadError) -> dict:
 async def search_manual(query: str) -> dict:
     """사용 시점: 「국가연구개발혁신법 매뉴얼(본권, 범부처 공통 해설서)」에서 혁신법령의 실무 해설·세부 절차·Q&A·사례를 찾을 때 호출하십시오. 이 도구는 법령·행정규칙 조문 원문 검색이 아닙니다 — 조문 원문·현행 여부 확인은 search_provision·get_provision_detail을 사용하고, 매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문이 우선합니다.
 
-    매뉴얼 본문(41개 절·인쇄 1~326쪽·부록 제외)을 절 단위로 검색합니다. 매칭은 search_provision과
+    매뉴얼 본문(43개 절·인쇄 1~332쪽·부록 제외)을 절 단위로 검색합니다. 매칭은 search_provision과
     동일한 토큰 AND(공백 분해·2자 이상 토큰 2개 이상이면 모든 토큰 존재 시 매칭, 그 외 리터럴)이며,
     가운뎃점 표기차(ㆍ·･·)는 매칭에서 흡수합니다(발췌는 원문 그대로).
 
@@ -2944,7 +2944,7 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
                 "code": "not_found",
                 "message": (
                     f"section_id {sid!r}에 해당하는 절이 없습니다. 유효 범위: 제1장 1-1~1-5 · "
-                    "제2장 2-1~2-11 · 제3장 3-1~3-19 · 제4장 4-1~4-2 · 제5장 5-1~5-2 · 참고 ref-1~ref-2. "
+                    "제2장 2-1~2-11 · 제3장 3-1~3-20 · 제4장 4-1~4-2 · 제5장 5-1~5-2 · 참고 ref-1~ref-3. "
                     "search_manual로 절을 먼저 찾는 것을 권장합니다."
                 ),
             }],
@@ -2993,7 +2993,7 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
         "content_format": "plain_text_verbatim",
         "is_complete": True,
         "citation": section_citation,
-        "manual_meta": manual_meta_block(data.meta, manual_content_included=True),
+        "manual_meta": manual_meta_block(data.meta, manual_content_included=True, section_id=sid),
     })
     if len(json.dumps(full, ensure_ascii=False)) <= MANUAL_DETAIL_CHAR_BUDGET - MANUAL_DETAIL_HEADROOM:
         if chunk is not None:
@@ -3028,7 +3028,7 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
             "is_complete": False,
             # 청크 인용은 절 전체가 아니라 이 청크가 실제 담은 인쇄쪽으로 앵커(확인 범위 초과 표기 차단)
             "citation": build_citation(data.meta, sec, ck["page_start"], ck["page_end"]),
-            "manual_meta": manual_meta_block(data.meta, manual_content_included=True),
+            "manual_meta": manual_meta_block(data.meta, manual_content_included=True, section_id=sid),
             "chunk_index": chunk,
             "chunk_count": chunk_count,
             "chunk_pages": {"page_start": ck["page_start"], "page_end": ck["page_end"]},
@@ -3051,7 +3051,7 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
         # 포인터는 본문 미전달 — citation은 어느 절을 받아야 하는지의 앵커로만 제공하고,
         # 하단 안내는 매뉴얼 인용 면책 없이 법령·매뉴얼 원문 안내 두 줄만(전달한 해설 내용 0).
         "citation": section_citation,
-        "manual_meta": manual_meta_block(data.meta, manual_content_included=False),
+        "manual_meta": manual_meta_block(data.meta, manual_content_included=False, section_id=sid),
         "content": (
             f"[본문 생략: 절 분량이 응답 한도를 초과합니다(약 {len(full_text):,}자). "
             "이 안내 텍스트를 매뉴얼 본문으로 인용하지 마십시오. "

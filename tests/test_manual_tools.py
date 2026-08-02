@@ -139,16 +139,17 @@ def test_search_token_and():
 
 
 def test_search_middle_dot_normalization():
-    """데이터는 ･(U+FF65) 지배 — 사용자 입력 ·(U+00B7)·ㆍ(U+318D) 모두 매칭."""
+    """데이터는 ･(U+FF65) 지배 — 사용자 입력 ·(U+00B7)·ㆍ(U+318D) 모두 매칭.
+    (26.7판: 연구시설･장비비 통합관리 = 3-20 — 구판 3-19에서 재번호)"""
     for q in ("연구시설·장비비 통합관리", "연구시설ㆍ장비비 통합관리"):
         r = asyncio.run(search_manual(q))
-        assert "3-19" in [m["section_id"] for m in r["matches"]], q
+        assert "3-20" in [m["section_id"] for m in r["matches"]], q
     assert mdot_normalize("시설･장비ㆍ관리") == "시설·장비·관리"
 
 
 def test_search_excerpts_raw_with_page_anchor():
     r = asyncio.run(search_manual("연구시설·장비비 통합관리"))
-    m = next(x for x in r["matches"] if x["section_id"] == "3-19")
+    m = next(x for x in r["matches"] if x["section_id"] == "3-20")
     assert m["excerpts"], "발췌가 있어야 함"
     for e in m["excerpts"]:
         assert isinstance(e["printed_page"], int)
@@ -160,7 +161,7 @@ def test_search_excerpts_raw_with_page_anchor():
 def test_search_zero_hit_anchor():
     r = asyncio.run(search_manual("존재하지않는키워드검증용문자열"))
     assert r["returned"] == 0 and r["total_matched"] == 0
-    assert r["scanned_sections"] == 41
+    assert r["scanned_sections"] == 43
     assert "규정의 부재를 뜻하지 않" in r["note"]
     assert r["manual_meta"]["legal_effect"] == "not_binding"
 
@@ -251,8 +252,8 @@ def test_detail_not_found_well_formed():
 
 
 def test_detail_table_image_warnings():
-    r = asyncio.run(get_manual_section("4-2"))  # image_only_pages [293] 실측
-    assert any("293" in w and "이미지" in w for w in r["warnings"])
+    r = asyncio.run(get_manual_section("4-2"))  # 26.7 image_only_pages [299] 실측
+    assert any("299" in w and "이미지" in w for w in r["warnings"])
     r2 = asyncio.run(get_manual_section("3-7"))  # 표 다수 절(증명자료 표)
     assert any("표 포함 절" in w for w in r2["warnings"])
 
@@ -271,11 +272,11 @@ def test_manual_meta_on_all_response_kinds():
         meta = r["manual_meta"]
         assert meta["source_type"] == "manual_explanation"
         assert meta["legal_effect"] == "not_binding"
-        assert meta["edition"] == "26.4"
-        assert meta["manual_basis_date"] == "2026-03"
+        assert meta["edition"] == "26.7"
+        assert meta["manual_basis_date"] == "2026-06"
         assert "법령·행정규칙 원문이 우선" in meta["law_priority_note"]
         assert "규정의 부재를 뜻하지 않" in meta["law_priority_note"]
-        assert meta["notice"] == "인용 매뉴얼: 26.4판 · 법령 시행일 2026-03 기준"
+        assert meta["notice"] == "인용 매뉴얼: 26.7판 · 법령 시행일 2026-06 기준"
         assert len(meta["basis_laws"]) == 4
 
 
@@ -294,10 +295,10 @@ def test_manual_meta_notice_from_data_not_hardcoded():
 def test_data_file_shipped_and_valid():
     assert DATA_PATH.exists()
     payload = json.loads(DATA_PATH.read_text(encoding="utf-8"))
-    assert payload["meta"]["section_count"] == 41
+    assert payload["meta"]["section_count"] == 43
     assert payload["meta"]["source_type"] == "manual_explanation"
     assert payload["meta"]["legal_effect"] == "not_binding"
-    assert len(payload["sections"]) == 41
+    assert len(payload["sections"]) == 43
 
 
 def test_pyproject_packaging_includes_manual_json():
@@ -323,11 +324,11 @@ def test_budget_constants_parity_with_annex():
 
 def test_manual_responses_carry_contract_version():
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.21.0"
+    assert CONTRACT_VERSION == "0.22.0"
     r = asyncio.run(search_manual("기술료"))
-    assert r["contract_version"] == "0.21.0"
+    assert r["contract_version"] == "0.22.0"
     r2 = asyncio.run(get_manual_section("1-4"))
-    assert r2["contract_version"] == "0.21.0"
+    assert r2["contract_version"] == "0.22.0"
 
 
 # === v0.28.0: 인용 앵커(citation) · 하단 표준 안내(standard_footer) 응답 구조화 ===
@@ -338,7 +339,7 @@ def test_citation_format_and_fields():
     data = load_manual()
     sec = data.by_id["3-4"]
     c = build_citation(data.meta, sec)
-    assert c.startswith("「국가연구개발혁신법 매뉴얼(본권)」(26.4판) 제3장 ")
+    assert c.startswith("「국가연구개발혁신법 매뉴얼(본권)」(26.7판) 제3장 ")
     assert sec["section_label"] in c and sec["section_title"] in c
     assert f"인쇄 p.{sec['page_start']}~{sec['page_end']}" in c
 
@@ -433,10 +434,10 @@ def test_manual_error_responses_have_no_footer_or_citation():
 
 
 def test_v0280_no_size_tier_regression():
-    """citation·footer 추가 후에도 절별 size-tier 판정이 v0.27.0과 동일(전문 29·포인터 12)."""
+    """절별 size-tier 판정 잠금 — 26.7판 실측: 전문 31·포인터 12(구판 29·12)."""
     data = load_manual()
     formats = [asyncio.run(get_manual_section(s["id"]))["content_format"] for s in data.sections]
-    assert formats.count("plain_text_verbatim") == 29
+    assert formats.count("plain_text_verbatim") == 31
     assert formats.count("oversized_pointer") == 12
 
 
@@ -533,13 +534,13 @@ def test_v0300_source_url_and_footer_locks():
     """v0.30.0 잠금: meta.source_url 정확값·데이터 불변·구데이터 fail-safe·KISTEP 줄 문면·
     규정-매뉴얼 footer 처음 두 줄 동일(dedup)."""
     data = load_manual()
-    url = "https://www.kistep.re.kr/board.es?mid=a10301000000&bid=0003&act=view&list_no=94702"
-    assert data.meta["source_url"] == url  # 임베드 26.4판 게시물 — 판 갱신 시 재추출과 함께 변경
-    # 주입 작업이 본문을 건드리지 않았음을 잠금(원본 PDF 해시·절 수 불변)
+    url = "https://www.kistep.re.kr/board.es?mid=a10301000000&bid=0003&act=view&list_no=94788"
+    assert data.meta["source_url"] == url  # 임베드 26.7판 게시물 — 판 갱신 시 재추출과 함께 변경
+    # 데이터가 26.7판 원본에서 생성됐음을 잠금(원본 PDF 해시·절 수)
     assert data.meta["pdf_sha256"] == (
-        "f0a953b409b0f07dbb65b7324df93ef2e87733501375aa7820f5e86593bc7fbb"
+        "1b2a5089ab5f1cd168c77593bb35556479f19fb7b5e285c9ba07542a82222853"
     )
-    assert data.meta["section_count"] == 41
+    assert data.meta["section_count"] == 43
 
     block = manual_meta_block(data.meta, manual_content_included=True)
     assert block["source_url"] == url
@@ -560,9 +561,99 @@ def test_v0300_source_url_and_footer_locks():
     assert "www.kistep.re.kr" in FOOTER_MANUAL_SOURCE_LINE
     assert "list_no" not in FOOTER_MANUAL_SOURCE_LINE
     assert "26.4" not in FOOTER_MANUAL_SOURCE_LINE
+    assert "26.7" not in FOOTER_MANUAL_SOURCE_LINE  # 판번 미포함 원칙 — 판 갱신에도 문면 불변
 
     # 규정 상세 footer(2줄)와 매뉴얼 footer 처음 두 줄이 동일 문자열 — 호스트 dedup 성립
     from korean_rnd_regs_mcp.main import _attach_std_footer
     prov = _attach_std_footer({"x": 1})["standard_footer"]
     assert prov == FOOTER_LAW_LINE + "\n" + FOOTER_MANUAL_SOURCE_LINE
     assert block["standard_footer"].startswith(prov + "\n")
+
+
+# ── v0.31.0: 본권 26.7판 현행화 — 재번호 잠금·renumbering_note 조건부 부착 ──────
+
+def test_v0310_edition_locks():
+    """26.7판 데이터 잠금: 판번·기준일·본문 쪽 범위·[참고] 3건·기준 법령 4건."""
+    data = load_manual()
+    assert data.meta["edition"] == "26.7"
+    assert data.meta["manual_basis_date"] == "2026-06"
+    assert data.meta["body_pages_printed"] == [1, 332]
+    assert data.by_id["ref-3"]["section_title"] == "국가연구개발사업 행정서식 관리체계"
+    numbers = [x["number"] for x in data.meta["basis_laws"]]
+    assert "대통령령 제36291호" in numbers  # 26.7 기준표(시행령 2026-05-06 일부개정)
+    assert "과학기술정보통신부고시 제2026-38호" in numbers
+
+
+def test_v0310_renumbered_id_title_locks():
+    """제3장 재번호 전수 잠금 — 26.4판 3-12~3-19의 주제가 3-13~3-20으로 이동(연구혁신비 신설).
+    3-4는 안정 id 회귀 앵커(주제 유지)."""
+    data = load_manual()
+    expected = {
+        "3-11": "국제공동연구개발비 및 연구개발부담비 사용용도 및 사용기준",
+        "3-12": "연구혁신비 사용용도 및 사용기준",
+        "3-13": "간접비 사용용도 및 사용기준",
+        "3-14": "사용절차 및 사전승인대상",
+        "3-15": "연구개발비 이자 사용용도",
+        "3-16": "연구개발비 정산･회수 절차",
+        "3-17": "간접비고시비율 산출",
+        "3-18": "연구비통합관리시스템",
+        "3-19": "학생인건비통합관리",
+        "3-20": "연구시설･장비비 통합관리",
+        "3-4": "학생인건비 사용용도 및 사용기준",
+    }
+    for sid, title in expected.items():
+        assert data.by_id[sid]["section_title"] == title, sid
+
+
+def test_v0310_renumbering_note_conditional_attach():
+    """note는 get_manual_section 비오류 응답의 대상 절에만 — search·비대상 절·오류 미부착."""
+    target = asyncio.run(get_manual_section("3-12"))
+    note = target["manual_meta"]["renumbering_note"]
+    assert "연구혁신비" in note and "search_manual" in note
+    stable = asyncio.run(get_manual_section("3-4"))  # 비대상(안정 id)
+    assert "renumbering_note" not in stable["manual_meta"]
+    s = asyncio.run(search_manual("간접비"))
+    assert "renumbering_note" not in s["manual_meta"]
+    err = asyncio.run(get_manual_section("9-99"))
+    assert "manual_meta" not in err
+
+
+def test_v0310_renumbering_note_all_target_sections():
+    """데이터의 대상 절 전수(3-12~3-20)에서 부착 — 목록과 실제 부착의 정합 잠금."""
+    data = load_manual()
+    ids = data.meta["renumbering_note_section_ids"]
+    assert ids == ["3-12", "3-13", "3-14", "3-15", "3-16", "3-17", "3-18", "3-19", "3-20"]
+    for sid in ids:
+        r = asyncio.run(get_manual_section(sid))
+        assert "renumbering_note" in r["manual_meta"], sid
+
+
+def test_v0310_renumbering_note_pointer_and_chunk_branches(monkeypatch):
+    """포인터·청크 분기에도 부착(예산 축소로 대상 절을 강제 포인터화해 라이브 경로 검증)."""
+    from korean_rnd_regs_mcp import main as main_mod
+    monkeypatch.setattr(main_mod, "MANUAL_DETAIL_CHAR_BUDGET", 3000)
+    p = asyncio.run(get_manual_section("3-13"))
+    assert p["content_format"] == "oversized_pointer"
+    assert "renumbering_note" in p["manual_meta"]
+    c = asyncio.run(get_manual_section("3-13", chunk=1))
+    assert "renumbering_note" in c["manual_meta"]
+
+
+def test_v0310_renumbering_note_fail_safe():
+    """비정형 데이터(비문자열 note·비리스트 ids·키 부재)·section_id 미전달은 필드 생략."""
+    for meta in (
+        {"renumbering_note": 123, "renumbering_note_section_ids": ["3-12"]},
+        {"renumbering_note": "n", "renumbering_note_section_ids": "3-12"},
+        {"renumbering_note": "n", "renumbering_note_section_ids": [1, 2]},
+        {"renumbering_note": "", "renumbering_note_section_ids": ["3-12"]},
+        {},
+    ):
+        assert "renumbering_note" not in manual_meta_block(meta, section_id="3-12")
+    ok = manual_meta_block(
+        {"renumbering_note": "n", "renumbering_note_section_ids": ["3-12"]}, section_id="3-12"
+    )
+    assert ok["renumbering_note"] == "n"
+    no_sid = manual_meta_block(
+        {"renumbering_note": "n", "renumbering_note_section_ids": ["3-12"]}
+    )
+    assert "renumbering_note" not in no_sid  # search_manual 경로(미전달) 미부착

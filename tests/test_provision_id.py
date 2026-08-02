@@ -35,7 +35,7 @@ def test_contract_version_pinned():
     # 0.12.0 = 검색 경로 개정 이력 노출(v0.16.0) — search_provision/suggest 결과의 law 조문 매치에 latest_history additive(§5.13) → minor bump.
     # 0.14.0 = 형태 B redline(v0.18.0) — get_provision_detail optional include_old_and_new + law 문서레벨 old_and_new 블록 additive(§5.15) → minor bump.
     # 0.15.0 = admrul redline 확장(v0.19.0) — 행정규칙 문서레벨에도 amendment_text·amendment_kind additive(§5.16·<제개정구분명> 정규화) → minor bump.
-    assert CONTRACT_VERSION == "0.21.0"
+    assert CONTRACT_VERSION == "0.22.0"
 
 
 # === unit_label (v0.1.8 — overflow_candidates label용) ===
