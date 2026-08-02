@@ -4601,7 +4601,7 @@ def test_manual_track_guard_all_surfaces_v0270():
 
     # 공통 토큰(instructions + template 양쪽): 하단 표준 안내 코어
     common_tokens = [
-        "※ 정확한 최종 확인은 국가법령정보센터(law.go.kr)의 법령·행정규칙 원문을 기준으로 해주시기 바랍니다.",  # A-1
+        "※ 정확한 최종 확인은 국가법령정보센터(law.go.kr)의 관련 규정 원문을 기준으로 해주시기 바랍니다.",  # A-1
         "매뉴얼은 법령·행정규칙이 아니며",  # A-2 코어
         "manual_meta의 notice 값",  # 출처 줄 — 서버 완성형 그대로 출력
         "요약·윤문 없이 그대로",  # 중복 방지·verbatim 출력 규칙
