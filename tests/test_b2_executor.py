@@ -77,12 +77,12 @@ def test_contract_version_0_22_0():
     assert CONTRACT_VERSION == "0.23.0"
 
 
-def test_package_version_0_31_0():
-    """패키지 버전 0.31.0(매뉴얼 본권 26.7판 현행화 — 26.4 데이터 삭제·43절·재번호 고지·
+def test_package_version_0_32_0():
+    """패키지 버전 0.32.0(매뉴얼 별권 3 제재처분 가이드라인 수록 — 23단위·기존 도구 통합·
     contract 0.23.0·입력 스키마 무변=재연결 불요).
-    직전 0.30.0(출처·원문 확인 경로 정비 — contract 0.21.0)."""
+    직전 0.31.0(매뉴얼 본권 26.7판 현행화 — contract 0.22.0)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.31.0"
+    assert __version__ == "0.32.0"
 
 
 def test_cache_maxsize_96_v0240():
