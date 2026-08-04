@@ -24,7 +24,7 @@ MANUAL_DETAIL_CHAR_BUDGET = 16000
 MANUAL_DETAIL_HEADROOM = 300
 MANUAL_CHUNK_CONTENT_BUDGET = 12000
 
-SECTION_ID_RE = re.compile(r"^(?:\d+-\d+|ref-\d+|b3-(?:\d+-\d+|ref-\d+))$")
+SECTION_ID_RE = re.compile(r"^(?:\d+-\d+|ref-\d+|b3-(?:\d+-\d+|ref-\d+)|b2-(?:\d+-\d+|ref-\d+))$")
 
 _DATA_PATH = Path(__file__).parent / "manual_body.json"
 
@@ -55,6 +55,11 @@ _CACHE: ManualData | ManualLoadError | None = None
 _B3_DATA_PATH = Path(__file__).parent / "manual_b3.json"
 _B3_LOCK = threading.Lock()
 _B3_CACHE: ManualData | ManualLoadError | None = None
+
+# 별권 2 「국가연구개발사업 기술료 제도 매뉴얼」 — 동일 사상의 독립 병렬 경로 (R3-P0 D4).
+_B2_DATA_PATH = Path(__file__).parent / "manual_b2.json"
+_B2_LOCK = threading.Lock()
+_B2_CACHE: ManualData | ManualLoadError | None = None
 
 
 def mdot_normalize(s: str) -> str:
@@ -192,13 +197,97 @@ def _load_b3_uncached() -> ManualData | ManualLoadError:
     return data
 
 
+def load_manual_b2() -> ManualData | ManualLoadError:
+    """manual_b2.json lazy 싱글턴 로드 — 별권 3와 동일 사상의 독립 병렬 경로 (R3-P0 D4)."""
+    global _B2_CACHE
+    if _B2_CACHE is not None:
+        return _B2_CACHE
+    with _B2_LOCK:
+        if _B2_CACHE is not None:
+            return _B2_CACHE
+        _B2_CACHE = _load_b2_uncached()
+        return _B2_CACHE
+
+
+def _load_b2_uncached() -> ManualData | ManualLoadError:
+    """별권 3 방어 로더 복제 + R3-P0 D4 추가 검증(신규 로더 한정 — 기존 로더 무변).
+
+    추가 검증: id 중복 0·b2- 프리픽스·section_index 연속·pages 비어 있지 않음·printed_page
+    정수·text 문자열·meta.section_count 일치. 손상 파일이 부분 성공(중복 id 덮어쓰기 등)으로
+    보이는 공백 차단(P1 적대검토). 메시지는 별권 자신의 상태만 말한다.
+    """
+    if not _B2_DATA_PATH.exists():
+        return ManualLoadError(
+            reason="file_missing",
+            message="별권 2 데이터 파일(manual_b2.json)이 패키지에 없습니다 — 패키징 누락 가능.",
+        )
+    try:
+        with open(_B2_DATA_PATH, encoding="utf-8") as f:
+            payload = json.load(f)
+    except (ValueError, OSError) as exc:
+        return ManualLoadError(
+            reason="json_parse_failed",
+            message=f"별권 2 데이터 파일 파싱 실패({type(exc).__name__}).",
+        )
+    if not isinstance(payload, dict):
+        return ManualLoadError(
+            reason="schema_invalid",
+            message="별권 2 데이터 스키마 이상(최상위가 객체 아님).",
+        )
+    meta = payload.get("meta")
+    sections = payload.get("sections")
+    if not isinstance(meta, dict) or not isinstance(sections, list) or not sections:
+        return ManualLoadError(
+            reason="schema_invalid",
+            message="별권 2 데이터 스키마 이상(meta/sections 부재).",
+        )
+    try:
+        data = ManualData(meta=meta, sections=sections)
+        for idx, sec in enumerate(sections):
+            if not isinstance(sec, dict):
+                raise TypeError(f"section 원소 타입 이상: {type(sec).__name__}")
+            sid = sec.get("id", "")
+            if not isinstance(sid, str) or not sid.startswith("b2-"):
+                raise TypeError(f"section id 이상: {sid!r}")
+            if sid in data.by_id:
+                raise TypeError(f"section id 중복: {sid!r}")
+            if sec.get("section_index") != idx:
+                raise TypeError(f"section_index 불연속: {sid!r}")
+            pages = sec.get("pages")
+            if not isinstance(pages, list) or not pages:
+                raise TypeError(f"pages 비어 있음/타입 이상: {sid!r}")
+            for p in pages:
+                if not isinstance(p, dict) or not isinstance(p.get("printed_page"), int) \
+                        or not isinstance(p.get("text"), str):
+                    raise TypeError(f"page 항목 타입 이상: {sid!r}")
+            data.by_id[sid] = sec
+            full = "\n".join(p.get("text", "") for p in pages)
+            data.full_text[sid] = full
+            data.norm_body[sid] = mdot_normalize(full)
+            title_fields = " ".join(
+                [str(sec.get("section_title", "")), str(sec.get("chapter_title", "")), str(sec.get("section_label", ""))]
+                + [str(x) for x in sec.get("subsection_titles", []) if isinstance(x, str)]
+            )
+            data.norm_title[sid] = mdot_normalize(title_fields)
+        if meta.get("section_count") != len(sections):
+            raise TypeError(f"meta.section_count {meta.get('section_count')!r} != 실제 {len(sections)}")
+    except Exception as exc:
+        return ManualLoadError(
+            reason="schema_invalid",
+            message=f"별권 2 데이터 구조 손상({type(exc).__name__}) — 인덱스 구축 실패.",
+        )
+    return data
+
+
 def _reset_cache_for_tests() -> None:
     """테스트 전용 — 캐시 초기화(운영 코드에서 호출 금지)."""
-    global _CACHE, _B3_CACHE
+    global _CACHE, _B3_CACHE, _B2_CACHE
     with _LOCK:
         _CACHE = None
     with _B3_LOCK:
         _B3_CACHE = None
+    with _B2_LOCK:
+        _B2_CACHE = None
 
 
 # 답변 하단 표준 안내 — 서버 프롬프트(instructions·review 템플릿)와 문면이 일치해야 하는
@@ -336,50 +425,85 @@ def _law_priority_note(meta: dict, subject: str | None, basis: str, edition: str
     return note
 
 
-def mixed_manual_meta_block(
-    meta_main: dict, meta_b3: dict, manual_content_included: bool = False
-) -> dict:
-    """본권+별권 매치가 한 검색 응답에 함께 반환될 때의 병기 완성형 meta 블록 (R2-P0 D7).
+def _josa_eun_neun(word: str) -> str:
+    """은/는 조사 선택 — 숫자 끝(한국어 독음 받침)·한글 받침 처리, 그 외 '은(는)' 폴백."""
+    if not word:
+        return "은(는)"
+    last = word[-1]
+    if last.isdigit():
+        return "은" if last in "013678" else "는"  # 영·일·삼·육·칠·팔(받침) vs 이·사·오·구
+    code = ord(last)
+    if 0xAC00 <= code <= 0xD7A3:
+        return "은" if (code - 0xAC00) % 28 else "는"
+    return "은(는)"
 
-    호스트에게 조립을 맡기지 않고 notice·standard_footer를 서버가 병기 완성형으로 제공한다.
-    구조는 본권 블록 기반(edition·basis_laws 등은 본권 값) + 별권 식별 정보 병기:
-    source_titles 2건·notice 병기(" / " 구분)·law_priority_note에 별권 확장 문장 append.
+
+def _series_part_label(meta: dict) -> str:
+    """병기 문면용 자료 라벨 — series_part("별권 3") 우선·결측 시 source_title 폴백."""
+    return _one_line(meta.get("series_part")) or _one_line(meta.get("source_title")) or "별권"
+
+
+def _sources_entry(block: dict) -> dict:
+    """sources.{id} 항목 — 소스별 구조화 provenance 공통 shape."""
+    return {
+        "source_title": block.get("source_title"),
+        "edition": block.get("edition"),
+        "manual_basis_date": block.get("manual_basis_date"),
+        **({"source_url": block["source_url"]} if block.get("source_url") else {}),
+    }
+
+
+def mixed_manual_meta_block(
+    primary: tuple[str, dict], others: list[tuple[str, dict]], manual_content_included: bool = False
+) -> dict:
+    """복수 소스 매치가 한 검색 응답에 함께 반환될 때의 병기 완성형 meta 블록 (R2-P0 D7 → R3-P0 D5 일반화).
+
+    primary/others = (source_id, meta) 쌍. primary는 실제 반환 소스 중 최저 source_rank —
+    구조 단일 값 필드(edition·manual_basis_date 등)는 primary 기준이며, 나머지 소스는
+    sources.{id}·notice 병기·law_priority_note 확장으로 식별한다. (본권, [별권 3]) 조합의
+    출력은 v0.32.0 문면과 글자 단위 동일(보존 잠금 — R3-P0 D5 보존 표면 ③).
     """
-    main_block = manual_meta_block(meta_main, manual_content_included)
-    b3_block = manual_meta_block(meta_b3, manual_content_included)
-    notice = f"{main_block['notice']} / {b3_block['notice']}"
-    # 별권 기준일 부재를 law_priority_note에도 명시 — 구조 필드(manual_basis_date 등)가 본권
-    # 값이라 별권에 전이 오독될 수 있는 벡터 차단(P2 적대검토 MAJOR).
-    law_note = (
-        main_block["law_priority_note"]
-        + " 별권 3은 법령 기준일이 원문에 명시되어 있지 않아 이후 법령 개정 반영 여부를 알 수 없습니다."
-    )
-    extra = meta_b3.get("law_priority_extra")
-    if isinstance(extra, list) and extra and all(isinstance(x, str) for x in extra):
-        law_note = law_note + " " + " ".join(extra)
-    out = dict(main_block)
+    primary_id, primary_meta = primary
+    primary_block = manual_meta_block(primary_meta, manual_content_included)
+    other_blocks = [(oid, manual_meta_block(m, manual_content_included), m) for oid, m in others]
+    notice = " / ".join([primary_block["notice"]] + [b["notice"] for _oid, b, _m in other_blocks])
+    # 별권 기준일 부재를 law_priority_note에도 명시 — 구조 필드(manual_basis_date 등)가 primary
+    # 값이라 다른 소스에 전이 오독될 수 있는 벡터 차단(P2 적대검토 MAJOR — v0.32.0).
+    law_note = primary_block["law_priority_note"]
+    for _oid, _block, m in other_blocks:
+        part = _series_part_label(m)
+        if not (m.get("manual_basis_date") or ""):
+            law_note += (
+                f" {part}{_josa_eun_neun(part)} 법령 기준일이 원문에 명시되어 있지 않아 "
+                "이후 법령 개정 반영 여부를 알 수 없습니다."
+            )
+        extra = m.get("law_priority_extra")
+        if isinstance(extra, list) and extra and all(isinstance(x, str) for x in extra):
+            law_note = law_note + " " + " ".join(extra)
+    primary_label = "본권" if primary_id == "main" else _series_part_label(primary_meta)
+    if len(other_blocks) == 1:
+        oid, _b, m = other_blocks[0]
+        part = _series_part_label(m)
+        prov_tail = (
+            f"{part}의 판번·기준일은 sources.{oid}와 notice를 따르십시오"
+            f"({part}{_josa_eun_neun(part)} 법령 기준일 원문 미표기)."
+        )
+    else:
+        parts = "·".join(_series_part_label(m) for _oid, _b, m in other_blocks)
+        refs = "·".join(f"sources.{oid}" for oid, _b, _m in other_blocks)
+        prov_tail = f"{parts}의 판번·기준일은 {refs}와 notice를 따르십시오(각 별권은 법령 기준일 원문 미표기)."
+    out = dict(primary_block)
     out.update({
-        "source_titles": [main_block.get("source_title"), b3_block.get("source_title")],
-        # 소스별 구조화 provenance — 단일 필드(edition·manual_basis_date·source_url 등)는 본권
-        # 기준임을 기계 가독으로 보완(호스트가 구조 필드만 읽고 별권에 본권 기준일을 적용하는 오독 차단)
+        "source_titles": [primary_block.get("source_title")] + [b.get("source_title") for _oid, b, _m in other_blocks],
+        # 소스별 구조화 provenance — 단일 필드(edition·manual_basis_date·source_url 등)는 primary
+        # 기준임을 기계 가독으로 보완(호스트가 구조 필드만 읽고 타 소스에 전이 적용하는 오독 차단)
         "sources": {
-            "main": {
-                "source_title": main_block.get("source_title"),
-                "edition": main_block.get("edition"),
-                "manual_basis_date": main_block.get("manual_basis_date"),
-                **({"source_url": main_block["source_url"]} if main_block.get("source_url") else {}),
-            },
-            "b3": {
-                "source_title": b3_block.get("source_title"),
-                "edition": b3_block.get("edition"),
-                "manual_basis_date": b3_block.get("manual_basis_date"),
-                **({"source_url": b3_block["source_url"]} if b3_block.get("source_url") else {}),
-            },
+            primary_id: _sources_entry(primary_block),
+            **{oid: _sources_entry(b) for oid, b, _m in other_blocks},
         },
         "provenance_note": (
             "이 블록의 단일 값 필드(edition·manual_basis_date·basis_note·basis_laws·source_url)는 "
-            "본권 기준입니다. 별권 3의 판번·기준일은 sources.b3와 notice를 따르십시오"
-            "(별권 3은 법령 기준일 원문 미표기)."
+            f"{primary_label} 기준입니다. {prov_tail}"
         ),
         "notice": notice,
         "law_priority_note": law_note,
@@ -457,6 +581,14 @@ MANUAL_FORMAT_NOTE = (
 # 별권 3 전용 format note — 본권 문면의 "본권 PDF" 하드코딩을 소스별로 분리(R2-P0 D7·P1 검토).
 MANUAL_FORMAT_NOTE_B3 = (
     "본 content는 「국가연구개발사업 제재처분 가이드라인」(국가연구개발혁신법 매뉴얼 별권 3) PDF에서 "
+    "추출한 해설 텍스트 그대로입니다(법령 원문 아님·법적 효력 없음). 표 포함 페이지는 PDF 추출 특성상 "
+    "셀 텍스트 순서·제목 위치가 원본 배치와 다를 수 있으므로, 수치·조건을 인용할 때는 표기된 인쇄쪽으로 "
+    "원문 대조를 권장합니다."
+)
+
+# 별권 2 전용 format note (R3-P0 D5 — 소스별 문면 동형).
+MANUAL_FORMAT_NOTE_B2 = (
+    "본 content는 「국가연구개발사업 기술료 제도 매뉴얼」(국가연구개발혁신법 매뉴얼 별권 2) PDF에서 "
     "추출한 해설 텍스트 그대로입니다(법령 원문 아님·법적 효력 없음). 표 포함 페이지는 PDF 추출 특성상 "
     "셀 텍스트 순서·제목 위치가 원본 배치와 다를 수 있으므로, 수치·조건을 인용할 때는 표기된 인쇄쪽으로 "
     "원문 대조를 권장합니다."

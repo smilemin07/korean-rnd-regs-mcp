@@ -71,10 +71,10 @@ def test_cache_lock_never_wraps_network_or_parse():
 def test_contract_version_0_22_0():
     """v0.31.0: 매뉴얼 본권 26.7판 현행화(§5.23) — 데이터 판 교체(41→43절·재번호 8건) +
     manual_meta.renumbering_note 조건부 additive(get_manual_section 대상 절 한정)
-    → contract 0.22.0 → 0.23.0 minor bump(v0.32.0 별권 3 additive — 입력 스키마 무변·재연결 불요).
+    → contract 0.23.0 → 0.24.0 minor bump(v0.33.0 별권 2 additive — 입력 스키마 무변·재연결 불요).
     직전 0.21.0: 출처·원문 확인 경로 정비(§5.22)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.23.0"
+    assert CONTRACT_VERSION == "0.24.0"
 
 
 def test_package_version_0_32_0():

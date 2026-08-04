@@ -35,6 +35,8 @@
 판 갱신 절차: 본권 extract_manual.py docstring과 동일 — 새 판 게시 시 EXPECTED_* 불일치로
 fail-closed 중단되면 목차 대조표를 보고 상수 갱신·구판↔신판 id→제목 전수 대조로 재번호 판정.
 EXPECTED_PDF_SHA256·EXPECTED_APPENDIX_SUBTITLES·KNOWN_* 상수도 같은 절차로 재실측 갱신.
+산출 JSON은 서버 로더(load_manual_b2)의 강화 검증(id 유일·b2- 프리픽스·section_index 연속·
+meta.section_count 일치)을 본 추출기가 자동 충족한다 — JSON 수동 편집 금지(위반 시 로드 격리).
 """
 
 from __future__ import annotations

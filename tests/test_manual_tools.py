@@ -89,7 +89,7 @@ def test_file_missing_fail_safe(fresh_cache, monkeypatch, tmp_path):
     # v0.32.0(D5 장애 4조합): 본권 불가·별권 정상 → 별권만으로 부분 검색 성공 + source_warnings
     resp = asyncio.run(search_manual("협약 변경"))
     assert resp["errors"] == []
-    assert resp["searched_sources"] == ["b3"]
+    assert resp["searched_sources"] == ["b3", "b2"]
     assert resp["unavailable_sources"] == ["main"]
     assert resp["source_warnings"][0]["code"] == "manual_unavailable"
     assert "부분 결과" in resp["source_warnings"][0]["message"]
@@ -102,12 +102,13 @@ def test_file_missing_fail_safe(fresh_cache, monkeypatch, tmp_path):
 
 
 def test_both_sources_missing_error(fresh_cache, monkeypatch, tmp_path):
-    """본권·별권 모두 불가 — 오류 응답에 두 코드가 함께 실림(D5)."""
+    """전 소스(본권·별권 3·별권 2) 불가 — 오류 응답에 세 코드가 함께 실림(D5 → v0.33.0 8조합)."""
     monkeypatch.setattr(manual_mod, "_DATA_PATH", tmp_path / "no_main.json")
     monkeypatch.setattr(manual_mod, "_B3_DATA_PATH", tmp_path / "no_b3.json")
+    monkeypatch.setattr(manual_mod, "_B2_DATA_PATH", tmp_path / "no_b2.json")
     resp = asyncio.run(search_manual("협약 변경"))
     codes = {e["code"] for e in resp["errors"]}
-    assert codes == {"manual_unavailable", "manual_b3_unavailable"}
+    assert codes == {"manual_unavailable", "manual_b3_unavailable", "manual_b2_unavailable"}
     assert resp["manual_meta_available"] is False
 
 
@@ -116,7 +117,7 @@ def test_b3_file_missing_fail_safe(fresh_cache, monkeypatch, tmp_path):
     monkeypatch.setattr(manual_mod, "_B3_DATA_PATH", tmp_path / "no_b3.json")
     resp = asyncio.run(search_manual("협약 변경"))
     assert resp["errors"] == []
-    assert resp["searched_sources"] == ["main"]
+    assert resp["searched_sources"] == ["main", "b2"]
     assert resp["unavailable_sources"] == ["b3"]
     assert resp["source_warnings"][0]["code"] == "manual_b3_unavailable"
     resp2 = asyncio.run(get_manual_section("b3-4-2"))
@@ -194,7 +195,7 @@ def test_search_excerpts_raw_with_page_anchor():
 def test_search_zero_hit_anchor():
     r = asyncio.run(search_manual("존재하지않는키워드검증용문자열"))
     assert r["returned"] == 0 and r["total_matched"] == 0
-    assert r["scanned_sections"] == 66  # 본권 43 + 별권3 23 (v0.32.0)
+    assert r["scanned_sections"] == 81  # 본권 43 + 별권3 23 + 별권2 15 (v0.33.0)
     assert "규정의 부재를 뜻하지 않" in r["note"]
     assert r["manual_meta"]["legal_effect"] == "not_binding"
 
@@ -313,12 +314,13 @@ def test_manual_meta_on_all_response_kinds():
     # 혼합 매치 질의(본권 2-6 + 별권 b3-4-2)는 병기 완성형 notice(D7)
     mixed = asyncio.run(search_manual("기술료"))
     srcs = {m["source"] for m in mixed["matches"]}
-    assert srcs == {"main", "b3"}
+    assert srcs == {"main", "b3", "b2"}
     mnotice = mixed["manual_meta"]["notice"]
     assert mnotice.startswith("인용 매뉴얼: 26.7판 · 법령 시행일 2026-06 기준 / ")
     assert "제재처분 가이드라인" in mnotice and "법령 기준일 원문 미표기" in mnotice
     assert mixed["manual_meta"]["source_titles"] == [
         "국가연구개발혁신법 매뉴얼(본권)", "국가연구개발사업 제재처분 가이드라인",
+        "국가연구개발사업 기술료 제도 매뉴얼",
     ]
     assert mixed["manual_meta"]["standard_footer"].count("※") == 4
 
@@ -367,11 +369,11 @@ def test_budget_constants_parity_with_annex():
 
 def test_manual_responses_carry_contract_version():
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.23.0"
+    assert CONTRACT_VERSION == "0.24.0"
     r = asyncio.run(search_manual("기술료"))
-    assert r["contract_version"] == "0.23.0"
+    assert r["contract_version"] == "0.24.0"
     r2 = asyncio.run(get_manual_section("1-4"))
-    assert r2["contract_version"] == "0.23.0"
+    assert r2["contract_version"] == "0.24.0"
 
 
 # === v0.28.0: 인용 앵커(citation) · 하단 표준 안내(standard_footer) 응답 구조화 ===
