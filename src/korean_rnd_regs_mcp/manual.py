@@ -324,6 +324,44 @@ def build_standard_footer(notice: str, manual_content_included: bool) -> str:
     return "\n".join(lines)
 
 
+# v0.34.0: 표·산식 구조 손실 완성형 안내 — v0.33.0 라이브 eval에서 warnings 배열 원소는
+# 호스트 답변에 전이되지 않음이 관측됨(같은 응답의 citation·standard_footer 완성형 블록은 복사됨).
+# 사용자에게 전달돼야 하는 구조 손실 고지를 완성형 블록으로 승격한다. 값은 데이터
+# table_structure_notes 원문의 결정론 조립(generic 요약 금지 — 무엇이 소실됐는지가 도달해야 의미).
+STRUCTURE_NOTICE_HEADER = "※ 표·산식 구조 안내(추출 한계):"
+STRUCTURE_NOTICE_CHUNK_LINE = (
+    "- 위 안내는 절 전체 기준이며, 이 청크에 해당 표·산식·도식이 포함되었다는 뜻은 아닙니다."
+)
+STRUCTURE_NOTICE_NOTE = (
+    "위 structure_notice는 이 절의 표·산식·도식 구조가 추출 텍스트에 보존되지 않은 부분에 대한 "
+    "완성형 안내입니다. 이 절의 수치·산식·표 내용을 답변에 인용했다면 이 블록을 답변에 그대로"
+    "(요약·윤문 없이) 1회 표시하십시오. 같은 내용이 warnings에도 있으니 warnings 쪽을 중복 "
+    "표시하지 마십시오."
+)
+
+
+def build_structure_notice(section: dict, is_chunk: bool = False) -> str | None:
+    """표·산식 구조 손실 완성형 안내 블록 (v0.34.0) — 답변에 그대로 옮길 수 있는 형태.
+
+    데이터 table_structure_notes(절 수준 문자열 목록)의 원소 전부가 유효 문자열일 때만
+    블록을 만들고, 없거나 원소 하나라도 비정형이면 None(전체 생략 fail-closed — 일부만
+    조립하면 불완전한 안내가 완전한 안내처럼 보인다·diff 적대검토 반영. 기존 warnings
+    표면은 원소별 필터를 유지하므로 정보 자체는 남는다).
+    청크 응답에는 절 전체 기준 주의 줄을 덧붙인다(그 청크에 해당 표가 없을 수 있음 —
+    over-claim 차단. 페이지별 선택 부착은 데이터 스키마·QA 추가가 필요해 범위 밖).
+    """
+    notes = section.get("table_structure_notes")
+    if not isinstance(notes, list) or not notes:
+        return None
+    if not all(isinstance(n, str) and n for n in notes):
+        return None
+    lines = [STRUCTURE_NOTICE_HEADER]
+    lines.extend(f"- {n}" for n in notes)
+    if is_chunk:
+        lines.append(STRUCTURE_NOTICE_CHUNK_LINE)
+    return "\n".join(lines)
+
+
 def manual_meta_block(
     meta: dict, manual_content_included: bool = False, section_id: str | None = None
 ) -> dict:

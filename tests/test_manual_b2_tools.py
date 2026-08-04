@@ -228,8 +228,10 @@ def test_preserved_unrelated_error_wording(fresh_cache, monkeypatch, tmp_path):
 def test_golden_v0320_baseline_preserved(fresh_cache):
     """D5 보존 표면 ①·③ 기준선 실대조 — v0.32.0 코드(aa6585d)로 생성한 golden 픽스처와
     현재 구현의 응답 전체 직렬화를 비교(P2 diff 적대검토 MINOR 반영 — 신구현끼리 비교가
-    아니라 실제 구버전 산출물 대조). contract_version(0.23.0→0.24.0)만 계약 선언된
-    의도적 변경이라 비교에서 정규화한다.
+    아니라 실제 구버전 산출물 대조). contract_version(0.23.0→현행)만 계약 선언된
+    의도적 변경이라 비교에서 정규화한다. 대조 대상 응답에는 v0.34.0 structure_notice가
+    부착되지 않는다(3-13·b3-5-3 = notes 없음·b3-4-2 = 포인터 미부착·검색 = 미표면) —
+    부착 대상이 생기는 변경을 하면 이 테스트가 회귀 신호를 낸다(의도).
     """
     import pathlib
     golden = json.loads(
@@ -240,7 +242,8 @@ def test_golden_v0320_baseline_preserved(fresh_cache):
     def norm(obj):
         s = json.dumps(obj, ensure_ascii=False, sort_keys=True)
         return s.replace('"contract_version": "0.23.0"', '"contract_version": "N"') \
-                .replace('"contract_version": "0.24.0"', '"contract_version": "N"')
+                .replace('"contract_version": "0.24.0"', '"contract_version": "N"') \
+                .replace('"contract_version": "0.25.0"', '"contract_version": "N"')
 
     assert norm(asyncio.run(get_manual_section("3-13"))) == norm(golden["detail_3_13"])
     assert norm(asyncio.run(get_manual_section("b3-5-3"))) == norm(golden["detail_b3_5_3"])
@@ -266,7 +269,7 @@ def test_b2_all_ids_full_text_citation_footer(fresh_cache):
         assert meta["manual_basis_date"] is None, sid
         assert meta["standard_footer"].count("※") == 4, sid
         assert "법령 기준일 원문 미표기" in meta["notice"], sid
-        assert r["contract_version"] == "0.24.0", sid
+        assert r["contract_version"] == "0.25.0", sid
         assert r["format_note"].startswith("본 content는 「국가연구개발사업 기술료 제도 매뉴얼」"), sid
 
 

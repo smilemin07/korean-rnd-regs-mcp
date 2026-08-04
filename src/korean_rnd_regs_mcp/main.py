@@ -30,8 +30,10 @@ from .manual import (
     MANUAL_FORMAT_NOTE_B3,
     ManualLoadError,
     SECTION_ID_RE,
+    STRUCTURE_NOTICE_NOTE,
     build_citation,
     build_section_chunks,
+    build_structure_notice,
     find_excerpts,
     load_manual,
     load_manual_b2,
@@ -2266,7 +2268,9 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
         pid = parse_provision_id(provision_id)
     except InvalidProvisionId as e:
         return {
-            "errors": [{"code": "invalid_provision_id", "message": str(e)}],
+            # v0.34.0: provision_id.py가 사용자 입력을 {provision_id!r}로 echo하므로, 사용자가
+            # 실수로 자신의 OC 키를 인자에 붙여넣은 경우의 self-echo를 마스킹(키 미포함 문면은 불변)
+            "errors": [{"code": "invalid_provision_id", "message": _sanitize_error_message(str(e))}],
             "contract_version": CONTRACT_VERSION,
             "disclaimer": _DISCLAIMER,
         }
@@ -2294,7 +2298,9 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
         return {
             "errors": [{
                 "code": "not_found",
-                "message": f"manifest에 {pid.doc_type}:{pid.doc_id} 항목 없음",
+                # v0.34.0: doc_id는 형식 제약 없는 사용자 입력(비어있지 않음만 검증) — 사용자가
+                # 실수로 자신의 OC 키를 doc_id 자리에 붙여넣은 경우의 self-echo를 마스킹
+                "message": _sanitize_error_message(f"manifest에 {pid.doc_type}:{pid.doc_id} 항목 없음"),
             }],
             "contract_version": CONTRACT_VERSION,
             "disclaimer": _DISCLAIMER,
@@ -2576,7 +2582,9 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                     resp["revision_notice"] = _revision
             return _attach_std_footer(resp)
 
-    _msg = f"{provision_id}의 unit을 detail 응답에서 찾지 못함"
+    # v0.34.0: provision_id 원문 echo — 이 지점 도달 시 모든 part가 검증·매칭된 값이라 실위험은
+    # 없으나, 동적 self-echo는 sanitize 경유로 통일(키 미포함 문면 불변·diff 적대검토 반영)
+    _msg = _sanitize_error_message(f"{provision_id}의 unit을 detail 응답에서 찾지 못함")
     if pid.unit_id.startswith("BP"):
         # v0.2.2: BP 미스 복구 안내 — 다른 BP 번호 추측 재시도(오도달) 대신 doc-level annexes 목록으로 유도.
         _msg += (
@@ -3079,6 +3087,27 @@ async def search_manual(query: str) -> dict:
     return response
 
 
+def _attach_structure_notice(resp: dict, sec: dict, is_chunk: bool) -> dict:
+    """v0.34.0: 표·산식 구조 손실 완성형 안내 부착 — 본문을 실제 전달하는 응답(전문·청크) 전용.
+
+    부착은 size-tier 판정·기존 필드 조립이 끝난 뒤 마지막에 수행한다(판정 입력에 미포함 →
+    기존 절의 tier 불변). 부착 결과가 응답 예산(MANUAL_DETAIL_CHAR_BUDGET)을 초과하면
+    원본 무변경으로 생략한다(v0.29.0 standard_footer 크기 백스톱과 동일 규약 — 이 경우에도
+    warnings에 같은 취지 문자열이 남아 있어 정보 자체는 유지된다).
+    포인터 응답(본문 미전달)에는 호출부에서 부착하지 않는다 — 인용할 본문이 없는 응답에
+    인용 시 표시 지시를 붙이면 지시 대상이 없는 고지가 된다.
+    """
+    notice = build_structure_notice(sec, is_chunk=is_chunk)
+    if notice is None:
+        return resp
+    resp["structure_notice"] = notice
+    resp["structure_notice_note"] = STRUCTURE_NOTICE_NOTE
+    if len(json.dumps(resp, ensure_ascii=False)) > MANUAL_DETAIL_CHAR_BUDGET:
+        del resp["structure_notice"]
+        del resp["structure_notice_note"]
+    return resp
+
+
 @mcp.tool()
 async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
     """사용 시점: search_manual로 찾은 「국가연구개발혁신법 매뉴얼」 본권·별권 3 「국가연구개발사업 제재처분 가이드라인」·별권 2 「국가연구개발사업 기술료 제도 매뉴얼」 절의 본문 전문이 필요할 때 호출하십시오. 이 도구는 해설 자료 조회이며 법령·행정규칙 원문 조회가 아닙니다 — 조문 원문은 get_provision_detail을 사용하고, 매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문이 우선합니다.
@@ -3097,14 +3126,20 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
     표준 안내 완성형 standard_footer)와 citation(출처 표기용 완성형 인용 문자열 — 그대로 옮겨
     적으십시오. 청크 응답은 그 청크가 실제 담은 인쇄쪽으로 표기됩니다)이 동반됩니다(오류 응답에는 없음). 표 포함 절은
     PDF 추출 특성상 셀 텍스트 순서·제목 위치가 원본 배치와 다를 수 있으므로 수치·조건 인용 시
-    인쇄쪽 원문 대조를 권장합니다.
+    인쇄쪽 원문 대조를 권장합니다. 구조 손실이 확인된 절의 본문 응답에는 structure_notice
+    (완성형 안내 블록)가 포함됩니다 — 그 절의 수치·산식·표 내용을 답변에 인용했다면
+    structure_notice 값을 답변에 그대로(요약·윤문 없이) 1회 표시하고, 같은 내용의 warnings
+    항목을 중복 표시하지 마십시오. structure_notice가 없는 응답(구버전 응답·크기 상한으로
+    생략된 응답·구조 손실 미확인 절)에서는 warnings의 같은 취지 안내를 참고하십시오.
     """
     sid = (section_id or "").strip()
     if not SECTION_ID_RE.match(sid):
         return {
             "errors": [{
                 "code": "invalid_section_id",
-                "message": (
+                # v0.34.0: sid는 정규식 통과 전 원문 echo — 사용자가 실수로 자신의 OC 키를
+                # 붙여넣은 경우의 self-echo를 마스킹(키 미포함 문면은 불변)
+                "message": _sanitize_error_message(
                     f"section_id 형식 위반: {sid!r} — 허용 형식은 본권 '장-절'(예: '1-1', '3-4')·"
                     "'ref-N'(예: 'ref-1'), 별권 3 'b3-장-절'(예: 'b3-4-2')·'b3-ref-1' 또는 "
                     "별권 2 'b2-장-절'(예: 'b2-3-2')·'b2-ref-1'. "
@@ -3138,7 +3173,9 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
         return {
             "errors": [{
                 "code": "not_found",
-                "message": (
+                # v0.34.0: sid는 정규식 통과 후라 제약 형식이나, 동적 self-echo는 sanitize
+                # 경유로 통일(키 미포함 문면 불변·diff 적대검토 반영)
+                "message": _sanitize_error_message(
                     f"section_id {sid!r}에 해당하는 절이 없습니다. {valid_range}. "
                     "search_manual로 절을 먼저 찾는 것을 권장합니다."
                 ),
@@ -3202,7 +3239,7 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
             full["warnings"] = full["warnings"] + [
                 "chunk 무시 — 본 절은 전문이 응답 예산 내라 전체 본문을 반환했습니다(청크 조회 불필요)."
             ]
-        return full
+        return _attach_structure_notice(full, sec, is_chunk=False)
 
     # oversized — 페이지 경계 분할 청크(결정론·재조립 무손실)
     chunks = build_section_chunks(sec)
@@ -3246,7 +3283,7 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
                 f"본 응답은 절 전문이 아니라 {chunk_count}청크 중 {chunk}번째 부분 본문입니다 — 절 전체 확인으로 오인 금지."
             ],
         })
-        return part
+        return _attach_structure_notice(part, sec, is_chunk=True)
 
     pointer = dict(base)
     pointer.update({

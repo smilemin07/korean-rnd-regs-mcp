@@ -369,11 +369,11 @@ def test_budget_constants_parity_with_annex():
 
 def test_manual_responses_carry_contract_version():
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.24.0"
+    assert CONTRACT_VERSION == "0.25.0"
     r = asyncio.run(search_manual("기술료"))
-    assert r["contract_version"] == "0.24.0"
+    assert r["contract_version"] == "0.25.0"
     r2 = asyncio.run(get_manual_section("1-4"))
-    assert r2["contract_version"] == "0.24.0"
+    assert r2["contract_version"] == "0.25.0"
 
 
 # === v0.28.0: 인용 앵커(citation) · 하단 표준 안내(standard_footer) 응답 구조화 ===

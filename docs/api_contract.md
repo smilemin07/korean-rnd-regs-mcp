@@ -1,6 +1,6 @@
 # korean-rnd-regs-mcp API Contract
 
-- contract_version: **0.24.0** (0.1.0 첫 publish → … → 0.21.0 → 0.22.0 → 0.23.0 → 0.24.0 minor bump, §6 변경 이력 참조)
+- contract_version: **0.25.0** (0.1.0 첫 publish → … → 0.22.0 → 0.23.0 → 0.24.0 → 0.25.0 minor bump, §6 변경 이력 참조)
 - 작성일: 2026-05-24 (0.2.0 개정: 2026-06-04, 0.3.0 개정: 2026-06-07, 0.4.0 개정: 2026-06-09, 0.5.0 개정: 2026-06-10, 0.6.0 개정: 2026-06-13, 0.7.0 개정: 2026-06-21, 0.8.0 개정: 2026-06-21, 0.9.0 개정: 2026-06-22, 0.10.0 개정: 2026-07-07)
 - semver 정책: 0.x.x 대역은 unstable signal — minor bump(0.1.0 → 0.2.0)도 breaking change 허용. v0.2 가지조문 확장 시 0.2.0 minor bump로 자연스럽게 처리 (1.0.x 유지 시 2.0 major bump 필요했음)
 - 변경 정책: 본 문서 변경은 외부 사용자 코드·Claude Desktop 캐시·README 예시를 깰 수 있으므로 0.1.0 publish 이후 신중히 (§6 참조)
@@ -374,9 +374,19 @@ law:189938:BP000102              # 법령 별표 1의2 형식 (가지별표 인�
 - **문서 기준선 정비**(0.24.0 동승·코드 무변): §4.2에 `manual_b3_unavailable` 행 등재(0.23.0 코드의 표 누락 정정)·`invalid_section_id` 행 정규식 현행화·§5.24 "본권·규정 정상 명시" 문구를 조건부 문면 원칙과 정합하게 정정·"기존 필드 의미 무변"을 의미 무변·범위 확대로 명확화·§6 0.23.0 행의 "패키지 0.32.0 예정" 확정 표기.
 - 순수 additive(신규 필드 값·신규 id 계열·신규 오류 코드)·**입력 스키마 무변(웹 커넥터 재연결 불요)**·규정 트랙·fan-out·캐시·transport·외부 URL 완전 불변 → contract_version **0.24.0**(0.23.0 → 0.24.0).
 
+### 5.26 구조 안내 완성형 승격 + 오류 self-echo 마스킹 (0.25.0 minor — 응답 additive·입력 스키마 무변)
+
+- **동기**: v0.33.0 배포 후 라이브 eval에서 `table_structure_notes`(표·산식 구조 손실 경고)가 `get_manual_section` 응답 `warnings` 배열로 전달됐으나 호스트 답변에 반영되지 않음을 관측 — 같은 응답의 `citation`·`standard_footer`(완성형 블록)는 정확히 복사됨. 배열 원소 경고는 호스트 재량 소비·완성형 블록은 복사된다는 6릴리스 축적 관측과 정합. 사용자에게 전달돼야 하는 구조 손실 고지를 완성형 블록으로 승격.
+- **`structure_notice`·`structure_notice_note` additive**(get_manual_section): 데이터 `table_structure_notes`가 유효한 절(현행 4절 — b3-4-2·b2-2-1·b2-3-2·b2-ref-1)의 **본문 전달 응답(전문·청크)에만** 부착. 값 = 헤더 줄("※ 표·산식 구조 안내(추출 한계):") + note 원문 목록의 결정론 조립(generic 요약 금지·데이터 단일 출처). 청크 응답에는 절 전체 기준 주의 줄 추가(그 청크에 해당 표·산식이 없을 수 있음 — over-claim 차단·페이지별 선택 부착은 데이터 스키마 필요로 범위 밖). `structure_notice_note` = 인접 지시(그대로 1회 표시·warnings 중복 표시 금지 — standard_footer_note 패턴).
+- **미부착 경로**: 포인터 응답(본문 미전달 — 인용 대상 없음)·notes 없는 절(필드 자체 생략 — 기존 응답은 contract_version 선언 변경 제외 byte 불변)·비정형 데이터(원소 하나라도 비문자열·빈 문자열이면 **전체 생략 fail-closed** — 일부만 조립된 안내가 완전한 안내처럼 보이는 것 차단·warnings 표면은 기존 원소별 필터 유지)·오류 응답·search_manual(미표면 유지 — 검색 응답 팽창 회피).
+- **예산 백스톱**: 부착은 size-tier 판정·기존 필드 조립 이후 마지막 단계 — tier 판정 입력에 미포함(기존 절 tier 불변). 부착 결과가 16,000자 초과 시 원본 무변경 생략(0.20.0 standard_footer whole-or-omit 규약 동일 — 이 경우에도 warnings에 같은 취지 문자열 잔존). 실측 최대 케이스 = b3-4-2 청크 1(부착 후 15,799자·테스트 잠금).
+- **`warnings` 병존 유지**(보존 표면): 기존 warnings 조립 무변 — 구버전 소비자·진단 채널 호환. docstring에 structure_notice 1회 표시·warnings 중복 표시 금지 지시.
+- **오류 self-echo 마스킹**(응답 필드 아님·오류 문면 보안 보강): 실위험 3경로 — ①`invalid_provision_id`(provision_id 원문 echo) ②`invalid_section_id`(section_id 원문 echo) ③`get_provision_detail` manifest 불일치 `not_found`(`doc_id`는 형식 제약 없는 사용자 입력) — 에 더해, 제약 형식이라 실위험은 없으나 방어 일관성을 위해 동적 self-echo 2곳(get_manual_section 절 `not_found`의 sid·get_provision_detail unit 미발견 `not_found`의 provision_id)까지 총 5곳 `_sanitize_error_message` 경유. 사용자가 실수로 자신의 OC 키를 인자에 붙여넣은 경우의 self-echo(본인 세션 한정·교차 사용자 누설 아님) 차단. **키 미포함 문면은 byte 불변**(마스킹 함수는 활성 키 포함 시에만 치환·환경변수 키와 HTTP per-user contextvar 키 모두 검사). 주장 범위 한정: 위 오류 문면의 활성 키 self-echo 차단이며, 검색어 등 의도적 입력 반환 표면(search `query`·suggest `question` 등)은 별도 threat-model 영역.
+- 순수 additive(신규 필드 2종)·**입력 스키마 무변(웹 커넥터 재연결 불요)**·규정 트랙·검색/랭킹·fan-out·캐시·transport·외부 URL 완전 불변 → contract_version **0.25.0**(0.24.0 → 0.25.0).
+
 ## 6. contract_version 관리
 
-- 본 문서 contract_version: **0.24.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 → 0.12.0 → 0.13.0 → 0.14.0 → 0.15.0 → 0.16.0 → 0.17.0 → 0.18.0 → 0.19.0 → 0.20.0 → 0.21.0 → 0.22.0 → 0.23.0 → 0.24.0 minor)
+- 본 문서 contract_version: **0.25.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 → 0.12.0 → 0.13.0 → 0.14.0 → 0.15.0 → 0.16.0 → 0.17.0 → 0.18.0 → 0.19.0 → 0.20.0 → 0.21.0 → 0.22.0 → 0.23.0 → 0.24.0 → 0.25.0 minor)
 - 코드 상수: `korean_rnd_regs_mcp.provision_id.CONTRACT_VERSION`
 - 변경 정책 (0.x.x — unstable signal):
 
@@ -450,3 +460,4 @@ law:189938:BP000102              # 법령 별표 1의2 형식 (가지별표 인�
 | **0.22.0** | 2026-08-02 | **minor bump** (패키지 **0.31.0**). 매뉴얼 본권 26.7판 현행화(§5.23) — ① `manual_body.json` 전체 교체(26.4→26.7·41→43절·388,172자·인쇄 1~332쪽·[부록] 별도 PDF 분리·meta 전면 갱신 list_no=94788) ② ★제3장 재번호 8건(제12절 연구혁신비 신설로 구판 3-12~3-19가 3-13~3-20으로 이동·신규 3-20·ref-3) ③ `manual_meta.renumbering_note` 조건부 additive(get_manual_section 비오류·대상 절 3-12~3-20 한정·전문/포인터/청크 3분기·데이터 단일 출처 passthrough·fail-safe 생략·search/오류 미부착·수명 수록 판 연동) ④ 표면 갱신(docstring 43개 절·not_found 범위·README 26.7판). size-tier 전문 31·포인터 12. **입력 스키마 무변 → 재연결 불요**. 검색/랭킹/fan-out·transport·캐시·외부 URL·규정 수(64) 불변. 설계 /disc 2라운드(릴리스 분할 3/3·재번호 처리 조건부 B 2/3+Codex 변형 채택·C 기각 3/3) → 0.21.0 → 0.22.0 |
 | **0.23.0** | 2026-08-03 | **minor bump** (패키지 **0.32.0** — 2026-08-03 배포 완료). 별권 3 「국가연구개발사업 제재처분 가이드라인」 수록(§5.24) — manual_b3.json 신설(23단위·87,844자·본권 byte 불변)·독립 로더·b3 id 계열·오류 코드 manual_b3_unavailable·검색 병합(tier 우선·본권 우선·무회귀 잠금)·소스별 계측 4필드·source_warnings·장애 4조합 envelope·별권 meta(edition-only notice 분기·basis null 사실 표기)·혼합 manual_meta 병기 완성형·규범성 확장 2문장·table_structure_notes 표면화. 순수 additive·입력 스키마 무변(재연결 불요). 설계 = R2-P0 동결 D1~D11(계획·P0·P1 /disc 3라운드 3-AI 수렴) → 0.22.0 → 0.23.0 |
 | **0.24.0** | 2026-08-04 | **minor bump** (패키지 **0.33.0** — 2026-08-04 배포). 별권 2 「국가연구개발사업 기술료 제도 매뉴얼」 수록(§5.25) — manual_b2.json 신설(15단위·9,531자·본권·별권 3 byte 불변)·독립 로더(강화 검증)·b2 id 계열·오류 코드 manual_b2_unavailable·별권 소스 descriptor 목록으로 교차 소스 층 일반화(검색 병합·장애 표면·라우팅·혼합 meta — 로더는 per-book 유지)·소스 가용성 8조합 envelope·보존 표면 4항 잠금·별권 2 meta(edition-only·law_priority_extra 3문장[구판 용어 라이브 검증])·table_structure_notes 4건·문서 기준선 정비 5건. 순수 additive·입력 스키마 무변(재연결 불요). 설계 = R3-P0 동결 D1~D12(로드맵·P0·P1 /disc 3라운드 3-AI) → 0.23.0 → 0.24.0 |
+| **0.25.0** | 2026-08-05 | **minor bump** (패키지 **0.34.0**). 구조 안내 완성형 승격 + 오류 self-echo 마스킹(§5.26) — ① `get_manual_section` 본문 전달 응답(전문·청크)에 `structure_notice`(table_structure_notes 원문 결정론 조립 완성형 블록·청크는 절 전체 기준 주의 줄 추가)·`structure_notice_note`(인접 지시) additive. 부착은 tier 판정 이후 마지막·16,000자 초과 시 원본 무변경 생략(whole-or-omit)·포인터/notes 없는 절/오류/search_manual 미부착·warnings 병존 유지. 동기 = v0.33.0 라이브 eval(warnings 배열 원소 미복사·완성형 블록 복사 — 같은 응답 내 대조 관측) ② 오류 self-echo 마스킹(실위험 3경로 invalid_provision_id·invalid_section_id·manifest 불일치 not_found + 방어 일관성 2곳 = 총 5곳) `_sanitize_error_message` 경유 — 키 미포함 문면 byte 불변·env 키와 HTTP contextvar 키 모두 검사. **입력 스키마 무변 → 재연결 불요**. 검색/랭킹·fan-out·transport·캐시·외부 URL·규정 수(64)·매뉴얼 데이터 3종 byte 불변. 계획 /disc 3-AI GO(Codex 크기 게이트·청크 문면·마스킹 범위 한정 반영·b3-4-2 청크 1 실측 15,231→15,799자 잠금) → 0.24.0 → 0.25.0 |
