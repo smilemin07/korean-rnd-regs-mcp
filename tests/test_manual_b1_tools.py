@@ -51,11 +51,11 @@ def test_section_id_re_accepts_b1_forms():
 
 
 def test_supplement_descriptor_b1_appended():
-    """descriptor append-only(D9) — b1이 마지막·rank 3·오류코드·프리픽스 정합."""
+    """descriptor append-only(D9) — v0.38.0 eval 추가 후에도 b1의 위치·rank·정합 불변."""
     descs = main_mod._MANUAL_SUPPLEMENTS
-    assert [d["source_id"] for d in descs] == ["b3", "b2", "b1"]
-    assert [d["source_rank"] for d in descs] == [1, 2, 3]
-    b1 = descs[-1]
+    assert [d["source_id"] for d in descs] == ["b3", "b2", "b1", "eval"]
+    assert [d["source_rank"] for d in descs] == [1, 2, 3, 4]
+    b1 = descs[2]
     assert b1["prefix"] == "b1-"
     assert b1["error_code"] == "manual_b1_unavailable"
     assert "학생인건비통합관리 제도 매뉴얼" in b1["label"]
@@ -125,10 +125,10 @@ def test_b1_corrupt_data_isolated(fresh_cache, monkeypatch, tmp_path, payload_te
     assert isinstance(r, manual_mod.ManualLoadError), tag
     resp = asyncio.run(search_manual("협약 변경"))
     assert resp["errors"] == []
-    assert resp["searched_sources"] == ["main", "b3", "b2"]
+    assert resp["searched_sources"] == ["main", "b3", "b2", "eval"]
     assert resp["unavailable_sources"] == ["b1"]
     assert resp["source_warnings"][0]["code"] == "manual_b1_unavailable"
-    assert "본권·별권 3·별권 2만 검색한 부분 결과" in resp["source_warnings"][0]["message"]
+    assert "본권·별권 3·별권 2·과제평가 표준지침만 검색한 부분 결과" in resp["source_warnings"][0]["message"]
     resp2 = asyncio.run(get_manual_section("b1-1-1"))
     assert resp2["errors"][0]["code"] == "manual_b1_unavailable"
 
@@ -148,13 +148,13 @@ def test_b1_detail_fail_mentions_main_only_when_verified(fresh_cache, monkeypatc
     assert asyncio.run(get_manual_section("b2-1-1"))["content_available"] is True
 
 
-# ── D10: 소스 가용성 16조합 전수 ─────────────────────────────────────────────
+# ── D10: 소스 가용성 전수 (v0.38.0: eval 추가로 2^4=16 → 2^5=32조합 확장) ────
 
 @pytest.mark.parametrize(
-    "main_ok, b3_ok, b2_ok, b1_ok", list(itertools.product([True, False], repeat=4))
+    "main_ok, b3_ok, b2_ok, b1_ok, eval_ok", list(itertools.product([True, False], repeat=5))
 )
-def test_availability_16_combinations(fresh_cache, monkeypatch, tmp_path, main_ok, b3_ok, b2_ok, b1_ok):
-    """4소스 boolean 전수(D10) — 대표 조합이 놓치는 '전부 실패 vs 일부 실패' 조립 분기·
+def test_availability_32_combinations(fresh_cache, monkeypatch, tmp_path, main_ok, b3_ok, b2_ok, b1_ok, eval_ok):
+    """5소스 boolean 전수(D10 확장) — 대표 조합이 놓치는 '전부 실패 vs 일부 실패' 조립 분기·
     오류 순서·부분 결과 문면을 전 조합에서 잠금."""
     if not main_ok:
         monkeypatch.setattr(manual_mod, "_DATA_PATH", tmp_path / "no_main.json")
@@ -164,8 +164,10 @@ def test_availability_16_combinations(fresh_cache, monkeypatch, tmp_path, main_o
         monkeypatch.setattr(manual_mod, "_B2_DATA_PATH", tmp_path / "no_b2.json")
     if not b1_ok:
         monkeypatch.setattr(manual_mod, "_B1_DATA_PATH", tmp_path / "no_b1.json")
+    if not eval_ok:
+        monkeypatch.setattr(manual_mod, "_EVAL_DATA_PATH", tmp_path / "no_eval.json")
     resp = asyncio.run(search_manual("협약 변경"))
-    flags = (("main", main_ok), ("b3", b3_ok), ("b2", b2_ok), ("b1", b1_ok))
+    flags = (("main", main_ok), ("b3", b3_ok), ("b2", b2_ok), ("b1", b1_ok), ("eval", eval_ok))
     expected_sources = [s for s, ok in flags if ok]
     expected_unavail = [s for s, ok in flags if not ok]
     if not expected_sources:
@@ -173,14 +175,15 @@ def test_availability_16_combinations(fresh_cache, monkeypatch, tmp_path, main_o
         assert codes == [
             "manual_unavailable", "manual_b3_unavailable",
             "manual_b2_unavailable", "manual_b1_unavailable",
+            "manual_eval_unavailable",
         ]
-        # 종합 안내는 계약 규약상 "마지막 오류"에 부착(§5.24) — 별권 1 추가로 부착처가
-        # b2에서 b1으로 이동(v0.33.0에서 b3→b2 이동과 동일 전례·§5.27 명시). 기존 3소스
+        # 종합 안내는 계약 규약상 "마지막 오류"에 부착(§5.24) — eval 추가로 부착처가
+        # b1에서 eval로 이동(v0.33.0 b3→b2·v0.35.0 b2→b1 이동과 동일 전례). 앞선 소스
         # 오류는 자기 소스 상태만 말하는 순수 문면으로 잠금(diff 적대검토 Codex 반영).
         for e in resp["errors"][:-1]:
             assert "모두" not in e["message"], e["code"]
             assert "(reason:" in e["message"], e["code"]
-        assert "본권·별권 3·별권 2·별권 1 매뉴얼 데이터가 모두 로드 불가" in resp["errors"][-1]["message"]
+        assert "본권·별권 3·별권 2·별권 1·과제평가 표준지침 매뉴얼 데이터가 모두 로드 불가" in resp["errors"][-1]["message"]
         assert "규정 도구(search_provision·get_provision_detail 등)는 정상" in resp["errors"][-1]["message"]
         assert resp["manual_meta_available"] is False
         return
@@ -189,7 +192,7 @@ def test_availability_16_combinations(fresh_cache, monkeypatch, tmp_path, main_o
     if expected_unavail:
         assert resp["unavailable_sources"] == expected_unavail
         assert [w["source"] for w in resp["source_warnings"]] == expected_unavail
-        labels = {"main": "본권", "b3": "별권 3", "b2": "별권 2", "b1": "별권 1"}
+        labels = {"main": "본권", "b3": "별권 3", "b2": "별권 2", "b1": "별권 1", "eval": "과제평가 표준지침"}
         ok_label = "·".join(labels[s] for s in expected_sources)
         for w in resp["source_warnings"]:
             assert f"본 응답은 {ok_label}만 검색한 부분 결과입니다" in w["message"]
@@ -308,7 +311,7 @@ def test_golden_v0340_baseline_preserved(fresh_cache):
     def norm(obj):
         s = json.dumps(obj, ensure_ascii=False, sort_keys=True)
         return s.replace('"contract_version": "0.25.0"', '"contract_version": "N"') \
-                .replace('"contract_version": "0.27.0"', '"contract_version": "N"')
+                .replace('"contract_version": "0.28.0"', '"contract_version": "N"')
 
     assert norm(asyncio.run(get_manual_section("3-13"))) == norm(golden["detail_3_13"])
     assert norm(asyncio.run(get_manual_section("b3-5-3"))) == norm(golden["detail_b3_5_3"])
@@ -335,7 +338,7 @@ def test_b1_all_ids_citation_footer(fresh_cache):
         meta = r["manual_meta"]
         assert meta["manual_basis_date"] is None, sid
         assert "법령 기준일 원문 미표기" in meta["notice"], sid
-        assert r["contract_version"] == "0.27.0", sid
+        assert r["contract_version"] == "0.28.0", sid
         assert r["format_note"].startswith("본 content는 「학생인건비통합관리 제도 매뉴얼」"), sid
         if sid == "b1-ref-3":
             # 포인터 응답 = 본문 미전달 → footer 2줄 규약(허위 인용 고지 차단)

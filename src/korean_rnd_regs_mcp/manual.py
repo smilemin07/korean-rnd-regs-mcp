@@ -27,7 +27,8 @@ MANUAL_DETAIL_HEADROOM = 600
 MANUAL_CHUNK_CONTENT_BUDGET = 12000
 
 SECTION_ID_RE = re.compile(
-    r"^(?:\d+-\d+|ref-\d+|b3-(?:\d+-\d+|ref-\d+)|b2-(?:\d+-\d+|ref-\d+)|b1-(?:\d+-\d+|ref-\d+))$"
+    r"^(?:\d+-\d+|ref-\d+|b3-(?:\d+-\d+|ref-\d+)|b2-(?:\d+-\d+|ref-\d+)|b1-(?:\d+-\d+|ref-\d+)"
+    r"|eval-(?:\d+-\d+|ref-\d+))$"
 )
 
 _DATA_PATH = Path(__file__).parent / "manual_body.json"
@@ -69,6 +70,12 @@ _B2_CACHE: ManualData | ManualLoadError | None = None
 _B1_DATA_PATH = Path(__file__).parent / "manual_b1.json"
 _B1_LOCK = threading.Lock()
 _B1_CACHE: ManualData | ManualLoadError | None = None
+
+# 「국가연구개발 과제평가 표준지침」(25.12) — 매뉴얼 트랙 최초의 비(非)혁신법-매뉴얼 독립 소스
+# (v0.38.0). 동일 사상의 독립 병렬 경로 — 한 소스 실패는 그 소스 조회에만 격리된다.
+_EVAL_DATA_PATH = Path(__file__).parent / "manual_eval.json"
+_EVAL_LOCK = threading.Lock()
+_EVAL_CACHE: ManualData | ManualLoadError | None = None
 
 
 def mdot_normalize(s: str) -> str:
@@ -372,9 +379,90 @@ def _load_b1_uncached() -> ManualData | ManualLoadError:
     return data
 
 
+def load_manual_eval() -> ManualData | ManualLoadError:
+    """manual_eval.json lazy 싱글턴 로드 — 별권 1·2·3와 동일 사상의 독립 병렬 경로 (v0.38.0)."""
+    global _EVAL_CACHE
+    if _EVAL_CACHE is not None:
+        return _EVAL_CACHE
+    with _EVAL_LOCK:
+        if _EVAL_CACHE is not None:
+            return _EVAL_CACHE
+        _EVAL_CACHE = _load_eval_uncached()
+        return _EVAL_CACHE
+
+
+def _load_eval_uncached() -> ManualData | ManualLoadError:
+    """별권 1 강화 로더 복제(eval- 프리픽스) — 기존 로더 무변.
+
+    추가 검증: id 중복 0·eval- 프리픽스·라우팅 정규식 일치·section_index 연속·pages 비어 있지
+    않음·printed_page 정수·text 문자열·meta.section_count 일치. 메시지는 이 소스 자신의 상태만 말한다.
+    """
+    if not _EVAL_DATA_PATH.exists():
+        return ManualLoadError(
+            reason="file_missing",
+            message="과제평가 표준지침 데이터 파일(manual_eval.json)이 패키지에 없습니다 — 패키징 누락 가능.",
+        )
+    try:
+        with open(_EVAL_DATA_PATH, encoding="utf-8") as f:
+            payload = json.load(f)
+    except (ValueError, OSError) as exc:
+        return ManualLoadError(
+            reason="json_parse_failed",
+            message=f"과제평가 표준지침 데이터 파일 파싱 실패({type(exc).__name__}).",
+        )
+    if not isinstance(payload, dict):
+        return ManualLoadError(
+            reason="schema_invalid",
+            message="과제평가 표준지침 데이터 스키마 이상(최상위가 객체 아님).",
+        )
+    meta = payload.get("meta")
+    sections = payload.get("sections")
+    if not isinstance(meta, dict) or not isinstance(sections, list) or not sections:
+        return ManualLoadError(
+            reason="schema_invalid",
+            message="과제평가 표준지침 데이터 스키마 이상(meta/sections 부재).",
+        )
+    try:
+        data = ManualData(meta=meta, sections=sections)
+        for idx, sec in enumerate(sections):
+            if not isinstance(sec, dict):
+                raise TypeError(f"section 원소 타입 이상: {type(sec).__name__}")
+            sid = sec.get("id", "")
+            if not isinstance(sid, str) or not sid.startswith("eval-") or not SECTION_ID_RE.match(sid):
+                raise TypeError(f"section id 이상: {sid!r}")
+            if sid in data.by_id:
+                raise TypeError(f"section id 중복: {sid!r}")
+            if sec.get("section_index") != idx:
+                raise TypeError(f"section_index 불연속: {sid!r}")
+            pages = sec.get("pages")
+            if not isinstance(pages, list) or not pages:
+                raise TypeError(f"pages 비어 있음/타입 이상: {sid!r}")
+            for p in pages:
+                if not isinstance(p, dict) or type(p.get("printed_page")) is not int \
+                        or not isinstance(p.get("text"), str):
+                    raise TypeError(f"page 항목 타입 이상: {sid!r}")
+            data.by_id[sid] = sec
+            full = "\n".join(p.get("text", "") for p in pages)
+            data.full_text[sid] = full
+            data.norm_body[sid] = mdot_normalize(full)
+            title_fields = " ".join(
+                [str(sec.get("section_title", "")), str(sec.get("chapter_title", "")), str(sec.get("section_label", ""))]
+                + [str(x) for x in sec.get("subsection_titles", []) if isinstance(x, str)]
+            )
+            data.norm_title[sid] = mdot_normalize(title_fields)
+        if meta.get("section_count") != len(sections):
+            raise TypeError(f"meta.section_count {meta.get('section_count')!r} != 실제 {len(sections)}")
+    except Exception as exc:
+        return ManualLoadError(
+            reason="schema_invalid",
+            message=f"과제평가 표준지침 데이터 구조 손상({type(exc).__name__}) — 인덱스 구축 실패.",
+        )
+    return data
+
+
 def _reset_cache_for_tests() -> None:
     """테스트 전용 — 캐시 초기화(운영 코드에서 호출 금지)."""
-    global _CACHE, _B3_CACHE, _B2_CACHE, _B1_CACHE
+    global _CACHE, _B3_CACHE, _B2_CACHE, _B1_CACHE, _EVAL_CACHE
     with _LOCK:
         _CACHE = None
     with _B3_LOCK:
@@ -383,6 +471,8 @@ def _reset_cache_for_tests() -> None:
         _B2_CACHE = None
     with _B1_LOCK:
         _B1_CACHE = None
+    with _EVAL_LOCK:
+        _EVAL_CACHE = None
 
 
 # 답변 하단 표준 안내 — 서버 프롬프트(instructions·review 템플릿)와 문면이 일치해야 하는
@@ -402,7 +492,7 @@ FOOTER_MANUAL_LINE = (
 )
 
 
-def build_standard_footer(notice: str, manual_content_included: bool) -> str:
+def build_standard_footer(notice: str, manual_content_included: bool, manual_line: str | None = None) -> str:
     """답변 하단 표준 안내 완성형 블록 (v0.28.0·v0.30.0 매뉴얼 원문 안내 줄 추가).
 
     manual_content_included = 이 응답이 매뉴얼 해설 텍스트를 실제로 실어 보냈는가
@@ -411,10 +501,14 @@ def build_standard_footer(notice: str, manual_content_included: bool) -> str:
     매뉴얼을 전달하지 않은 응답에 매뉴얼 인용 면책을 붙이면 근거 출처를 사실과 다르게
     고지하게 되므로 서버가 아는 범위에서 결정론으로 차단한다(검증 /disc).
     처음 두 줄은 규정 상세(_attach_std_footer)와 동일 문자열 — 호스트 dedup 자연 성립.
+
+    manual_line(v0.38.0): 3번째 줄 per-source 문면 — 기본 문면이 「국가연구개발혁신법 매뉴얼」을
+    명시하므로 비시리즈 독립 자료(과제평가 표준지침)는 데이터 meta.footer_manual_line로 자기
+    문면을 공급한다(기존 4소스는 키 부재 → 기본 문면·기존 응답 byte 불변).
     """
     lines = [FOOTER_LAW_LINE, FOOTER_MANUAL_SOURCE_LINE]
     if manual_content_included:
-        lines.append(FOOTER_MANUAL_LINE)
+        lines.append(manual_line or FOOTER_MANUAL_LINE)
         lines.append(f"※ {notice}")
     return "\n".join(lines)
 
@@ -476,14 +570,26 @@ def manual_meta_block(
     series_title = meta.get("series_title") or ""
     series_part = meta.get("series_part") or ""
     src_title = _one_line(meta.get("source_title"))
-    subject = f"「{src_title}」({series_title} {series_part})" if (series_title and series_part and src_title) else None
+    if series_title and series_part and src_title:
+        subject = f"「{src_title}」({series_title} {series_part})"
+    elif src_title and not basis:
+        # v0.38.0: 비시리즈 독립 자료(과제평가 표준지침 등) — 자료명 단독 병기(혼합 답변 식별).
+        # 본권(basis 보유)은 이 분기에 오지 않아 기존 notice 문면 불변.
+        subject = f"「{src_title}」"
+    else:
+        subject = None
     if edition and basis:
         notice = f"인용 매뉴얼: {edition}판 · 법령 시행일 {basis} 기준"
     elif edition:
         # v0.32.0(R2-P0 D7): 판번만 있고 기준일이 원문에 없는 자료(별권 3) — "확인 불가"로
-        # 뭉개지 않고 사실대로 표기. provenance 단서는 데이터 edition_note 보유 시에만.
+        # 뭉개지 않고 사실대로 표기. provenance 단서는 데이터 edition_note 보유 시에만
+        # (v0.38.0: edition_provenance 보유 자료는 그 문면을 우선 사용 — 게시 세트 아닌 판번 출처 지원).
         head = f"인용 자료: {subject} " if subject else "인용 매뉴얼: "
-        provenance = "(판번은 게시 세트 기준)" if meta.get("edition_note") else ""
+        custom_prov = _one_line(meta.get("edition_provenance"))
+        if custom_prov:
+            provenance = f"({custom_prov})"
+        else:
+            provenance = "(판번은 게시 세트 기준)" if meta.get("edition_note") else ""
         notice = f"{head}{edition}판{provenance} · 법령 기준일 원문 미표기"
     elif basis:
         notice = f"인용 매뉴얼: 법령 시행일 {basis} 기준"
@@ -520,7 +626,10 @@ def manual_meta_block(
         **({"renumbering_note": renumbering_note} if renumbering_note else {}),
         "law_priority_note": _law_priority_note(meta, subject, basis, edition),
         "notice": notice,
-        "standard_footer": build_standard_footer(notice, manual_content_included),
+        # v0.38.0: footer 3번째 줄 per-source 문면(meta.footer_manual_line) — 키 부재 소스는 기본 문면(byte 불변)
+        "standard_footer": build_standard_footer(
+            notice, manual_content_included, _one_line(meta.get("footer_manual_line")) or None
+        ),
         "standard_footer_note": (
             "위 standard_footer는 답변 마지막에 그대로(요약·윤문 없이) 1회 표시할 완성형 안내입니다. "
             "한 답변에서 매뉴얼 응답을 여러 개 받았다면 값이 서로 다를 수 있으니, 최종 답변에 매뉴얼 "
@@ -640,7 +749,11 @@ def mixed_manual_meta_block(
         ),
         "notice": notice,
         "law_priority_note": law_note,
-        "standard_footer": build_standard_footer(notice, manual_content_included),
+        # v0.38.0: 혼합 footer 3번째 줄도 primary meta 기준(비시리즈 primary만 자기 문면 —
+        # 기존 조합(primary가 본권/별권)은 키 부재로 기본 문면 유지·v0.32.0 보존 잠금 불변)
+        "standard_footer": build_standard_footer(
+            notice, manual_content_included, _one_line(primary_meta.get("footer_manual_line")) or None
+        ),
     })
     return out
 
@@ -733,6 +846,15 @@ MANUAL_FORMAT_NOTE_B1 = (
     "추출한 해설 텍스트 그대로입니다(법령 원문 아님·법적 효력 없음). 표 포함 페이지는 PDF 추출 특성상 "
     "셀 텍스트 순서·제목 위치가 원본 배치와 다를 수 있으므로, 수치·조건을 인용할 때는 표기된 인쇄쪽으로 "
     "원문 대조를 권장합니다."
+)
+
+# 과제평가 표준지침 전용 format note (v0.38.0 — 비시리즈 독립 소스라 문서 성격을 정확히 기재).
+MANUAL_FORMAT_NOTE_EVAL = (
+    "본 content는 「국가연구개발 과제평가 표준지침」(과학기술정보통신부·KISTEP 발행, 2025.12) PDF에서 "
+    "추출한 텍스트 그대로입니다. 이 지침은 연구성과평가법 제13조에 따라 과학기술정보통신부가 마련한 "
+    "범부처 표준지침이며 법령·행정규칙 원문이 아닙니다(각 부처는 이를 고려해 자체 평가지침을 마련). "
+    "표 포함 페이지는 PDF 추출 특성상 셀 텍스트 순서·제목 위치가 원본 배치와 다를 수 있으므로, "
+    "수치·조건을 인용할 때는 표기된 인쇄쪽으로 원문 대조를 권장합니다."
 )
 
 

@@ -95,10 +95,10 @@ def test_b2_corrupt_data_isolated(fresh_cache, monkeypatch, tmp_path, payload_te
     assert isinstance(r, manual_mod.ManualLoadError), tag
     resp = asyncio.run(search_manual("협약 변경"))
     assert resp["errors"] == []
-    assert resp["searched_sources"] == ["main", "b3", "b1"]
+    assert resp["searched_sources"] == ["main", "b3", "b1", "eval"]
     assert resp["unavailable_sources"] == ["b2"]
     assert resp["source_warnings"][0]["code"] == "manual_b2_unavailable"
-    assert "본권·별권 3·별권 1만 검색한 부분 결과" in resp["source_warnings"][0]["message"]
+    assert "본권·별권 3·별권 1·과제평가 표준지침만 검색한 부분 결과" in resp["source_warnings"][0]["message"]
     resp2 = asyncio.run(get_manual_section("b2-1-1"))
     assert resp2["errors"][0]["code"] == "manual_b2_unavailable"
 
@@ -130,14 +130,14 @@ def test_availability_combinations_envelope(fresh_cache, monkeypatch, tmp_path, 
     if not b2_ok:
         monkeypatch.setattr(manual_mod, "_B2_DATA_PATH", tmp_path / "no_b2.json")
     resp = asyncio.run(search_manual("협약 변경"))
-    expected_sources = [s for s, ok in (("main", main_ok), ("b3", b3_ok), ("b2", b2_ok)) if ok] + ["b1"]
+    expected_sources = [s for s, ok in (("main", main_ok), ("b3", b3_ok), ("b2", b2_ok)) if ok] + ["b1", "eval"]
     expected_unavail = [s for s, ok in (("main", main_ok), ("b3", b3_ok), ("b2", b2_ok)) if not ok]
     assert resp["errors"] == []
     assert resp["searched_sources"] == expected_sources
     if expected_unavail:
         assert resp["unavailable_sources"] == expected_unavail
         assert [w["source"] for w in resp["source_warnings"]] == expected_unavail
-        ok_label = "·".join({"main": "본권", "b3": "별권 3", "b2": "별권 2", "b1": "별권 1"}[s] for s in expected_sources)
+        ok_label = "·".join({"main": "본권", "b3": "별권 3", "b2": "별권 2", "b1": "별권 1", "eval": "과제평가 표준지침"}[s] for s in expected_sources)
         for w in resp["source_warnings"]:
             assert f"본 응답은 {ok_label}만 검색한 부분 결과입니다" in w["message"]
     else:
@@ -239,7 +239,7 @@ def test_golden_v0320_baseline_preserved(fresh_cache):
         return s.replace('"contract_version": "0.23.0"', '"contract_version": "N"') \
                 .replace('"contract_version": "0.24.0"', '"contract_version": "N"') \
                 .replace('"contract_version": "0.25.0"', '"contract_version": "N"') \
-                .replace('"contract_version": "0.27.0"', '"contract_version": "N"')
+                .replace('"contract_version": "0.28.0"', '"contract_version": "N"')
 
     assert norm(asyncio.run(get_manual_section("3-13"))) == norm(golden["detail_3_13"])
     assert norm(asyncio.run(get_manual_section("b3-5-3"))) == norm(golden["detail_b3_5_3"])
@@ -265,7 +265,7 @@ def test_b2_all_ids_full_text_citation_footer(fresh_cache):
         assert meta["manual_basis_date"] is None, sid
         assert meta["standard_footer"].count("※") == 4, sid
         assert "법령 기준일 원문 미표기" in meta["notice"], sid
-        assert r["contract_version"] == "0.27.0", sid
+        assert r["contract_version"] == "0.28.0", sid
         assert r["format_note"].startswith("본 content는 「국가연구개발사업 기술료 제도 매뉴얼」"), sid
 
 
@@ -390,7 +390,7 @@ def test_b2_packaging_force_include():
 def test_supplement_descriptor_consistency():
     """descriptor·정규식 드리프트 가드 — 프리픽스 집합이 SECTION_ID_RE와 일치(P0 D3 대체 장치)."""
     prefixes = {d["prefix"] for d in main_mod._MANUAL_SUPPLEMENTS}
-    assert prefixes == {"b3-", "b2-", "b1-"}
+    assert prefixes == {"b3-", "b2-", "b1-", "eval-"}
     for d in main_mod._MANUAL_SUPPLEMENTS:
         assert SECTION_ID_RE.match(d["prefix"] + "1-1"), d["source_id"]
         assert SECTION_ID_RE.match(d["prefix"] + "ref-1"), d["source_id"]
