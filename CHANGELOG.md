@@ -19,7 +19,7 @@
 
 ### Internal
 
-- 소스 descriptor 목록에 b1 항목 append(source_rank 3 — append-only). 소스 가용성 2^4=16조합 envelope 전수 테스트. 기존 소스 응답의 byte 보존을 v0.34.0 코드(0468b13)로 생성한 golden 픽스처와 실대조. 별권 1 매치 질의에서 기존 소스 매치의 상대 순서 보존(필터 결과 = baseline 접두)·최상위 필수 절 생존을 잠금 — 검색 상한(10)에 따른 하위 매치 밀림은 별권 3·2 수록 때와 같은 병합 검색의 설계된 거동입니다. 추출 파이프라인 `scripts/extract_manual_b1.py`(간지·빈 쪽 완전 분할 fail-closed·쪽별 sha 79건·유닛 자수 26건·고시 표기 장부 동결). pytest 575 → 624.
+- 소스 descriptor 목록에 b1 항목 append(source_rank 3 — append-only). 소스 가용성 2^4=16조합 envelope 전수 테스트. 기존 소스 응답의 byte 보존을 v0.34.0 코드(0468b13)로 생성한 golden 픽스처와 실대조. 별권 1 매치 질의에서 기존 소스 매치의 상대 순서 보존(필터 결과 = baseline 접두)·최상위 필수 절 생존을 잠금 — 검색 상한(10)에 따른 하위 매치 밀림은 별권 3·2 수록 때와 같은 병합 검색의 설계된 거동입니다. 추출 파이프라인 `scripts/extract_manual_b1.py`(간지·빈 쪽 완전 분할 fail-closed·쪽별 sha 79건·유닛 자수 26건·고시 표기 장부 동결). pytest 575 → 626.
 
 ## [0.34.0] - 2026-08-05
 

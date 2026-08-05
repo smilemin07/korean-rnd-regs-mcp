@@ -90,6 +90,10 @@ EXPECTED_PHYSICAL_PAGES = 96
 EXPECTED_PAGE_OFFSET = 4  # PDF쪽 = 인쇄쪽 + 4 (표지·머리말·목차 2)
 EXPECTED_PRINTED_LAST = 91  # 인쇄쪽 최종 (PDF p.95 — p.96은 마커 없는 뒤표지)
 EXPECTED_SOURCE_LIST_NO = "94788"  # 승인 KISTEP 게시물 번호 (26.7 세트 — 별권 2와 동일 게시물)
+# ★승인 게시물 전체 URL 동결(diff 적대검토 Codex BLOCKING 반영) — list_no만 검사하면 다른
+# board 경로(bid·mid)가 provenance로 기록되는 것을 통과시킨다. 본권·별권 2·3 데이터와
+# 동일한 canonical URL만 허용(네 파일 source_url 동일성은 테스트로도 잠금).
+EXPECTED_SOURCE_URL = "https://www.kistep.re.kr/board.es?mid=a10301000000&bid=0003&act=view&list_no=94788"
 
 # 장 표제 간지(미수록) — raw get_text() verbatim 동결 (D2: 승인 표제 외 텍스트 유입 시 BLOCK)
 EXPECTED_GANJI_TEXT = {
@@ -333,7 +337,8 @@ EXPECTED_DOC_TITLE_BAND_PAGES = (3, 11, 21, 41, 49)
 _PAGE_MARK = re.compile(r"^([\\/])\s*(\d+)\s*([\\/])$")
 
 _SEC_HEAD = re.compile(r"^(\d+)\.\s*(.*)$")
-_GOSI_MARK = re.compile(r"제(202\d)-(\d+)호")
+# 연도 4자리 전체 허용 — 미래 판(2030년대 고시 번호) 장부 누락 차단(diff 적대검토 Gemini NIT)
+_GOSI_MARK = re.compile(r"제(\d{4})-(\d+)호")
 
 
 def norm_title(s: str) -> str:
@@ -547,8 +552,12 @@ def extract_page_lines(page, printed: int, audit: dict) -> list[str]:
                 continue
             if (header_like and y0 > top_limit) or (mark_ok and y0 < bottom_limit):
                 audit["kept_outside_region"].append((printed, s[:40], round(y0 / height * 100, 1)))
-            if norm_title(s) == norm_title(_DOC_TITLE_HDR) and not (header_like and y0 <= top_limit):
-                # 장 시작 본문쪽의 문서 제목 밴드(y0 9.5~11.4%) 보존 기록 — D8에서 정확 5건 검증
+            if printed % 2 == 1 and norm_title(s) == norm_title(_DOC_TITLE_HDR) \
+                    and not (header_like and y0 <= top_limit):
+                # 장 시작 본문쪽(홀수쪽)의 문서 제목 밴드(y0 9.5~11.4%) 보존 기록 — D8에서 정확
+                # 5건 검증. 홀수쪽 한정: 짝수쪽은 기대 헤더 자체가 문서 제목이라, 본문에 제목과
+                # 동일한 독립 줄이 유입되는 판 갱신 케이스에서 밴드 검증이 거짓 BLOCK되는 것을
+                # 차단(diff 적대검토 Gemini 지적 — 그 경우에도 kept_outside_region 감사에는 남음).
                 audit["doc_title_band"].append((printed, round(y0 / height * 100, 1)))
             kept.append(text)
     return kept
@@ -606,6 +615,14 @@ def main() -> int:
         print(
             f"[fail-closed BLOCK] source-url의 list_no {list_no!r} != 승인 {EXPECTED_SOURCE_LIST_NO!r} "
             "— 판 갱신이라면 EXPECTED_SOURCE_LIST_NO를 재실측 갱신하십시오.",
+            file=sys.stderr,
+        )
+        return 2
+    if args.source_url != EXPECTED_SOURCE_URL:
+        print(
+            f"[fail-closed BLOCK] source-url이 승인 전체 URL과 다릅니다(bid·mid 등 경로 상이).\n"
+            f"  승인: {EXPECTED_SOURCE_URL}\n  입력: {args.source_url}\n"
+            "판 갱신이라면 EXPECTED_SOURCE_URL을 재실측 갱신하십시오.",
             file=sys.stderr,
         )
         return 2

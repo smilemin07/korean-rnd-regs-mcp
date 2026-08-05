@@ -335,7 +335,9 @@ def _load_b1_uncached() -> ManualData | ManualLoadError:
             if not isinstance(sec, dict):
                 raise TypeError(f"section 원소 타입 이상: {type(sec).__name__}")
             sid = sec.get("id", "")
-            if not isinstance(sid, str) or not sid.startswith("b1-"):
+            # ★prefix에 더해 라우팅 정규식 일치까지 강제(R4 diff 적대검토 Codex 반영) —
+            # 검색에는 노출되나 상세 조회는 invalid_section_id가 되는 불일치 id 차단.
+            if not isinstance(sid, str) or not sid.startswith("b1-") or not SECTION_ID_RE.match(sid):
                 raise TypeError(f"section id 이상: {sid!r}")
             if sid in data.by_id:
                 raise TypeError(f"section id 중복: {sid!r}")
@@ -345,7 +347,8 @@ def _load_b1_uncached() -> ManualData | ManualLoadError:
             if not isinstance(pages, list) or not pages:
                 raise TypeError(f"pages 비어 있음/타입 이상: {sid!r}")
             for p in pages:
-                if not isinstance(p, dict) or not isinstance(p.get("printed_page"), int) \
+                # printed_page는 type is int(bool은 int의 서브클래스라 isinstance로는 통과 — 거부)
+                if not isinstance(p, dict) or type(p.get("printed_page")) is not int \
                         or not isinstance(p.get("text"), str):
                     raise TypeError(f"page 항목 타입 이상: {sid!r}")
             data.by_id[sid] = sec

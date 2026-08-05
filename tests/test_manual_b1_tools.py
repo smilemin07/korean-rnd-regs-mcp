@@ -96,6 +96,10 @@ def test_b1_loader_strict_validation_extras(fresh_cache, monkeypatch, tmp_path):
         "bad_page_type": {"meta": {"section_count": 1},
                           "sections": [dict(base_sec, pages=[{"printed_page": "1", "text": "x"}])]},
         "count_mismatch": {"meta": {"section_count": 9}, "sections": [dict(base_sec)]},
+        # diff 적대검토 Codex 반영 — prefix는 맞으나 라우팅 정규식 불일치 id·bool 쪽 번호 거부
+        "unroutable_id": {"meta": {"section_count": 1}, "sections": [dict(base_sec, id="b1-not-routable")]},
+        "bool_page": {"meta": {"section_count": 1},
+                      "sections": [dict(base_sec, pages=[{"printed_page": True, "partial": False, "text": "x"}])]},
     }
     for tag, payload in cases.items():
         manual_mod._reset_cache_for_tests()
@@ -170,7 +174,14 @@ def test_availability_16_combinations(fresh_cache, monkeypatch, tmp_path, main_o
             "manual_unavailable", "manual_b3_unavailable",
             "manual_b2_unavailable", "manual_b1_unavailable",
         ]
-        assert "모두" in resp["errors"][-1]["message"]
+        # 종합 안내는 계약 규약상 "마지막 오류"에 부착(§5.24) — 별권 1 추가로 부착처가
+        # b2에서 b1으로 이동(v0.33.0에서 b3→b2 이동과 동일 전례·§5.27 명시). 기존 3소스
+        # 오류는 자기 소스 상태만 말하는 순수 문면으로 잠금(diff 적대검토 Codex 반영).
+        for e in resp["errors"][:-1]:
+            assert "모두" not in e["message"], e["code"]
+            assert "(reason:" in e["message"], e["code"]
+        assert "본권·별권 3·별권 2·별권 1 매뉴얼 데이터가 모두 로드 불가" in resp["errors"][-1]["message"]
+        assert "규정 도구(search_provision·get_provision_detail 등)는 정상" in resp["errors"][-1]["message"]
         assert resp["manual_meta_available"] is False
         return
     assert resp["errors"] == []
@@ -232,8 +243,11 @@ def test_search_no_b1_match_baseline_unchanged(fresh_cache, monkeypatch, tmp_pat
         monkeypatch.setattr(manual_mod, "_B1_DATA_PATH", tmp_path / "no_b1.json")
         baseline = asyncio.run(search_manual(query))
         monkeypatch.undo()
-        key = lambda r: [(m["section_id"], m["citation"]) for m in r["matches"]]
+        # match 객체 전체 직렬화 비교(발췌·계측 포함 — (id, citation) 축약 비교는 내용 드리프트를
+        # 놓침·diff 적대검토 Codex 반영)
+        key = lambda r: json.dumps(r["matches"], ensure_ascii=False, sort_keys=True)
         assert key(merged) == key(baseline), query
+        assert merged["returned"] >= 1, query  # 공허 통과 방지
 
 
 def test_search_b1_match_existing_prefix_preserved(fresh_cache, monkeypatch, tmp_path):
@@ -250,11 +264,12 @@ def test_search_b1_match_existing_prefix_preserved(fresh_cache, monkeypatch, tmp
         manual_mod._reset_cache_for_tests()
         merged = asyncio.run(search_manual(query))
         filtered_ids = [m["section_id"] for m in merged["matches"] if m["source"] != "b1"]
-        # 기존 소스 매치는 baseline의 접두를 그대로 보존(순서 교란·중간 탈락 없음)
+        # 공허 통과 방지 + 기존 소스 매치는 baseline의 접두를 그대로 보존(순서 교란·중간 탈락
+        # 없음 — diff 적대검토 Codex 반영: 빈 filtered·OR 약화 제거)
+        assert len(filtered_ids) >= 2, query
         assert filtered_ids == base_ids[:len(filtered_ids)], query
-        # 최상위 필수 절(1·2위) 생존
-        assert [m["section_id"] for m in merged["matches"][:2]] == base_ids[:2] or \
-            base_ids[0] == merged["matches"][0]["section_id"], query
+        # 최상위 필수 절(baseline 1·2위)은 기존 소스 기준으로 그대로 생존
+        assert filtered_ids[:2] == base_ids[:2], query
         # 소스별 계수 정합·cap·반복 결정론
         assert sum(merged["returned_by_source"].values()) == merged["returned"] <= 10
         again = asyncio.run(search_manual(query))
@@ -446,6 +461,20 @@ def test_v0350_surface_locks():
     for surface in (tmpl, instructions):
         assert "별권 중 2종" not in surface
         assert "학생인건비·연구시설장비" not in surface
+
+
+def test_manual_data_source_url_identical_across_files():
+    """4개 매뉴얼 데이터 파일의 source_url 동일성(같은 26.7 게시물 canonical 경로 —
+    diff 적대검토 Codex BLOCKING 반영: b1이 다른 board 경로로 수록됐던 결함의 재발 방지)."""
+    root = pathlib.Path(__file__).resolve().parent.parent / "src" / "korean_rnd_regs_mcp"
+    urls = {
+        name: json.loads((root / name).read_text(encoding="utf-8"))["meta"]["source_url"]
+        for name in ("manual_body.json", "manual_b3.json", "manual_b2.json", "manual_b1.json")
+    }
+    assert len(set(urls.values())) == 1, urls
+    assert urls["manual_b1.json"] == (
+        "https://www.kistep.re.kr/board.es?mid=a10301000000&bid=0003&act=view&list_no=94788"
+    )
 
 
 def test_b1_packaging_force_include():

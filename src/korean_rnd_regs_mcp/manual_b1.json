@@ -25,7 +25,7 @@
   "excluded_note": "표지·머리말·목차·장 표제 간지(인쇄 1·9·19·39·47)·빈 쪽(인쇄 2·8·10·20·38·40·48)·뒤표지 미수록 — 본문 마커 79쪽(인쇄 3~91) 전체 수록",
   "pymupdf_version": "1.27.1",
   "extractor": "scripts/extract_manual_b1.py",
-  "source_url": "https://www.kistep.re.kr/board.es?mid=a10306010000&bid=0031&list_no=94788&act=view",
+  "source_url": "https://www.kistep.re.kr/board.es?mid=a10301000000&bid=0003&act=view&list_no=94788",
   "id_format": "^b1-(\\d+-\\d+|ref-\\d+)$",
   "section_count": 26,
   "chapters": [
