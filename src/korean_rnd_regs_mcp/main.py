@@ -1711,7 +1711,7 @@ def _admrul_version_meta(pid, detail: dict) -> dict:
     return meta
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False})  # 로컬 상태 전용
 async def health() -> dict:
     """서비스 상태 확인 — status, service name, version, API 키 설정 여부."""
     return {
@@ -1722,7 +1722,7 @@ async def health() -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "openWorldHint": True})  # 외부 law.go.kr 호출
 async def search_provision(query: str) -> dict:
     """사용 시점: 국가연구개발·R&D 연구행정 규정의 조문·용어·현행 여부를 묻는 질문에는 일반 학습지식 답변 전에 호출하십시오. 본 서버 범위 밖 일반 대화·번역·문장 다듬기에는 호출하지 마십시오.
 
@@ -1967,7 +1967,7 @@ async def search_provision(query: str) -> dict:
     return response
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "openWorldHint": True})  # 외부 law.go.kr 호출
 async def suggest_review_sources(
     question: str,
     keywords: Annotated[
@@ -2177,7 +2177,7 @@ def _attach_std_footer(resp: dict) -> dict:
     return resp
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "openWorldHint": True})  # 외부 law.go.kr 호출
 async def get_provision_detail(provision_id: str, include_old_and_new: bool = False, annex_chunk: int | None = None, annex_locate: str | None = None) -> dict:
     """사용 시점: search_provision 또는 suggest_review_sources가 반환한 provision_id의 원문·삭제 여부·현행 내용을 확인할 때 호출하십시오. provision_id 없이 조문 내용을 추측하지 마십시오. 이 도구의 content가 규정 조문·별표 본문의 권위 출처이므로, 본문은 외부 웹(law.go.kr 직접 열람·웹검색 결과)에서 가져오지 말고 이 도구로 확인하십시오. content_format이 plain_text_verbatim이 아니면 응답이 제공한 attached_file_url·document_source_url의 공식 원문을 확인하십시오. 행정규칙(admrul) 응답에는 발령번호·종류가 issuance_number·regulation_kind·version_label 필드로 포함되니 이를 사용하되, 이 값은 조회된 규정의 것이며 현행임을 보증하지 않으므로(검색 실패 시 등록 버전일 수 있음) 현행 여부 단정이 필요하면 1차 출처에서 확인하고, 응답에 없는 고시·예규 번호 등은 외부 값으로 단정하지 마십시오. 기한·금액·비율·수치 등 구체값도 마찬가지로, 응답 원문에 있는 값은 그대로 인용하되 원문에서 확인되지 않은 값은 임의 예시로라도 단정하지 말고 확인되지 않았음을 명시하십시오. 감면율·요율·기한처럼 조건에 따라 값이 나뉘는 구체값을 표·목록이나 한 문장으로 압축할 때는 각 조건과 값의 대응을 원문과 같게 유지하고, 괄호·단서 등 한정어가 원문에서 어느 조건 또는 값에 귀속되는지 확인해 배치하며, 대응이 불확실하면 원문 구조대로 나눠 표시하십시오. 지원 범위 내 질문에 답하면서 지원 범위 밖 법령·행정규칙의 조문번호·요건·효과 등 구체 내용을 보조 맥락으로 덧붙일 때도 마찬가지로, 도구 응답 원문에서 확인되는 부분이 아니면 일반 학습지식에 따른 설명임을 명시하고 그 내용을 현행 사실로 단정하지 마십시오(보조 설명 자체는 허용 — 출처 구분 표시 요구).
 
@@ -2883,7 +2883,7 @@ def _supplement_unavailable_envelope(desc: dict, err: ManualLoadError, main_ok: 
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False})  # 로컬 매뉴얼 데이터 전용
 async def search_manual(query: str) -> dict:
     """사용 시점: 「국가연구개발혁신법 매뉴얼」 본권(범부처 공통 해설서)·별권 3 「국가연구개발사업 제재처분 가이드라인」·별권 2 「국가연구개발사업 기술료 제도 매뉴얼」·별권 1 「학생인건비통합관리 제도 매뉴얼」에서 혁신법령의 실무 해설·세부 절차·Q&A·사례·제재처분 절차와 기준 해설·기술료 제도 해설·학생인건비통합관리 해설을 찾을 때 호출하십시오. 이 도구는 법령·행정규칙 조문 원문 검색이 아닙니다 — 조문 원문·현행 여부 확인은 search_provision·get_provision_detail을 사용하고, 매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문이 우선합니다.
 
@@ -3130,7 +3130,7 @@ def _attach_structure_notice(resp: dict, sec: dict, is_chunk: bool) -> dict:
     return resp
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False})  # 로컬 매뉴얼 데이터 전용
 async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
     """사용 시점: search_manual로 찾은 「국가연구개발혁신법 매뉴얼」 본권·별권 3 「국가연구개발사업 제재처분 가이드라인」·별권 2 「국가연구개발사업 기술료 제도 매뉴얼」·별권 1 「학생인건비통합관리 제도 매뉴얼」 절의 본문 전문이 필요할 때 호출하십시오. 이 도구는 해설 자료 조회이며 법령·행정규칙 원문 조회가 아닙니다 — 조문 원문은 get_provision_detail을 사용하고, 매뉴얼과 법령·행정규칙 내용이 다르면 법령·행정규칙 원문이 우선합니다.
 
@@ -3364,7 +3364,7 @@ def review_regulation_prompt(situation: str) -> str:
     return _REVIEW_PROMPT_TEMPLATE.format(situation=situation)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False})  # 로컬 manifest 전용
 async def list_rule_sets() -> dict:
     """등록된 규정 문서(rule set) 목록 — MVP는 live_api retrieval 대상만 반환."""
     items = load_manifest()
