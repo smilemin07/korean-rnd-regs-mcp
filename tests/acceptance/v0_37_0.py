@@ -10,6 +10,13 @@
 그 후 실행하면 resolve가 신 판본을 정당하게 선택하여 field_equals가 어긋납니다(WARN 클래스라
 차단은 없음) — 08-20 이후는 해당 체크 결과를 무시하고 manifest 갱신 릴리스로 넘어가십시오.
 
+★게이트 위상(diff 적대검토 판정 기록): 본 릴리스의 핵심 주장(미래 행 필터·고지 3반환점·검색
+top-level 고지·캐시 클래스)은 **pytest 결정론 잠금이 담당**합니다(test_tools.py v0.37.0 블록 —
+mock 기반·네트워크 0·회귀 시 커밋 불가). acceptance의 field_equals는 러너 동결 규약
+(assert 5종·false-block-safe = Andy 최우선)상 WARN이며 사람 판정 참고 신호입니다 — LIVE 변동성이
+정상 배포를 막지 않게 하는 설계이지 검증 공백이 아닙니다(적대검토의 BLOCK 승격 제안은 이 규약
+우선으로 기각·근거 보존).
+
 검증(asserts) 종류 5가지 고정(run.py):
   - fetched_ok         : 지정 규정(rule_set_id)이 오류 없이 조회됨.                    [회귀=BLOCK 후보]
   - returned_not_below : 결과 개수가 value 이상(recall 비회귀).                        [회귀=BLOCK 후보]

@@ -720,9 +720,12 @@ class LawApiClient:
 
     @staticmethod
     def _is_future_date(raw_date: str, today: str) -> bool:
-        """검색 행 시행일자가 미래인지 판정. 8자리 숫자 형식일 때만 판정하고, 형식 이상(빈 값·
-        비숫자)은 미래로 단정하지 않는다(기존 현행 후보 거동 보존 — 과필터로 인한 가용성 저하 방지)."""
-        return len(raw_date) == 8 and raw_date.isdigit() and raw_date > today
+        """검색 행 시행일자가 미래인지 판정. 방어 정규화(공백·하이픈 제거 — diff 적대검토 반영:
+        상류 포맷 변형 시 필터 무력화 방지) 후 8자리 숫자 형식일 때만 판정하고, 그 외 형식 이상은
+        미래로 단정하지 않는다(기존 현행 후보 거동 보존 — 과필터로 인한 가용성 저하 방지).
+        당일 시행(== today)은 현행이다."""
+        d = (raw_date or "").strip().replace("-", "")
+        return len(d) == 8 and d.isdigit() and d > today
 
     def resolve_latest_doc_id(
         self,
@@ -801,6 +804,14 @@ class LawApiClient:
                 pending_doc_id=pending_id,
                 pending_effective_date=self._format_date(pending_raw),
             )
+        if result.resolve_failed:
+            # (v0.37.0 diff 적대검토 MAJOR 반영) 일치 0행 fallback은 검색 예외와 같은 실패 클래스 —
+            # 24h 성공 캐시에 고착시키지 않고 단기 failure cache(TTL 300s)로 저장해 재확인을 연다.
+            # 한계: 하위 _search_cache(24h)가 같은 검색 응답을 재공급하면 무매치가 그 TTL 내 반복될 수
+            # 있음(계약 §5.28 문서화 — 검색 캐시 계층 변경은 본 릴리스 범위 밖).
+            with self._cache_lock:
+                self._id_resolution_failure_cache[cache_key] = result
+            return result
         if result.is_updated:
             logger.info(
                 "resolve_latest_doc_id: %s updated %s -> %s (시행일 %s)",

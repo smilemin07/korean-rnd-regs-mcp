@@ -860,12 +860,9 @@ def _build_match(rs, unit_id: str, unit_type: str, title: str, snippet: str,
         notice = _revision_notice(rs, resolved)
         if notice:
             result["revision_notice"] = notice
-        # v0.37.0: 검색 결과에는 upcoming_revision만 부착(예정 판본 존재는 발견 단계에서도 유효한
-        # 정확성 신호). resolve_fallback_notice는 상세 응답 전용 — fan-out에서 match마다 반복되면
-        # 노이즈이고, 검색 실패 규정은 대체로 match 자체가 없다.
-        upcoming = _resolve_status_fields(rs, resolved).get("upcoming_revision")
-        if upcoming:
-            result["upcoming_revision"] = upcoming
+    # v0.37.0 주의: upcoming_revision은 match 원소에 부착하지 않는다(diff 적대검토 MAJOR 반영 —
+    # match마다 반복 시 16k 예산 절단으로 뒤쪽 결과가 탈락[recall 변화]하고, suggest_review_sources
+    # 후보 얕은 복사로 계약 밖 전파). 검색 응답에는 top-level upcoming_revisions로 규정당 1회 부착.
     return result
 
 
@@ -1860,6 +1857,8 @@ async def search_provision(query: str) -> dict:
                     rs.id, rs.api_target.value, _status, _el,
                 )
 
+    # v0.37.0: 개정 예정 규정 top-level 고지 수집처(규정당 1회 — 발화 규정만 키 존재)
+    _upcoming_by_rule: dict[str, str] = {}
     # v0.2.6: 전건 fan-out을 응답 시간 예산으로 bound — pathological 지연(법령정보 행/재시도 폭주)이
     # 전체 질의를 커넥터 타임아웃까지 끄는 것을 차단. 예산 내 완료분만 사용하고, 미완 규정은 graceful skip.
     _fanout_start = time.monotonic()
@@ -1904,6 +1903,11 @@ async def search_provision(query: str) -> dict:
         if annex_parse_error and rs.unit_types in (UnitTypes.ANNEX, UnitTypes.BOTH):
             logger.warning("search_provision: rule_set=%s 별표 파싱 실패: %s", rs.id, annex_parse_error)
             errors.append({"rule_set_id": rs.id, "code": "annex_parse_failed", "message": annex_parse_error})
+        # v0.37.0: 개정 예정 규정 수집 — match 원소가 아니라 top-level에 규정당 1회 부착
+        # (diff 적대검토 MAJOR 반영: match 반복 부착은 예산 절단 recall 변화·suggest 전파를 유발)
+        _upcoming_line = _resolve_status_fields(rs, resolved).get("upcoming_revision")
+        if _upcoming_line:
+            _upcoming_by_rule[rs.id] = _upcoming_line
 
         # article 검색 (v0.14.0: 가지조문도 _article_unit_id로 가지-aware JO id emit — 별표 annex 패턴 동형)
         if rs.unit_types in (UnitTypes.ARTICLE, UnitTypes.BOTH):
@@ -1979,6 +1983,9 @@ async def search_provision(query: str) -> dict:
         "disclaimer": _DISCLAIMER,
         "results": [],
         "errors": errors,
+        # v0.37.0: 개정 예정 고지는 규정당 1회 top-level — 보수 예산을 위해 base에 전량 포함
+        # (실제 부착은 kept에 남은 규정의 부분집합이라 항상 이 보수치 이하 → 예산 초과 없음).
+        **({"upcoming_revisions": _upcoming_by_rule} if _upcoming_by_rule else {}),
     }, ensure_ascii=False))
     kept: list[dict] = []
     size = base_size
@@ -1998,6 +2005,11 @@ async def search_provision(query: str) -> dict:
         "disclaimer": _DISCLAIMER,
         "results": kept,
     }
+    # v0.37.0: kept에 실제 포함된 규정의 개정 예정 고지만 부착(빈 dict면 필드 생략 — additive·조건부)
+    _kept_rule_ids = {m.get("rule_set_id") for m in kept}
+    _upcoming_out = {rid: line for rid, line in _upcoming_by_rule.items() if rid in _kept_rule_ids}
+    if _upcoming_out:
+        response["upcoming_revisions"] = _upcoming_out
     if errors:
         response["errors"] = errors
     return response

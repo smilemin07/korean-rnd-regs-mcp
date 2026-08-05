@@ -4921,8 +4921,9 @@ def test_detail_normal_resolve_adds_no_status_fields_v0370(mock_client):
     assert "resolve_fallback_notice" not in result
 
 
-def test_search_match_carries_upcoming_revision_v0370():
-    """검색 결과(_build_match)에는 upcoming_revision만 부착 — fallback notice는 상세 전용."""
+def test_build_match_carries_no_status_fields_v0370():
+    """match 원소에는 상태 고지 2종 미부착 — diff 적대검토 MAJOR 반영(match 반복 부착은 16k 예산
+    절단 recall 변화 + suggest_review_sources 얕은 복사 전파). 검색 고지는 top-level 1회."""
     from korean_rnd_regs_mcp.live_api import ResolvedDocId
     from korean_rnd_regs_mcp.main import _build_match
     rs = MagicMock()
@@ -4939,11 +4940,219 @@ def test_search_match_carries_upcoming_revision_v0370():
         resolve_failed=False,
     )
     m = _build_match(rs, "JO0001", "article", "목적", "snippet", resolved)
-    assert m["upcoming_revision"].startswith("개정 예정: 2026-08-20")
+    assert "upcoming_revision" not in m
     failed = ResolvedDocId(
         doc_id="2100000195842", effective_date="", is_updated=False,
         manifest_doc_id="2100000195842", resolve_failed=True,
     )
     m2 = _build_match(rs, "JO0001", "article", "목적", "snippet", failed)
-    assert "resolve_fallback_notice" not in m2   # 검색 표면에는 미부착(설계)
+    assert "resolve_fallback_notice" not in m2
     assert "upcoming_revision" not in m2
+
+
+# === v0.37.0 diff 적대검토 반영 — 검증 보강 4건(경계·정규화·통합 표면·백스톱 보존) ===
+
+
+def test_is_future_date_boundaries_v0370():
+    """경계 잠금: 당일 시행 = 현행(미래 아님)·하이픈/공백 포맷 변형 정규화·형식 이상 비단정."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient
+    f = LawApiClient._is_future_date
+    assert f("20260820", "20260806") is True      # 미래
+    assert f("20260806", "20260806") is False     # ★당일 시행 = 현행
+    assert f("20260805", "20260806") is False     # 과거
+    assert f("2026-08-20", "20260806") is True    # ★하이픈 정규화 후 미래 판정(diff 적대검토 반영)
+    assert f(" 20260820 ", "20260806") is True    # 공백 정규화
+    assert f("", "20260806") is False             # 빈 값 비단정
+    assert f("2026", "20260806") is False         # 형식 이상 비단정
+    assert f("2026082X", "20260806") is False     # 비숫자 비단정
+
+
+def test_resolver_same_day_effective_selected_v0370(monkeypatch):
+    """당일 시행 행은 현행으로 선택됨(통합 — 시행일 도래 당일부터 신 판본 제공)."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient, DocumentRef
+    monkeypatch.setattr(LawApiClient, "_today_kst", staticmethod(lambda: "20260820"))
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    sr = _sr([
+        DocumentRef(doc_type="admrul", doc_id="2100000283100", title="국가연구개발정보처리기준",
+                    extra={"시행일자": "20260820"}),
+        DocumentRef(doc_type="admrul", doc_id="2100000195842", title="국가연구개발정보처리기준",
+                    extra={"시행일자": "20210101"}),
+    ])
+    client.search_admin_rules = MagicMock(return_value=sr)
+    r = client.resolve_latest_doc_id("국가연구개발정보처리기준", "admrul", "2100000195842")
+    assert r.doc_id == "2100000283100"            # 도래 당일 = 신 판본이 현행
+    assert r.is_updated is True
+    assert r.pending_doc_id == ""
+
+
+def test_search_provision_toplevel_upcoming_and_no_match_bloat_v0370(mock_client):
+    """search_provision 통합 표면(diff 적대검토 MAJOR 반영): pending resolve 시
+    ①top-level upcoming_revisions에 규정당 1회 부착 ②match 원소에는 미부착(예산 절단 무영향)
+    ③suggest_review_sources 후보에 미전파(계약 밖 필드 오염 차단)."""
+    from korean_rnd_regs_mcp.live_api import ResolvedDocId
+    def _resolve_pending(title, api_target, manifest_doc_id, ministry=None):
+        return ResolvedDocId(
+            doc_id=manifest_doc_id, effective_date="2021-01-01", is_updated=False,
+            manifest_doc_id=manifest_doc_id,
+            pending_doc_id="2100000283100", pending_effective_date="2026-08-20",
+        )
+    mock_client.resolve_latest_doc_id.side_effect = _resolve_pending
+    result = asyncio.run(search_provision("간접비"))
+    assert result["results"], "mock 상세에서 매치 최소 1건 전제"
+    for m in result["results"]:
+        assert "upcoming_revision" not in m, m["provision_id"]
+    ups = result["upcoming_revisions"]
+    kept_rule_ids = {m["rule_set_id"] for m in result["results"]}
+    assert set(ups.keys()) == kept_rule_ids            # kept 규정만·규정당 1회
+    for line in ups.values():
+        assert line.startswith("개정 예정: 2026-08-20")
+    # suggest 후보 미전파(얕은 복사 오염 차단)
+    sugg = asyncio.run(suggest_review_sources("간접비 정산 기준"))
+    assert sugg["candidates"], "mock 상세에서 후보 최소 1건 전제"
+    for cand in sugg["candidates"] + sugg.get("overflow_candidates", []):
+        assert "upcoming_revision" not in cand
+    assert "upcoming_revisions" not in sugg
+
+
+def test_search_provision_no_upcoming_key_when_normal_v0370(mock_client):
+    """정상 resolve(pending 없음) 시 top-level upcoming_revisions 키 자체가 없음 — 순수 additive."""
+    result = asyncio.run(search_provision("간접비"))
+    assert "upcoming_revisions" not in result
+
+
+def test_backstop_demotion_preserves_status_fields_v0370(mock_client):
+    """백스톱 강등(oversized 재조립) 후에도 upcoming_revision 보존 — 3반환점 재조립 주입 잠금
+    (diff 적대검토 반영·v060 거대 주입 패턴 재사용: 대형 조문 + 거대 revision_notice로 백스톱 강제 발동)."""
+    from korean_rnd_regs_mcp.main import _ANNEX_DETAIL_CHAR_BUDGET
+    mock_client.get_admin_rule_detail.return_value["발령번호"] = "179"
+    mock_client.get_admin_rule_detail.return_value["행정규칙종류"] = "예규"
+    mock_client.get_admin_rule_detail.return_value["articles"] = [
+        {"조문번호": "1", "조문제목": "대형 조문", "조문내용": "가" * 14000, "structured": None},
+    ]
+    def _huge_pending_resolve(title, api_target, manifest_doc_id, ministry=None):
+        return ResolvedDocId(
+            doc_id="9" * 2000, effective_date="20260506", is_updated=True,
+            manifest_doc_id=manifest_doc_id,
+            pending_doc_id="2100000999999", pending_effective_date="2026-12-01",
+        )
+    mock_client.resolve_latest_doc_id.side_effect = _huge_pending_resolve
+    result = asyncio.run(get_provision_detail("admrul:2100000278740:JO0001"))
+    assert result["content_format"] == "oversized_pointer"                       # 백스톱 강등 발동
+    assert result["upcoming_revision"].startswith("개정 예정: 2026-12-01")        # ★강등 후 고지 보존
+    assert len(json.dumps(result, ensure_ascii=False)) <= _ANNEX_DETAIL_CHAR_BUDGET  # airtight 유지
+
+
+# === v0.37.0 diff 적대검토 2차 반영 — 3반환점 매개변수화·BP 백스톱 보존·무매치 단기 캐시·결정론 ===
+
+
+def _mk_resolved_v0370(kind, manifest_doc_id):
+    from korean_rnd_regs_mcp.live_api import ResolvedDocId
+    if kind == "pending":
+        return ResolvedDocId(
+            doc_id=manifest_doc_id, effective_date="2021-01-01", is_updated=False,
+            manifest_doc_id=manifest_doc_id,
+            pending_doc_id="2100000999999", pending_effective_date="2026-12-01",
+        )
+    return ResolvedDocId(
+        doc_id=manifest_doc_id, effective_date="", is_updated=False,
+        manifest_doc_id=manifest_doc_id, resolve_failed=True,
+    )
+
+
+@pytest.mark.parametrize("pid,unit_kind", [
+    ("admrul:2100000278740", "doc"),
+    ("law:283849:JO0015", "article"),          # mock law 조문(제15조) — admrul mock은 articles 빈 배열
+    ("admrul:2100000278740:BP0001", "annex"),
+])
+@pytest.mark.parametrize("status_kind,field,other_field", [
+    ("pending", "upcoming_revision", "resolve_fallback_notice"),
+    ("failed", "resolve_fallback_notice", "upcoming_revision"),
+])
+def test_detail_three_return_points_status_matrix_v0370(mock_client, pid, unit_kind, status_kind, field, other_field):
+    """3 반환점(doc/JO/BP) × 상태 2종(pending/failed) 전수 매트릭스 — diff 적대검토 MAJOR 반영
+    (어느 반환점의 주입을 삭제해도 테스트가 실패하도록 잠금)."""
+    mock_client.resolve_latest_doc_id.side_effect = (
+        lambda title, api_target, manifest_doc_id, ministry=None: _mk_resolved_v0370(status_kind, manifest_doc_id)
+    )
+    result = asyncio.run(get_provision_detail(pid))
+    assert "errors" not in result, (pid, status_kind, result.get("errors"))
+    prefix = "개정 예정: 2026-12-01" if field == "upcoming_revision" else "최신 판본 확인 실패:"
+    assert result[field].startswith(prefix), (pid, status_kind)
+    assert other_field not in result, (pid, status_kind)
+
+
+def test_bp_backstop_demotion_preserves_status_fields_v0370(mock_client):
+    """BP(별표) 백스톱 강등 재조립 후에도 상태 고지 보존 — JO(기존 테스트)와 별개로 BP 경로 잠금."""
+    from korean_rnd_regs_mcp.main import _ANNEX_DETAIL_CHAR_BUDGET
+    base = mock_client.get_admin_rule_detail.return_value
+    base["발령번호"] = "179"
+    base["행정규칙종류"] = "예규"
+    base["annexes"] = [
+        {"별표번호": "1", "별표제목": "대형 별표", "별표내용": "나" * 14000, "별표구분": "별표",
+         "별표서식파일링크": "/LSW/flDownload.do?flSeq=1"},
+    ]
+    def _huge_pending_resolve(title, api_target, manifest_doc_id, ministry=None):
+        from korean_rnd_regs_mcp.live_api import ResolvedDocId
+        return ResolvedDocId(
+            doc_id="9" * 2000, effective_date="20260506", is_updated=True,
+            manifest_doc_id=manifest_doc_id,
+            pending_doc_id="2100000999999", pending_effective_date="2026-12-01",
+        )
+    mock_client.resolve_latest_doc_id.side_effect = _huge_pending_resolve
+    result = asyncio.run(get_provision_detail("admrul:2100000278740:BP0001"))
+    assert result["content_format"] == "oversized_pointer"
+    assert result["upcoming_revision"].startswith("개정 예정: 2026-12-01")
+    assert len(json.dumps(result, ensure_ascii=False)) <= _ANNEX_DETAIL_CHAR_BUDGET
+
+
+def test_resolver_no_match_uses_short_failure_cache_v0370():
+    """일치 0행 fallback은 단기 failure cache(300s)로 — 24h 성공 캐시 고착 차단(diff 적대검토 MAJOR).
+    검증: 성공 캐시 미저장 + failure 캐시 저장 + 재호출은 캐시 히트(검색 1회)."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient, DocumentRef
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    sr = _sr([
+        DocumentRef(doc_type="law", doc_id="999999", title="전혀 다른 법령명",
+                    extra={"시행일자": "20250101"}),
+    ])
+    client.search_laws = MagicMock(return_value=sr)
+    r1 = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "283849")
+    assert r1.resolve_failed is True
+    cache_key = ("resolve", "law", "국가연구개발혁신법", "")
+    assert cache_key not in client._id_resolution_cache          # 24h 성공 캐시 미저장
+    assert client._id_resolution_failure_cache[cache_key] == r1  # 300s failure 캐시 저장
+    r2 = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "283849")
+    assert r2 == r1
+    assert client.search_laws.call_count == 1                    # 캐시 히트
+
+
+def test_resolver_future_only_fallback_uses_success_cache_v0370(monkeypatch):
+    """미래 행만 존재하는 fallback은 실패가 아니라 정상 판정 — 성공 캐시(24h) 저장 유지."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient, DocumentRef
+    monkeypatch.setattr(LawApiClient, "_today_kst", staticmethod(lambda: "20260806"))
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    sr = _sr([
+        DocumentRef(doc_type="admrul", doc_id="2100000283100", title="국가연구개발정보처리기준",
+                    extra={"시행일자": "20260820"}),
+    ])
+    client.search_admin_rules = MagicMock(return_value=sr)
+    r = client.resolve_latest_doc_id("국가연구개발정보처리기준", "admrul", "2100000195842")
+    cache_key = ("resolve", "admrul", "국가연구개발정보처리기준", "")
+    assert client._id_resolution_cache[cache_key] == r
+    assert cache_key not in client._id_resolution_failure_cache
+
+
+def test_resolver_malformed_date_selection_deterministic_v0370(monkeypatch):
+    """형식 이상 날짜 행들의 선택 결정론 — 기존 raw 문자열 비교 거동 보존을 정확 잠금
+    (빈 값 행이 먼저 best가 되고, 뒤의 비8자리 숫자 행("2026")이 raw 비교로 승격)."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient, DocumentRef
+    monkeypatch.setattr(LawApiClient, "_today_kst", staticmethod(lambda: "20260806"))
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    sr = _sr([
+        DocumentRef(doc_type="law", doc_id="700001", title="테스트법", extra={"시행일자": ""}),
+        DocumentRef(doc_type="law", doc_id="700002", title="테스트법", extra={"시행일자": "2026"}),
+    ])
+    client.search_laws = MagicMock(return_value=sr)
+    r = client.resolve_latest_doc_id("테스트법", "law", "700001")
+    assert r.doc_id == "700002"
+    assert r.pending_doc_id == ""
+    assert r.resolve_failed is False
