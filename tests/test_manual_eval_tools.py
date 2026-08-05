@@ -174,12 +174,86 @@ def test_eval_unknown_section_not_found(fresh_cache):
     assert "eval-1-1~eval-1-5" in r["errors"][0]["message"]
 
 
-def test_existing_sources_baseline_preserved(fresh_cache, monkeypatch, tmp_path):
-    """보존 표면 — eval 무매치 질의의 기존 소스 matches가 eval 유무와 무관하게 동일(접두 보존)."""
-    merged = asyncio.run(search_manual("학생인건비 통합관리"))
-    assert merged["total_matched_by_source"].get("eval", 0) == 0
+@pytest.mark.parametrize("query", [
+    "학생인건비 통합관리",   # eval 무매치 — 완전 동일 기대
+    "학생인건비 이자",       # 희석 기준선 실측 5종(2026-08-06) — eval 잠식 0 잠금
+    "기술료 납부",
+    "제재처분 절차",
+    "협약 변경",
+    "연구개발비 사용",
+])
+def test_existing_sources_baseline_preserved(fresh_cache, monkeypatch, tmp_path, query):
+    """보존 표면 — 기존 대표 질의의 기존 소스 matches가 eval 유무와 무관하게 접두 보존
+    (diff 적대검토 Gemini MAJOR 반영: 실측 주장 5종 전체를 자동 잠금 — 기존 소스 매치의
+    상대 순서·내용이 baseline의 접두이고, eval 매치는 뒤가 아닌 자기 관련도 위치에만 삽입될
+    수 있으므로 '기존 소스 매치 서열 보존'으로 검증)."""
+    merged = asyncio.run(search_manual(query))
     manual_mod._reset_cache_for_tests()
     monkeypatch.setattr(manual_mod, "_EVAL_DATA_PATH", tmp_path / "no_eval.json")
-    baseline = asyncio.run(search_manual("학생인건비 통합관리"))
-    key = lambda r: [(m["section_id"], m["citation"]) for m in r["matches"]]
-    assert key(merged) == key(baseline)
+    baseline = asyncio.run(search_manual(query))
+    key = lambda r: [(m["section_id"], m["citation"]) for m in r["matches"] if m["source"] != "eval"]
+    merged_existing = key(merged)
+    baseline_all = key(baseline)
+    # 기존 소스 매치는 baseline 서열의 접두(cap 10에 의한 하위 밀림만 허용 — 설계된 거동)
+    assert merged_existing == baseline_all[: len(merged_existing)], query
+    if merged["total_matched_by_source"].get("eval", 0) == 0:
+        assert merged_existing == baseline_all, query  # eval 무매치면 완전 동일
+
+
+# === v0.38.0 diff 적대검토 2차 반영(Codex) — 재계산 검증·혼합 footer·표 표면 ===
+
+
+def test_eval_data_recomputed_integrity(fresh_cache):
+    """자기신고 필드가 아니라 재계산으로 잠금(Codex MAJOR 반영) — char_count 재계산 합·
+    페이지 1~60 완전 커버리지·절 내 단조성·page_start/end 정합."""
+    data = load_manual_eval()
+    covered = []
+    recomputed_total = 0
+    for s in data.sections:
+        pages = s["pages"]
+        printed = [p["printed_page"] for p in pages]
+        assert printed == sorted(printed), s["id"]                    # 절 내 단조
+        assert s["page_start"] == printed[0] and s["page_end"] == printed[-1], s["id"]
+        full = "\n".join(p["text"] for p in pages)
+        assert s["char_count"] == len(full), s["id"]                  # 자기신고 ≠ 실측 차단
+        recomputed_total += len(full)
+        covered.extend(printed)
+    assert recomputed_total == 54507                                   # 재계산 합 잠금
+    assert sorted(set(covered)) == list(range(1, 61))                  # 인쇄 1~60 완전 커버(누락 0)
+
+
+def test_eval_table_pages_recorded(fresh_cache):
+    """table_pages 실질 표 기록(Codex MAJOR 반영 — 전 절 빈 배열이면 표 경고 표면이 죽음).
+    실사 4쪽 기준: p.24(2×2·7×2)·p.51(5×5) 포함·p.5(1×2 박스)·p.13(1×2) 제외."""
+    data = load_manual_eval()
+    tp = {s["id"]: s["table_pages"] for s in data.sections}
+    assert 24 in tp["eval-3-2"]
+    assert 51 in tp["eval-ref-4"]
+    assert 5 not in tp["eval-1-5"] and 5 not in tp["eval-1-4"]
+    assert 13 not in tp["eval-3-1"]
+    assert sum(len(v) for v in tp.values()) == 37                     # 2026-08-06 실측 잠금
+
+
+def test_eval_source_url_is_kaia_edition_page(fresh_cache):
+    """source_url 판 정합(Codex MAJOR 반영 — 24.4판 msit 게시물 오지정 차단): 25.12판이 실재
+    게시된 KAIA 목록. 게시 PDF sha256 = 승인 원본과 byte-identical 대조 완료(2026-08-06)."""
+    data = load_manual_eval()
+    assert data.meta["source_url"].startswith("https://www.kaia.re.kr/")
+    assert "msit.go.kr" not in data.meta["source_url"]
+    assert data.meta["pdf_sha256"] == "9cee1d9a6b451cb47c35a81fedea017dcd7d02e04174b8288441e7f7e9de7b81"
+
+
+def test_mixed_search_footer_uses_generic_line(fresh_cache):
+    """혼합 검색(main+eval) footer 3번째 줄 = 일반 지칭 문면(Codex MAJOR 반영 — primary 문면만
+    쓰면 eval 발췌가 혁신법 매뉴얼로 오귀속). 기존 시리즈-only 혼합은 기본 문면 불변."""
+    r = asyncio.run(search_manual("특별평가 절차"))
+    srcs = set(r["total_matched_by_source"])
+    assert r["total_matched_by_source"].get("eval", 0) > 0
+    assert r["total_matched_by_source"].get("main", 0) > 0
+    footer = r["manual_meta"]["standard_footer"]
+    assert "※ 매뉴얼·지침 해설 부분은 아래에 표기된 인용 자료들을 참고한 설명입니다." in footer
+    assert "「국가연구개발혁신법 매뉴얼」을 참고한 설명" not in footer
+    # 시리즈-only 혼합(main+b3 — eval 무매치)은 기존 기본 문면 보존
+    r2 = asyncio.run(search_manual("제재처분 가이드라인"))
+    if r2["total_matched_by_source"].get("eval", 0) == 0 and len([s for s in r2["total_matched_by_source"] if r2["total_matched_by_source"][s] > 0]) >= 2:
+        assert "※ 매뉴얼 해설 부분은 「국가연구개발혁신법 매뉴얼」을 참고한 설명입니다." in r2["manual_meta"]["standard_footer"]

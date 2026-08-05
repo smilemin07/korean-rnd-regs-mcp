@@ -749,13 +749,26 @@ def mixed_manual_meta_block(
         ),
         "notice": notice,
         "law_priority_note": law_note,
-        # v0.38.0: 혼합 footer 3번째 줄도 primary meta 기준(비시리즈 primary만 자기 문면 —
-        # 기존 조합(primary가 본권/별권)은 키 부재로 기본 문면 유지·v0.32.0 보존 잠금 불변)
+        # v0.38.0(diff 적대검토 Codex MAJOR 반영): 혼합 footer 3번째 줄 — 전 소스가 기본 문면이면
+        # 기본(기존 조합 byte 불변·v0.32.0 보존 잠금), 전 소스가 같은 커스텀이면 그 문면, 기본+커스텀
+        # 혼합이면 일반 지칭 문면(primary 문면만 쓰면 다른 소스 발췌가 오귀속 — 자료 열거는 notice 담당).
         "standard_footer": build_standard_footer(
-            notice, manual_content_included, _one_line(primary_meta.get("footer_manual_line")) or None
+            notice, manual_content_included,
+            _mixed_manual_line([primary_meta] + [m for _oid, m in others]),
         ),
     })
     return out
+
+
+def _mixed_manual_line(metas: list[dict]) -> str | None:
+    """혼합 응답 footer 3번째 줄 선택 — None 반환 = 기본 문면(FOOTER_MANUAL_LINE)."""
+    customs = {_one_line(m.get("footer_manual_line")) for m in metas}
+    customs.discard("")
+    if not customs:
+        return None
+    if len(customs) == 1 and all(_one_line(m.get("footer_manual_line")) for m in metas):
+        return customs.pop()
+    return FOOTER_MANUAL_LINE_MIXED
 
 
 def _one_line(value: object) -> str:
@@ -846,6 +859,14 @@ MANUAL_FORMAT_NOTE_B1 = (
     "추출한 해설 텍스트 그대로입니다(법령 원문 아님·법적 효력 없음). 표 포함 페이지는 PDF 추출 특성상 "
     "셀 텍스트 순서·제목 위치가 원본 배치와 다를 수 있으므로, 수치·조건을 인용할 때는 표기된 인쇄쪽으로 "
     "원문 대조를 권장합니다."
+)
+
+# 혼합 footer 3번째 줄 (v0.38.0 — diff 적대검토 Codex MAJOR 반영): 기본 문면 소스(혁신법 매뉴얼
+# 시리즈)와 커스텀 문면 소스(과제평가 표준지침 등)가 한 검색 응답에 함께 반환될 때, primary 문면만
+# 쓰면 다른 소스 발췌가 오귀속된다 — 자료 열거는 4번째 줄(notice 병기)이 담당하므로 일반 지칭 문면.
+FOOTER_MANUAL_LINE_MIXED = (
+    "※ 매뉴얼·지침 해설 부분은 아래에 표기된 인용 자료들을 참고한 설명입니다. "
+    "해당 자료는 법령·행정규칙이 아니며, 내용이 다를 때는 법령·행정규칙 원문이 우선합니다."
 )
 
 # 과제평가 표준지침 전용 format note (v0.38.0 — 비시리즈 독립 소스라 문서 성격을 정확히 기재).

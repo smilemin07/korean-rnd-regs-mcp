@@ -54,7 +54,8 @@ DEFAULT_JSON = REPO_ROOT / "src" / "korean_rnd_regs_mcp" / "manual_eval.json"
 DEFAULT_REPORT = REPO_ROOT / "scripts" / "manual_eval_extract_report.md"
 
 # ── 승인 원본 고정 (fail-closed — 파일 교체 시 BLOCK) ────────────────────────
-EXPECTED_PDF_SHA256 = "REPLACED_AT_FIRST_RUN"  # 최초 실행 시 실측값으로 교체(아래 main 참조)
+# 2026-08-06 실측(diff 적대검토 Gemini MAJOR 반영 — placeholder 방치 시 재현 검증 불능)
+EXPECTED_PDF_SHA256 = "9cee1d9a6b451cb47c35a81fedea017dcd7d02e04174b8288441e7f7e9de7b81"
 EXPECTED_PHYS_PAGES = 65
 PRINT_OFFSET = 4                 # 인쇄쪽 = 물리쪽 − 4 (전 마커쪽 균일 실측)
 EXPECTED_BODY_START = 1          # 인쇄 기준
@@ -189,8 +190,12 @@ def main() -> int:
 
     u = urllib.parse.urlparse(args.source_url)
     host = (u.hostname or "").lower()
-    if u.scheme != "https" or not (host.endswith("kistep.re.kr") or host.endswith("msit.go.kr")):
-        print("[fail-closed BLOCK] --source-url은 https + kistep.re.kr/msit.go.kr 게시물이어야 합니다", file=sys.stderr)
+    # kaia.re.kr 허용(diff 적대검토 Codex MAJOR 반영): 25.12판의 공식 게시처 = KAIA 규정·서식·매뉴얼
+    # 목록(게시 PDF sha256이 승인 원본과 byte-identical 대조 완료 2026-08-06). msit 게시물은 24.4판이라
+    # 임시 URL로 쓰면 판 불일치 — source_url은 반드시 수록 판이 실재 게시된 경로여야 한다.
+    allowed = ("kistep.re.kr", "msit.go.kr", "kaia.re.kr")
+    if u.scheme != "https" or not any(host.endswith(d) for d in allowed):
+        print("[fail-closed BLOCK] --source-url은 https + kistep.re.kr/msit.go.kr/kaia.re.kr 게시물이어야 합니다", file=sys.stderr)
         return 2
 
     if not args.pdf.exists():
@@ -328,6 +333,25 @@ def main() -> int:
             print(f"[fail-closed BLOCK] eval-ref-6 구획 '{g}' 줄 미발견", file=sys.stderr)
             return 2
 
+    # 5.5) 표 실재 쪽 자동 산출(find_tables) — diff 적대검토 Codex MAJOR 반영: 전 절 table_pages를
+    # 빈 배열로 두면 표 경고 표면(main.py)이 죽는다. 결정론(같은 PDF·같은 PyMuPDF → 같은 결과).
+    # ★실질 표 필터(행≥2 AND 열≥2): 이 문서는 강조 박스·구분선 레이아웃이 많아 무필터 find_tables는
+    # 전 60쪽을 표로 오감지(1행 박스) — 셀 격자 구조가 실재하는 표만 기록해 경고 노이즈를 차단.
+    table_pages_all: set[int] = set()
+    for printed in range(EXPECTED_BODY_START, EXPECTED_BODY_END + 1):
+        page = doc[printed + PRINT_OFFSET - 1]
+        try:
+            for tb in page.find_tables().tables:
+                ext = tb.extract()
+                rows = len(ext)
+                cols = max((len(r) for r in ext), default=0)
+                if rows >= 2 and cols >= 2:
+                    table_pages_all.add(printed)
+                    break
+        except Exception:
+            # find_tables 실패는 표 없음으로 두지 않고 보수적으로 표 있음 처리(경고 과소 방지)
+            table_pages_all.add(printed)
+
     # 6) JSON 조립
     sections = []
     for idx, a in enumerate(assembled):
@@ -359,8 +383,10 @@ def main() -> int:
             "pdf_page_end": pages_out[-1]["printed_page"] + PRINT_OFFSET,
             "char_count": len(full),
             "subsection_titles": subsection_titles,
-            "image_only_pages": [],
-            "table_pages": [],
+            "image_only_pages": [],   # 전 쪽 텍스트 실재 실측(2026-08-06 — 마커 60쪽 전건 본문 추출)
+            "table_pages": sorted(
+                p["printed_page"] for p in pages_out if p["printed_page"] in table_pages_all
+            ),
             "warnings": [],
             "pages": pages_out,
         })
@@ -378,7 +404,8 @@ def main() -> int:
         "footer_manual_line": FOOTER_MANUAL_LINE_EVAL,
         "source_type": "government_standard_guideline",
         "legal_effect": "not_binding",
-        "publisher": "과학기술정보통신부·한국과학기술기획평가원(KISTEP)",
+        # 판권지 구분 표기(diff 적대검토 Codex MINOR 반영): 발행 = 과기정통부·KISTEP은 주관연구기관
+        "publisher": "발행 과학기술정보통신부 · 주관연구기관 한국과학기술기획평가원(KISTEP)",
         "pdf_sha256": digest,
         "source_url": args.source_url,
         "extracted_at": datetime.date.today().isoformat(),

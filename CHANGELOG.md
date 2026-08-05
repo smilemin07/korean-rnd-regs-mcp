@@ -16,7 +16,7 @@
 
 ### Internal
 
-- 추출 파이프라인 `scripts/extract_manual_eval.py`(승인 PDF sha256·편제 상수 동결·경계 분할 줄 손실 0·fail-closed). 검색 희석 실측 기준선 기록(quota 선제 도입 없음 유지). pytest 671 → 700.
+- 추출 파이프라인 `scripts/extract_manual_eval.py`(승인 PDF sha256 고정·편제 상수 동결·경계 분할 줄 손실 0·실질 표 페이지 자동 기록·fail-closed·byte-identical 재현 검증). 출처 URL은 25.12판이 실재 게시된 KAIA 목록(게시 PDF sha256 = 승인 원본과 완전 일치 대조·2026-08-06). 혼합 검색(기존 매뉴얼+표준지침 동시 반환) footer는 일반 지칭 문면으로 출처 오귀속 차단. 검색 희석 실측 기준선 기록(quota 선제 도입 없음 유지). pytest 671 → 710.
 
 ## [0.37.0] - 2026-08-06
 

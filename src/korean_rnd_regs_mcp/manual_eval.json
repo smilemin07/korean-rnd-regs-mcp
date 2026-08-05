@@ -19,9 +19,9 @@
   "footer_manual_line": "※ 지침 해설 부분은 「국가연구개발 과제평가 표준지침」을 참고한 설명입니다. 이 지침은 법령·행정규칙이 아니며, 내용이 다를 때는 법령·행정규칙 원문이 우선합니다.",
   "source_type": "government_standard_guideline",
   "legal_effect": "not_binding",
-  "publisher": "과학기술정보통신부·한국과학기술기획평가원(KISTEP)",
+  "publisher": "발행 과학기술정보통신부 · 주관연구기관 한국과학기술기획평가원(KISTEP)",
   "pdf_sha256": "9cee1d9a6b451cb47c35a81fedea017dcd7d02e04174b8288441e7f7e9de7b81",
-  "source_url": "https://www.msit.go.kr/bbs/view.do?nttSeqNo=33&bbsSeqNo=122&mId=246&mPid=243",
+  "source_url": "https://www.kaia.re.kr/portal/bbs/list/B0000050.do?menuNo=200131&option1=2",
   "extracted_at": "2026-08-06",
   "physical_pages": 65,
   "print_offset": 4,
@@ -115,7 +115,11 @@
    "char_count": 3520,
    "subsection_titles": [],
    "image_only_pages": [],
-   "table_pages": [],
+   "table_pages": [
+    2,
+    3,
+    4
+   ],
    "warnings": [],
    "pages": [
     {
@@ -183,7 +187,11 @@
    "char_count": 3170,
    "subsection_titles": [],
    "image_only_pages": [],
-   "table_pages": [],
+   "table_pages": [
+    8,
+    9,
+    10
+   ],
    "warnings": [],
    "pages": [
     {
@@ -251,7 +259,17 @@
    "char_count": 13105,
    "subsection_titles": [],
    "image_only_pages": [],
-   "table_pages": [],
+   "table_pages": [
+    14,
+    15,
+    16,
+    18,
+    19,
+    20,
+    22,
+    24,
+    26
+   ],
    "warnings": [],
    "pages": [
     {
@@ -345,7 +363,20 @@
     "4 최종평가"
    ],
    "image_only_pages": [],
-   "table_pages": [],
+   "table_pages": [
+    28,
+    29,
+    30,
+    32,
+    34,
+    35,
+    36,
+    38,
+    40,
+    41,
+    42,
+    44
+   ],
    "warnings": [],
    "pages": [
     {
@@ -454,7 +485,9 @@
    "char_count": 1522,
    "subsection_titles": [],
    "image_only_pages": [],
-   "table_pages": [],
+   "table_pages": [
+    46
+   ],
    "warnings": [],
    "pages": [
     {
@@ -478,7 +511,9 @@
    "char_count": 1742,
    "subsection_titles": [],
    "image_only_pages": [],
-   "table_pages": [],
+   "table_pages": [
+    48
+   ],
    "warnings": [],
    "pages": [
     {
@@ -512,7 +547,9 @@
    "char_count": 793,
    "subsection_titles": [],
    "image_only_pages": [],
-   "table_pages": [],
+   "table_pages": [
+    50
+   ],
    "warnings": [],
    "pages": [
     {
@@ -536,7 +573,9 @@
    "char_count": 855,
    "subsection_titles": [],
    "image_only_pages": [],
-   "table_pages": [],
+   "table_pages": [
+    51
+   ],
    "warnings": [],
    "pages": [
     {
@@ -560,7 +599,10 @@
    "char_count": 1322,
    "subsection_titles": [],
    "image_only_pages": [],
-   "table_pages": [],
+   "table_pages": [
+    52,
+    53
+   ],
    "warnings": [],
    "pages": [
     {
@@ -594,7 +636,12 @@
     "최종평가"
    ],
    "image_only_pages": [],
-   "table_pages": [],
+   "table_pages": [
+    54,
+    56,
+    58,
+    60
+   ],
    "warnings": [],
    "pages": [
     {
