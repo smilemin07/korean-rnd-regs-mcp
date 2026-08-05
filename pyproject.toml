@@ -1,6 +1,6 @@
 [project]
 name = "korean-rnd-regs-mcp"
-version = "0.34.0"
+version = "0.35.0"
 description = "MCP server for Korean national R&D regulation review (국가연구개발 규정 검토용 MCP 서버)"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.11"
@@ -78,6 +78,8 @@ packages = ["src/korean_rnd_regs_mcp"]
 "src/korean_rnd_regs_mcp/manual_b3.json" = "korean_rnd_regs_mcp/manual_b3.json"
 # v0.33.0(R3-P2): 별권 2 기술료 제도 매뉴얼 — 누락 시 별권 조회만 manual_b2_unavailable(본권·별권 3·규정 무영향)
 "src/korean_rnd_regs_mcp/manual_b2.json" = "korean_rnd_regs_mcp/manual_b2.json"
+# v0.35.0(R4-P2): 별권 1 학생인건비통합관리 제도 매뉴얼 — 누락 시 별권 조회만 manual_b1_unavailable(본권·별권 2·3·규정 무영향)
+"src/korean_rnd_regs_mcp/manual_b1.json" = "korean_rnd_regs_mcp/manual_b1.json"
 
 [tool.hatch.build.targets.sdist]
 # sdist에서 개발 전용 노트는 제외 — README/CHANGELOG/SECURITY/LICENSE만 PyPI 노출.

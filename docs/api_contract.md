@@ -1,6 +1,6 @@
 # korean-rnd-regs-mcp API Contract
 
-- contract_version: **0.25.0** (0.1.0 첫 publish → … → 0.22.0 → 0.23.0 → 0.24.0 → 0.25.0 minor bump, §6 변경 이력 참조)
+- contract_version: **0.26.0** (0.1.0 첫 publish → … → 0.23.0 → 0.24.0 → 0.25.0 → 0.26.0 minor bump, §6 변경 이력 참조)
 - 작성일: 2026-05-24 (0.2.0 개정: 2026-06-04, 0.3.0 개정: 2026-06-07, 0.4.0 개정: 2026-06-09, 0.5.0 개정: 2026-06-10, 0.6.0 개정: 2026-06-13, 0.7.0 개정: 2026-06-21, 0.8.0 개정: 2026-06-21, 0.9.0 개정: 2026-06-22, 0.10.0 개정: 2026-07-07)
 - semver 정책: 0.x.x 대역은 unstable signal — minor bump(0.1.0 → 0.2.0)도 breaking change 허용. v0.2 가지조문 확장 시 0.2.0 minor bump로 자연스럽게 처리 (1.0.x 유지 시 2.0 major bump 필요했음)
 - 변경 정책: 본 문서 변경은 외부 사용자 코드·Claude Desktop 캐시·README 예시를 깰 수 있으므로 0.1.0 publish 이후 신중히 (§6 참조)
@@ -131,10 +131,11 @@ law:189938:BP000102              # 법령 별표 1의2 형식 (가지별표 인�
 | `annex_parse_failed` | 법령 별표 파싱 실패 (search_provision, 0.4.0) | fault-isolated — 조문 검색은 정상, errors에 rule_set_id와 함께 노출 |
 | `annex_unavailable_parse_failed` | 별표 파싱 실패로 BP 상세조회 불가 (get_provision_detail, 0.4.0) | not_found 대신 정직하게 표면화 — 공식 원문 확인 안내 |
 | `timeout` | search_provision fan-out 응답 시간 예산 초과로 해당 규정 조회 생략 (0.6.0) | graceful skip — `errors`에 rule_set_id와 함께 노출, 완료된 규정 결과는 정상 반환(부분 응답) |
-| `invalid_section_id` | get_manual_section의 section_id 포맷 위반 (0.18.0) | 허용 형식(0.24.0 현행) `^(?:\d+-\d+\|ref-\d+\|b3-(?:\d+-\d+\|ref-\d+)\|b2-(?:\d+-\d+\|ref-\d+))$` 불일치 — provision_id 체계와 별개 식별자라 `invalid_provision_id` 재사용 금지(§5.19. 0.23.0에서 b3 계열·0.24.0에서 b2 계열 추가) |
+| `invalid_section_id` | get_manual_section의 section_id 포맷 위반 (0.18.0) | 허용 형식(0.26.0 현행) `^(?:\d+-\d+\|ref-\d+\|b3-(?:\d+-\d+\|ref-\d+)\|b2-(?:\d+-\d+\|ref-\d+)\|b1-(?:\d+-\d+\|ref-\d+))$` 불일치 — provision_id 체계와 별개 식별자라 `invalid_provision_id` 재사용 금지(§5.19. 0.23.0에서 b3 계열·0.24.0에서 b2 계열·0.26.0에서 b1 계열 추가) |
 | `manual_unavailable` | 매뉴얼 데이터 파일(manual_body.json) 부재·파싱 실패·스키마 이상 (0.18.0) | 매뉴얼 도구 2종만 영향(기존 5종 도구·부팅 무영향 — fail-safe 격리). message에 reason(file_missing/json_parse_failed/schema_invalid) 동봉·판번 등 메타는 하드코딩하지 않고 `manual_meta_available=false` |
 | `manual_b3_unavailable` | 별권 3 데이터 파일(manual_b3.json) 부재·파싱 실패·구조 손상 (0.23.0 — §5.24. 본 표 등재는 0.24.0 문서 정비) | 별권 3 조회 한정 격리(본권·규정 도구 무영향). 검색에서는 오류가 아니라 `source_warnings`로 격리 |
 | `manual_b2_unavailable` | 별권 2 데이터 파일(manual_b2.json) 부재·파싱 실패·구조 손상 (0.24.0 — §5.25) | 별권 2 조회 한정 격리(본권·별권 3·규정 도구 무영향). 검색에서는 오류가 아니라 `source_warnings`로 격리 |
+| `manual_b1_unavailable` | 별권 1 데이터 파일(manual_b1.json) 부재·파싱 실패·구조 손상 (0.26.0 — §5.27) | 별권 1 조회 한정 격리(본권·별권 2·3·규정 도구 무영향). 검색에서는 오류가 아니라 `source_warnings`로 격리 |
 
 ### 4.3 보안 정책
 
@@ -384,9 +385,21 @@ law:189938:BP000102              # 법령 별표 1의2 형식 (가지별표 인�
 - **오류 self-echo 마스킹**(응답 필드 아님·오류 문면 보안 보강): 실위험 3경로 — ①`invalid_provision_id`(provision_id 원문 echo) ②`invalid_section_id`(section_id 원문 echo) ③`get_provision_detail` manifest 불일치 `not_found`(`doc_id`는 형식 제약 없는 사용자 입력) — 에 더해, 제약 형식이라 실위험은 없으나 방어 일관성을 위해 동적 self-echo 2곳(get_manual_section 절 `not_found`의 sid·get_provision_detail unit 미발견 `not_found`의 provision_id)까지 총 5곳 `_sanitize_error_message` 경유. 사용자가 실수로 자신의 OC 키를 인자에 붙여넣은 경우의 self-echo(본인 세션 한정·교차 사용자 누설 아님) 차단. **키 미포함 문면은 byte 불변**(마스킹 함수는 활성 키 포함 시에만 치환·환경변수 키와 HTTP per-user contextvar 키 모두 검사). 주장 범위 한정: 위 오류 문면의 활성 키 self-echo 차단이며, 검색어 등 의도적 입력 반환 표면(search `query`·suggest `question` 등)은 별도 threat-model 영역.
 - 순수 additive(신규 필드 2종)·**입력 스키마 무변(웹 커넥터 재연결 불요)**·규정 트랙·검색/랭킹·fan-out·캐시·transport·외부 URL 완전 불변 → contract_version **0.25.0**(0.24.0 → 0.25.0).
 
+### 5.27 매뉴얼 별권 1 「학생인건비통합관리 제도 매뉴얼」 수록 (0.26.0 minor — additive·입력 스키마 무변)
+
+- 패키지 **0.35.0(R4)**. 별권 1(96물리쪽·26.7 게시 세트) 본문을 26단위로 수록 — `manual_b1.json` 신설(76,353자·본권·별권 2·3 데이터 byte 불변). 로드맵 최초 예약 버전은 v0.34.0이었으나 2026-08-05 structure_notice 릴리스가 그 번호를 사용하여 실제 릴리스는 v0.35.0으로 순연(범위·의도 불변).
+- **id 계열 확장**: `b1-<장>-<절>`(일반 절 22) + **`b1-5-1`(제5장 FAQ — 절 없는 장의 단일 유닛·Q1~Q9는 subsection_titles로 검색 도달)** + `b1-ref-1~3`(참고 3건 — 참고1은 목차 표기를 known-variant로 subsection_titles 등재). `SECTION_ID_RE`에 b1 계열 추가(§4.2 `invalid_section_id` 정규식 현행화). 입력 파라미터 구조 무변(section_id 문자열 허용 값 확장) → **웹 커넥터 재연결 불요**.
+- **소스 descriptor append**: `_MANUAL_SUPPLEMENTS`에 b1 항목 추가(source_rank 3 — append-only·별권 번호순 재정렬 금지). 검색 병합(`source` enum에 "b1"·searched_sources·returned_by_source·scanned_sections 43+23+15+26=107)·혼합 meta(`sources.b1`)·오류 코드 `manual_b1_unavailable`(§4.2)·소스 가용성 envelope 2^4=16조합 전수 테스트.
+- **데이터 편제 특이(추출 계약)**: 별권 최초의 장 표제 간지 5쪽(인쇄 1·9·19·39·47)과 빈 쪽 7쪽은 미수록(meta.excluded_note 기재) — 본문 마커 79쪽(인쇄 3~91)만 절에 귀속·96물리쪽 완전 분할 fail-closed 검증. `image_only_pages`는 추출 텍스트 0자 쪽만 등재(저텍스트·다이미지 쪽 오등재 금지 — 실측 전건 텍스트 실재라 빈 배열).
+- **meta(D6)**: `manual_basis_date` null·`basis_note`에 원문 표기 고시 제2026-5호를 **사실 기재**(현행성 단정 금지·현행 확인은 규정 트랙 안내). `law_priority_extra` 2문장 — ① 계상기준·지급액 등 구체값은 연구개발비 사용 기준(rnd_funding_standard) 현행 원문 교차 확인 ② **이자 처리 서술(제3장 6절)은 구판 제75조 구조 기준·현행은 제2항제1호로 이동**(v0.33.0 별권 2 구판 용어 안내의 eval 2/2 실효 패턴 재사용·수명은 수록 판 연동).
+- **table_structure_notes 4절**(렌더 대조 실측): b1-1-3(지급 개념도 흐름 시각 전용)·b1-3-4(표 3-1 막대·표 3-2 개념도)·b1-ref-1(다열 표 관리유형 열 귀속 소실)·b1-ref-3(가/부 판정란·스크린샷 이미지 전용) — v0.34.0 structure_notice 표면이 데이터만으로 부착(코드 무변). 핵심 구체값(계상기준 월 130/220/300만 원·제91조의2 잔액 산식 × 0.2)은 텍스트 보존·결속 정상을 렌더 대조로 확인.
+- **b1-ref-3(점검 자료집·25,384자)**: 유일 oversized — 포인터 + 청크 3개(무손실 재조립·각 청크 structure_notice+절 전체 기준 주의 줄·16k 예산 검증).
+- **보존 표면**: 기존 소스(본권·b3·b2) 상세 응답·별권 1 무매치 질의 matches·혼합 meta가 별권 1 유무와 무관하게 byte 동일(v0.34.0 코드 0468b13 golden 픽스처 실대조 + with/without 비교 잠금). 별권 1 매치 질의에서는 기존 소스 매치의 상대 순서 보존(필터 결과 = baseline 접두)·최상위 필수 절 생존을 잠금 — cap 10에 따른 하위 매치 밀림은 병합 검색의 설계된 거동(b3·b2 전례 동일)이며 이 실측이 quota 선제 도입 불요 판정의 근거.
+- 순수 additive(신규 id 계열·신규 오류 코드·source enum 확장)·**입력 스키마 무변(웹 커넥터 재연결 불요)**·규정 트랙·검색 알고리즘(tier·rank 규칙 무변)·fan-out·캐시·transport·외부 URL 완전 불변 → contract_version **0.26.0**(0.25.0 → 0.26.0).
+
 ## 6. contract_version 관리
 
-- 본 문서 contract_version: **0.25.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 → 0.12.0 → 0.13.0 → 0.14.0 → 0.15.0 → 0.16.0 → 0.17.0 → 0.18.0 → 0.19.0 → 0.20.0 → 0.21.0 → 0.22.0 → 0.23.0 → 0.24.0 → 0.25.0 minor)
+- 본 문서 contract_version: **0.26.0** (line 3 참조; 0.1.0 첫 publish → 0.2.0 → 0.3.0 → 0.4.0 → 0.5.0 → 0.6.0 → 0.7.0 → 0.8.0 → 0.9.0 → 0.10.0 → 0.11.0 → 0.12.0 → 0.13.0 → 0.14.0 → 0.15.0 → 0.16.0 → 0.17.0 → 0.18.0 → 0.19.0 → 0.20.0 → 0.21.0 → 0.22.0 → 0.23.0 → 0.24.0 → 0.25.0 → 0.26.0 minor)
 - 코드 상수: `korean_rnd_regs_mcp.provision_id.CONTRACT_VERSION`
 - 변경 정책 (0.x.x — unstable signal):
 
@@ -461,3 +474,4 @@ law:189938:BP000102              # 법령 별표 1의2 형식 (가지별표 인�
 | **0.23.0** | 2026-08-03 | **minor bump** (패키지 **0.32.0** — 2026-08-03 배포 완료). 별권 3 「국가연구개발사업 제재처분 가이드라인」 수록(§5.24) — manual_b3.json 신설(23단위·87,844자·본권 byte 불변)·독립 로더·b3 id 계열·오류 코드 manual_b3_unavailable·검색 병합(tier 우선·본권 우선·무회귀 잠금)·소스별 계측 4필드·source_warnings·장애 4조합 envelope·별권 meta(edition-only notice 분기·basis null 사실 표기)·혼합 manual_meta 병기 완성형·규범성 확장 2문장·table_structure_notes 표면화. 순수 additive·입력 스키마 무변(재연결 불요). 설계 = R2-P0 동결 D1~D11(계획·P0·P1 /disc 3라운드 3-AI 수렴) → 0.22.0 → 0.23.0 |
 | **0.24.0** | 2026-08-04 | **minor bump** (패키지 **0.33.0** — 2026-08-04 배포). 별권 2 「국가연구개발사업 기술료 제도 매뉴얼」 수록(§5.25) — manual_b2.json 신설(15단위·9,531자·본권·별권 3 byte 불변)·독립 로더(강화 검증)·b2 id 계열·오류 코드 manual_b2_unavailable·별권 소스 descriptor 목록으로 교차 소스 층 일반화(검색 병합·장애 표면·라우팅·혼합 meta — 로더는 per-book 유지)·소스 가용성 8조합 envelope·보존 표면 4항 잠금·별권 2 meta(edition-only·law_priority_extra 3문장[구판 용어 라이브 검증])·table_structure_notes 4건·문서 기준선 정비 5건. 순수 additive·입력 스키마 무변(재연결 불요). 설계 = R3-P0 동결 D1~D12(로드맵·P0·P1 /disc 3라운드 3-AI) → 0.23.0 → 0.24.0 |
 | **0.25.0** | 2026-08-05 | **minor bump** (패키지 **0.34.0**). 구조 안내 완성형 승격 + 오류 self-echo 마스킹(§5.26) — ① `get_manual_section` 본문 전달 응답(전문·청크)에 `structure_notice`(table_structure_notes 원문 결정론 조립 완성형 블록·청크는 절 전체 기준 주의 줄 추가)·`structure_notice_note`(인접 지시) additive. 부착은 tier 판정 이후 마지막·16,000자 초과 시 원본 무변경 생략(whole-or-omit)·포인터/notes 없는 절/오류/search_manual 미부착·warnings 병존 유지. 동기 = v0.33.0 라이브 eval(warnings 배열 원소 미복사·완성형 블록 복사 — 같은 응답 내 대조 관측) ② 오류 self-echo 마스킹(실위험 3경로 invalid_provision_id·invalid_section_id·manifest 불일치 not_found + 방어 일관성 2곳 = 총 5곳) `_sanitize_error_message` 경유 — 키 미포함 문면 byte 불변·env 키와 HTTP contextvar 키 모두 검사. **입력 스키마 무변 → 재연결 불요**. 검색/랭킹·fan-out·transport·캐시·외부 URL·규정 수(64)·매뉴얼 데이터 3종 byte 불변. 계획 /disc 3-AI GO(Codex 크기 게이트·청크 문면·마스킹 범위 한정 반영·b3-4-2 청크 1 실측 15,231→15,799자 잠금) → 0.24.0 → 0.25.0 |
+| **0.26.0** | 2026-08-05 | **minor bump** (패키지 **0.35.0** — 구현 완료·배포 대기). 별권 1 「학생인건비통합관리 제도 매뉴얼」 수록(§5.27) — manual_b1.json 신설(26단위·76,353자·기존 매뉴얼 데이터 3종 byte 불변)·독립 로더 load_manual_b1(강화 검증)·b1 id 계열(일반 22 + FAQ 단일 유닛 b1-5-1 + 참고 3)·오류 코드 manual_b1_unavailable·descriptor append(source_rank 3)·소스 가용성 16조합 envelope·간지/blank 미수록(96물리쪽 완전 분할 fail-closed)·meta 사실 기재(원문 표기 제2026-5호·이자 처리 구판 제75조 안내 law_priority_extra 2문장)·table_structure_notes 4절(structure_notice 데이터-only 부착)·b1-ref-3 청크 3개·보존 표면(v0.34.0 golden 0468b13 실대조·희석 접두 보존 잠금). 순수 additive·입력 스키마 무변(재연결 불요). 설계 = R4-P0 동결 D1~D14(계획 /disc 3-AI 조건부 GO 3/3 — Codex 보강 전건 수용·Gemini FAQ 분해 요구는 실측 기각) → 0.25.0 → 0.26.0 |

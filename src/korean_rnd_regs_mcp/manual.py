@@ -24,7 +24,9 @@ MANUAL_DETAIL_CHAR_BUDGET = 16000
 MANUAL_DETAIL_HEADROOM = 300
 MANUAL_CHUNK_CONTENT_BUDGET = 12000
 
-SECTION_ID_RE = re.compile(r"^(?:\d+-\d+|ref-\d+|b3-(?:\d+-\d+|ref-\d+)|b2-(?:\d+-\d+|ref-\d+))$")
+SECTION_ID_RE = re.compile(
+    r"^(?:\d+-\d+|ref-\d+|b3-(?:\d+-\d+|ref-\d+)|b2-(?:\d+-\d+|ref-\d+)|b1-(?:\d+-\d+|ref-\d+))$"
+)
 
 _DATA_PATH = Path(__file__).parent / "manual_body.json"
 
@@ -60,6 +62,11 @@ _B3_CACHE: ManualData | ManualLoadError | None = None
 _B2_DATA_PATH = Path(__file__).parent / "manual_b2.json"
 _B2_LOCK = threading.Lock()
 _B2_CACHE: ManualData | ManualLoadError | None = None
+
+# 별권 1 「학생인건비통합관리 제도 매뉴얼」 — 동일 사상의 독립 병렬 경로 (R4-P0 D9).
+_B1_DATA_PATH = Path(__file__).parent / "manual_b1.json"
+_B1_LOCK = threading.Lock()
+_B1_CACHE: ManualData | ManualLoadError | None = None
 
 
 def mdot_normalize(s: str) -> str:
@@ -279,15 +286,98 @@ def _load_b2_uncached() -> ManualData | ManualLoadError:
     return data
 
 
+def load_manual_b1() -> ManualData | ManualLoadError:
+    """manual_b1.json lazy 싱글턴 로드 — 별권 2·3와 동일 사상의 독립 병렬 경로 (R4-P0 D9)."""
+    global _B1_CACHE
+    if _B1_CACHE is not None:
+        return _B1_CACHE
+    with _B1_LOCK:
+        if _B1_CACHE is not None:
+            return _B1_CACHE
+        _B1_CACHE = _load_b1_uncached()
+        return _B1_CACHE
+
+
+def _load_b1_uncached() -> ManualData | ManualLoadError:
+    """별권 2 강화 로더 복제(b1- 프리픽스) — 기존 로더 무변.
+
+    추가 검증: id 중복 0·b1- 프리픽스·section_index 연속·pages 비어 있지 않음·printed_page
+    정수·text 문자열·meta.section_count 일치. 메시지는 별권 자신의 상태만 말한다.
+    """
+    if not _B1_DATA_PATH.exists():
+        return ManualLoadError(
+            reason="file_missing",
+            message="별권 1 데이터 파일(manual_b1.json)이 패키지에 없습니다 — 패키징 누락 가능.",
+        )
+    try:
+        with open(_B1_DATA_PATH, encoding="utf-8") as f:
+            payload = json.load(f)
+    except (ValueError, OSError) as exc:
+        return ManualLoadError(
+            reason="json_parse_failed",
+            message=f"별권 1 데이터 파일 파싱 실패({type(exc).__name__}).",
+        )
+    if not isinstance(payload, dict):
+        return ManualLoadError(
+            reason="schema_invalid",
+            message="별권 1 데이터 스키마 이상(최상위가 객체 아님).",
+        )
+    meta = payload.get("meta")
+    sections = payload.get("sections")
+    if not isinstance(meta, dict) or not isinstance(sections, list) or not sections:
+        return ManualLoadError(
+            reason="schema_invalid",
+            message="별권 1 데이터 스키마 이상(meta/sections 부재).",
+        )
+    try:
+        data = ManualData(meta=meta, sections=sections)
+        for idx, sec in enumerate(sections):
+            if not isinstance(sec, dict):
+                raise TypeError(f"section 원소 타입 이상: {type(sec).__name__}")
+            sid = sec.get("id", "")
+            if not isinstance(sid, str) or not sid.startswith("b1-"):
+                raise TypeError(f"section id 이상: {sid!r}")
+            if sid in data.by_id:
+                raise TypeError(f"section id 중복: {sid!r}")
+            if sec.get("section_index") != idx:
+                raise TypeError(f"section_index 불연속: {sid!r}")
+            pages = sec.get("pages")
+            if not isinstance(pages, list) or not pages:
+                raise TypeError(f"pages 비어 있음/타입 이상: {sid!r}")
+            for p in pages:
+                if not isinstance(p, dict) or not isinstance(p.get("printed_page"), int) \
+                        or not isinstance(p.get("text"), str):
+                    raise TypeError(f"page 항목 타입 이상: {sid!r}")
+            data.by_id[sid] = sec
+            full = "\n".join(p.get("text", "") for p in pages)
+            data.full_text[sid] = full
+            data.norm_body[sid] = mdot_normalize(full)
+            title_fields = " ".join(
+                [str(sec.get("section_title", "")), str(sec.get("chapter_title", "")), str(sec.get("section_label", ""))]
+                + [str(x) for x in sec.get("subsection_titles", []) if isinstance(x, str)]
+            )
+            data.norm_title[sid] = mdot_normalize(title_fields)
+        if meta.get("section_count") != len(sections):
+            raise TypeError(f"meta.section_count {meta.get('section_count')!r} != 실제 {len(sections)}")
+    except Exception as exc:
+        return ManualLoadError(
+            reason="schema_invalid",
+            message=f"별권 1 데이터 구조 손상({type(exc).__name__}) — 인덱스 구축 실패.",
+        )
+    return data
+
+
 def _reset_cache_for_tests() -> None:
     """테스트 전용 — 캐시 초기화(운영 코드에서 호출 금지)."""
-    global _CACHE, _B3_CACHE, _B2_CACHE
+    global _CACHE, _B3_CACHE, _B2_CACHE, _B1_CACHE
     with _LOCK:
         _CACHE = None
     with _B3_LOCK:
         _B3_CACHE = None
     with _B2_LOCK:
         _B2_CACHE = None
+    with _B1_LOCK:
+        _B1_CACHE = None
 
 
 # 답변 하단 표준 안내 — 서버 프롬프트(instructions·review 템플릿)와 문면이 일치해야 하는
@@ -627,6 +717,14 @@ MANUAL_FORMAT_NOTE_B3 = (
 # 별권 2 전용 format note (R3-P0 D5 — 소스별 문면 동형).
 MANUAL_FORMAT_NOTE_B2 = (
     "본 content는 「국가연구개발사업 기술료 제도 매뉴얼」(국가연구개발혁신법 매뉴얼 별권 2) PDF에서 "
+    "추출한 해설 텍스트 그대로입니다(법령 원문 아님·법적 효력 없음). 표 포함 페이지는 PDF 추출 특성상 "
+    "셀 텍스트 순서·제목 위치가 원본 배치와 다를 수 있으므로, 수치·조건을 인용할 때는 표기된 인쇄쪽으로 "
+    "원문 대조를 권장합니다."
+)
+
+# 별권 1 전용 format note (R4-P0 D9 — 소스별 문면 동형).
+MANUAL_FORMAT_NOTE_B1 = (
+    "본 content는 「학생인건비통합관리 제도 매뉴얼」(국가연구개발혁신법 매뉴얼 별권 1) PDF에서 "
     "추출한 해설 텍스트 그대로입니다(법령 원문 아님·법적 효력 없음). 표 포함 페이지는 PDF 추출 특성상 "
     "셀 텍스트 순서·제목 위치가 원본 배치와 다를 수 있으므로, 수치·조건을 인용할 때는 표기된 인쇄쪽으로 "
     "원문 대조를 권장합니다."

@@ -750,10 +750,12 @@ def main() -> int:
                 sn for cc, sn, _tt, _pp in EXPECTED_BODY_SECTIONS if cc == c
             )),
         })
+    # FAQ 단일 유닛 — section_label은 빈 문자열(D1·계획 /disc Codex 권고): citation이
+    # "제5장 FAQ FAQ" 중복 없이 "제5장 FAQ"로 조립되게 한다(build_citation 결측 마디 생략).
     units.append({
         "id": "b1-5-1", "kind": "faq", "chapter_no": 5,
         "chapter_title": chapter_titles[5],
-        "section_label": "FAQ", "section_no": 1, "section_title": "FAQ",
+        "section_label": "", "section_no": 1, "section_title": "FAQ",
         "start": 49, "first_of_chapter": True,
     })
     for n, t, s, _e in EXPECTED_REFS:

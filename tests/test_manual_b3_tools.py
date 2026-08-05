@@ -163,9 +163,9 @@ def test_main_meta_unchanged_by_b3(fresh_cache):
 def test_search_merge_source_fields(fresh_cache):
     r = asyncio.run(search_manual("제재처분 절차"))
     assert r["errors"] == []
-    assert r["searched_sources"] == ["main", "b3", "b2"]
+    assert r["searched_sources"] == ["main", "b3", "b2", "b1"]
     assert "unavailable_sources" not in r
-    assert set(r["returned_by_source"]) == {"main", "b3", "b2"}
+    assert set(r["returned_by_source"]) == {"main", "b3", "b2", "b1"}
     assert sum(r["returned_by_source"].values()) == r["returned"]
     assert r["total_matched_by_source"]["b3"] >= 9  # 제3장 절 9개 제목 매치
     for m in r["matches"]:
@@ -202,8 +202,8 @@ def test_search_no_b3_match_main_results_unchanged(fresh_cache, monkeypatch, tmp
 def test_search_zero_hit_note_covers_both_sources(fresh_cache):
     r = asyncio.run(search_manual("존재하지않는키워드검증용문자열"))
     assert r["returned"] == 0
-    assert r["scanned_sections"] == 81
-    assert r["total_matched_by_source"] == {"main": 0, "b3": 0, "b2": 0}
+    assert r["scanned_sections"] == 107
+    assert r["total_matched_by_source"] == {"main": 0, "b3": 0, "b2": 0, "b1": 0}
     # 0건 footer는 2줄(허위 인용 고지 차단) — 기존 규약 유지
     assert r["manual_meta"]["standard_footer"].count("※") == 2
 
@@ -230,7 +230,7 @@ def test_v0320_surface_locks():
     assert "별권 3 「국가연구개발사업 제재처분 가이드라인」" in instructions
     assert "시행령 별표 6·별표 7" in instructions
     tmpl = main_mod._REVIEW_PROMPT_TEMPLATE
-    assert "(본권·별권 3 제재처분 가이드라인·별권 2 기술료 제도 매뉴얼)" in tmpl
+    assert "(본권·별권 3 제재처분 가이드라인·별권 2 기술료 제도 매뉴얼·별권 1 학생인건비통합관리 제도 매뉴얼)" in tmpl
     # 도구 docstring — FastMCP 래핑을 우회해 원 함수 문서 확인
     sm_doc = main_mod.search_manual.fn.__doc__ if hasattr(main_mod.search_manual, "fn") else main_mod.search_manual.__doc__
     gs_doc = main_mod.get_manual_section.fn.__doc__ if hasattr(main_mod.get_manual_section, "fn") else main_mod.get_manual_section.__doc__
@@ -272,7 +272,7 @@ def test_b3_corrupt_data_isolated(fresh_cache, monkeypatch, tmp_path, payload_te
     # 병합 검색은 본권만으로 정상 지속
     resp = asyncio.run(search_manual("협약 변경"))
     assert resp["errors"] == []
-    assert resp["searched_sources"] == ["main", "b2"]
+    assert resp["searched_sources"] == ["main", "b2", "b1"]
     assert resp["unavailable_sources"] == ["b3"]
     # 별권 상세는 격리 오류
     resp2 = asyncio.run(get_manual_section("b3-1-1"))
@@ -284,6 +284,7 @@ def test_both_fail_no_false_normal_claim(fresh_cache, monkeypatch, tmp_path):
     monkeypatch.setattr(manual_mod, "_DATA_PATH", tmp_path / "no_main.json")
     monkeypatch.setattr(manual_mod, "_B3_DATA_PATH", tmp_path / "no_b3.json")
     monkeypatch.setattr(manual_mod, "_B2_DATA_PATH", tmp_path / "no_b2.json")
+    monkeypatch.setattr(manual_mod, "_B1_DATA_PATH", tmp_path / "no_b1.json")
     resp = asyncio.run(search_manual("협약 변경"))
     joined = " ".join(e["message"] for e in resp["errors"])
     assert "본권 매뉴얼 검색·조회와 규정 도구는 정상" not in joined
@@ -306,7 +307,7 @@ def test_main_fail_b3_ok_zero_hit_meta(fresh_cache, monkeypatch, tmp_path):
     monkeypatch.setattr(manual_mod, "_DATA_PATH", tmp_path / "no_main.json")
     resp = asyncio.run(search_manual("존재하지않는키워드검증용문자열"))
     assert resp["returned"] == 0 and resp["errors"] == []
-    assert resp["searched_sources"] == ["b3", "b2"]
+    assert resp["searched_sources"] == ["b3", "b2", "b1"]
     assert resp["source_warnings"][0]["code"] == "manual_unavailable"
     # meta는 별권 기준(본권 meta 하드코딩 없음)
     assert resp["manual_meta"]["source_title"] == "국가연구개발사업 제재처분 가이드라인"
