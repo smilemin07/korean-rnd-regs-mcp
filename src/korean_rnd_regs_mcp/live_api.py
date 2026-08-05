@@ -10,7 +10,8 @@ import re
 import threading
 import time
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import requests
@@ -69,11 +70,19 @@ class DocumentRef:
 
 @dataclass(frozen=True)
 class ResolvedDocId:
-    """Dynamic ID resolution result — search-first 패턴으로 최신 문서 ID를 확인한 결과."""
+    """Dynamic ID resolution result — search-first 패턴으로 최신 문서 ID를 확인한 결과.
+
+    v0.37.0: 시행일이 미래인 검색 행은 현행 선택에서 제외된다(미시행 본문을 현행처럼
+    제공하던 결함 해소 — 2026-08-06 정보처리기준 2100000283100 라이브 실측). 제외된 행 중
+    가장 이른 예정 판본은 pending_* 필드로 보존해 응답 고지에 사용한다.
+    """
     doc_id: str
     effective_date: str       # ISO format "2026-03-11" or raw "20260311"
     is_updated: bool          # True if doc_id differs from manifest_doc_id
     manifest_doc_id: str
+    pending_doc_id: str = ""          # (v0.37.0) 미래 시행 예정 판본 ID — 없으면 ""
+    pending_effective_date: str = ""  # (v0.37.0) 예정 판본 시행일 ISO — 없으면 ""
+    resolve_failed: bool = False      # (v0.37.0) True = 검색 실패/일치 0행으로 manifest fallback
 
 
 @dataclass(frozen=True)
@@ -700,6 +709,21 @@ class LawApiClient:
         candidates = [p.strip() for p in (got or "").split(",")]
         return want in candidates
 
+    @staticmethod
+    def _today_kst() -> str:
+        """오늘 날짜(KST) — YYYYMMDD. 시행일 도래 판정은 한국 법령 기준이므로 서버 TZ와 무관하게 KST 고정.
+
+        (v0.37.0) 주의: resolve 결과는 TTL 캐시(24h)를 타므로 시행일 도래 직후 최대 캐시 TTL만큼
+        직전 판정이 유지될 수 있다(수용 — 경계 정밀화는 과설계로 배제).
+        """
+        return datetime.now(timezone(timedelta(hours=9))).strftime("%Y%m%d")
+
+    @staticmethod
+    def _is_future_date(raw_date: str, today: str) -> bool:
+        """검색 행 시행일자가 미래인지 판정. 8자리 숫자 형식일 때만 판정하고, 형식 이상(빈 값·
+        비숫자)은 미래로 단정하지 않는다(기존 현행 후보 거동 보존 — 과필터로 인한 가용성 저하 방지)."""
+        return len(raw_date) == 8 and raw_date.isdigit() and raw_date > today
+
     def resolve_latest_doc_id(
         self,
         title: str,
@@ -735,18 +759,27 @@ class LawApiClient:
                 sr = self.search_admin_rules(title, page_size=5)
         except LawApiError:
             logger.warning("resolve_latest_doc_id: search 실패, manifest ID fallback (target=%s)", api_target)
+            failed = replace(fallback, resolve_failed=True)  # (v0.37.0) silent fallback 해소 — 발동 사실 보존
             with self._cache_lock:  # v0.9.1(B2): 캐시 write 직렬화
-                self._id_resolution_failure_cache[cache_key] = fallback
-            return fallback
+                self._id_resolution_failure_cache[cache_key] = failed
+            return failed
 
         norm_title = self._normalize_title(title)
+        today = self._today_kst()
         best: ResolvedDocId | None = None
+        pending_raw = ""   # (v0.37.0) 미래 시행 행 중 가장 이른 시행일자(raw 8자리)
+        pending_id = ""
         for item in sr.items:
             if self._normalize_title(item.title) != norm_title:
                 continue
             if not self._ministry_matches(ministry, item.extra.get("소관부처명", "")):
                 continue
             raw_date = item.extra.get("시행일자", "")
+            if self._is_future_date(raw_date, today):
+                # (v0.37.0) 미시행 판본은 현행 선택 대상에서 제외 — 가장 이른 예정만 고지용으로 보존
+                if not pending_raw or raw_date < pending_raw:
+                    pending_raw, pending_id = raw_date, item.doc_id
+                continue
             resolved = ResolvedDocId(
                 doc_id=item.doc_id,
                 effective_date=self._format_date(raw_date),
@@ -756,7 +789,18 @@ class LawApiClient:
             if best is None or raw_date > (best.effective_date.replace("-", "") if best else ""):
                 best = resolved
 
-        result = best if best is not None else fallback
+        if best is None:
+            # 일치 행이 전부 미래이거나 0건 — manifest fallback. 미래 행만 있던 경우는 resolve 실패가
+            # 아니라 "현행 = manifest 스냅샷" 판정이므로 resolve_failed는 일치 0행일 때만 True.
+            result = replace(fallback, resolve_failed=(not pending_raw))
+        else:
+            result = best
+        if pending_raw:
+            result = replace(
+                result,
+                pending_doc_id=pending_id,
+                pending_effective_date=self._format_date(pending_raw),
+            )
         if result.is_updated:
             logger.info(
                 "resolve_latest_doc_id: %s updated %s -> %s (시행일 %s)",

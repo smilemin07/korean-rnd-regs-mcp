@@ -18,10 +18,12 @@ import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# main.py의 _ANNEX_DETAIL_CHAR_BUDGET(16000)·_ANNEX_DETAIL_HEADROOM(300)·
+# main.py의 _ANNEX_DETAIL_CHAR_BUDGET(16000)·_ANNEX_DETAIL_HEADROOM(600)·
 # _ANNEX_CHUNK_CONTENT_BUDGET(12000)과 동일 값 — 변경 시 양쪽 함께(테스트 잠금).
+# v0.37.0: 헤드룸 300→600 동반 상향(annex 쪽 resolve 상태 고지 2종 사후주입 대비 — parity 원칙 유지.
+# 매뉴얼 응답에는 해당 고지가 없으나 상수 사상 통일이 우선·강등 경계 보수화는 안전 방향).
 MANUAL_DETAIL_CHAR_BUDGET = 16000
-MANUAL_DETAIL_HEADROOM = 300
+MANUAL_DETAIL_HEADROOM = 600
 MANUAL_CHUNK_CONTENT_BUDGET = 12000
 
 SECTION_ID_RE = re.compile(

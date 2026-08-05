@@ -813,6 +813,34 @@ def _revision_notice(rs, resolved: ResolvedDocId | None) -> str | None:
     return None
 
 
+def _resolve_status_fields(rs, resolved: ResolvedDocId | None) -> dict:
+    """(v0.37.0) resolve 상태 고지 — 조건 충족 시에만 포함되는 완성형 문장 additive 필드 2종.
+
+    upcoming_revision: 시행일이 미래인 새 판본이 공포되어 있을 때(미시행 본문을 현행처럼
+    제공하던 결함의 고지 짝 — resolver가 미래 행을 현행 선택에서 제외하는 대신 예정 사실을 알림).
+    resolve_fallback_notice: search-first resolve가 실패해 manifest 스냅샷 기준으로 응답할 때
+    (silent fallback 해소 — manifest 시행일이 정상 확인 값처럼 보이던 문제의 고지).
+    완성형 문장인 이유: 호스트는 완성형 블록을 복사하고 warnings 원소는 자주 누락한다
+    (v0.34.0 A/B 실증 — memory format-via-response-not-prompt).
+    """
+    fields: dict = {}
+    if resolved is None:
+        return fields
+    if resolved.pending_effective_date:
+        fields["upcoming_revision"] = (
+            f"개정 예정: {resolved.pending_effective_date} 시행 예정인 새 판본"
+            f"(문서 ID {resolved.pending_doc_id})이 공포되어 있습니다. 본 응답은 현행 시행본 기준이며, "
+            f"시행일 도래 후에는 새 판본 기준으로 재확인이 필요합니다."
+        )
+    if resolved.resolve_failed:
+        fields["resolve_fallback_notice"] = (
+            f"최신 판본 확인 실패: 국가법령정보 검색이 실패했거나 일치 문서를 찾지 못해 "
+            f"등록 스냅샷(문서 ID {resolved.manifest_doc_id}·시행일 {rs.effective_date}) 기준으로 "
+            f"응답했습니다. 최신 개정 여부는 국가법령정보센터(law.go.kr)에서 별도 확인이 필요합니다."
+        )
+    return fields
+
+
 def _build_match(rs, unit_id: str, unit_type: str, title: str, snippet: str,
                  resolved: ResolvedDocId | None = None) -> dict:
     """단일 검색 결과 dict 생성. snippet은 호출자가 _make_snippet으로 미리 생성."""
@@ -832,6 +860,12 @@ def _build_match(rs, unit_id: str, unit_type: str, title: str, snippet: str,
         notice = _revision_notice(rs, resolved)
         if notice:
             result["revision_notice"] = notice
+        # v0.37.0: 검색 결과에는 upcoming_revision만 부착(예정 판본 존재는 발견 단계에서도 유효한
+        # 정확성 신호). resolve_fallback_notice는 상세 응답 전용 — fan-out에서 match마다 반복되면
+        # 노이즈이고, 검색 실패 규정은 대체로 match 자체가 없다.
+        upcoming = _resolve_status_fields(rs, resolved).get("upcoming_revision")
+        if upcoming:
+            result["upcoming_revision"] = upcoming
     return result
 
 
@@ -1205,8 +1239,10 @@ def _dependent_article_hints(title: str) -> list[str]:
 _ANNEX_DETAIL_CHAR_BUDGET = 16000
 # 전문 verbatim 판정 시 호출부가 사후 추가하는 필드용 헤드룸을 예산에서 차감(보수적).
 # 사후주입: revision_notice(~100자) + v0.5.0 admrul version 메타(issuance_number·regulation_kind·version_label ~80자)
-# → 합 ~200자 < 300 헤드룸이라 verbatim/oversized 경계 불변(B2: 최종 직렬화 ≤ _ANNEX_DETAIL_CHAR_BUDGET 보장).
-_ANNEX_DETAIL_HEADROOM = 300
+# + v0.37.0 resolve 상태 고지(upcoming_revision ~160자·resolve_fallback_notice ~170자 — 발화 시)
+# → 최악 합 ~530자 < 600 헤드룸(B2: 최종 직렬화 ≤ _ANNEX_DETAIL_CHAR_BUDGET 보장. 300→600 상향은
+# 안전 방향 — 경계의 대형 본문이 포인터로 강등될 뿐 예산 초과는 없음).
+_ANNEX_DETAIL_HEADROOM = 600
 # v0.7.0: 문서 레벨 articles 출력 목록 상한 — 예산(16k)상 수록 가능한 항목 수(최소 항목 ~45자 → ~350개)를
 # 크게 상회하는 방어적 cap. 현행 60규정 최대 117조문이라 평시 미도달. 출력 목록 크기를 600으로 cap해
 # 절단 pop(O(k²)) 직렬화·메모리를 bound (입력 articles 순회 자체는 전체; 초과분은 size 백스톱이 truncated 처리).
@@ -2329,6 +2365,8 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
 
     eff_date = _resolve_effective_date(rs, resolved)
     _revision = _revision_notice(rs, resolved)
+    # v0.37.0: resolve 상태 고지(개정 예정·fallback 발동) 1회 계산 — 3 반환점에 균일 주입(미발화 시 {}).
+    _resolve_status = _resolve_status_fields(rs, resolved)
     # v0.5.0: admrul 발령번호·종류 version 메타 1회 계산 — 3 반환점(문서·조문·별표)에 균일 주입.
     # law·오류 경로는 {} (helper의 doc_type 가드) → update no-op. effective_date는 별도 필드 유지.
     _version_meta = _admrul_version_meta(pid, detail)
@@ -2396,6 +2434,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
             ]
         if _revision:
             result["revision_notice"] = _revision
+        result.update(_resolve_status)  # v0.37.0: upcoming_revision·resolve_fallback_notice(발화 시)
         # v0.7.0: 문서 레벨 articles(조문) 목록 — 호스트가 특정 조문의 JO provision_id를 추측하거나
         # 외부(law.go.kr)로 우회하지 않고 선택하도록 노출(v0.6.0 eval 실관측: admrul 평면 schema
         # 특정조문 외부 우회). 별표 annexes 목록과 동형 {provision_id, label, title}·본문 미포함.
@@ -2510,6 +2549,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
             resp.update(_version_meta)  # v0.5.0: admrul version 식별자(조문+번호 동반 질의 시 외부행 차단)
             if _revision:
                 resp["revision_notice"] = _revision
+            resp.update(_resolve_status)  # v0.37.0: resolve 상태 고지(발화 시)
             # v0.6.0 백스톱: 사후주입(version 메타·revision_notice) 후 최종 직렬화가 예산을 넘으면
             # oversized 강등(별표 BP와 동일). 본문(content)이 size 주범인 경우를 해소 — 본문 외 무한
             # 공급 필드(revision_notice·title 등)가 단독 초과하는 경우는 pre-existing R5 backlog(단일 의도 밖).
@@ -2521,6 +2561,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 resp.update(_version_meta)
                 if _revision:
                     resp["revision_notice"] = _revision
+                resp.update(_resolve_status)  # v0.37.0: 강등 재조립에도 동일 주입
             if annex_chunk is not None:
                 # v0.20.0: 오지정 정직 고지 — 문서레벨과 동형(백스톱 이후 ~60자 append는
                 # include_old_and_new admrul 경고와 동일한 수용 범위)
@@ -2569,6 +2610,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
             resp.update(_version_meta)  # v0.5.0: oversized 별표도 version은 도구에서(프롬프트4 외부행 차단)
             if _revision:
                 resp["revision_notice"] = _revision
+            resp.update(_resolve_status)  # v0.37.0: resolve 상태 고지(발화 시)
             # v0.5.0 B2 백스톱: 전문 별표에 사후주입(version 메타·revision_notice) 후 최종 직렬화가 예산을 넘으면
             # oversized로 강등(비정상 장문 사후주입 대비 airtight; version 메타는 상한 bounded라 정상 입력선 미발동).
             # v0.20.0: 청크 응답(plain_text_verbatim)도 동일 백스톱 적용 — 재호출에 annex_chunk를 유지하되
@@ -2582,6 +2624,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 resp.update(_version_meta)
                 if _revision:
                     resp["revision_notice"] = _revision
+                resp.update(_resolve_status)  # v0.37.0: 강등 재조립에도 동일 주입
             return _attach_std_footer(resp)
 
     # v0.34.0: provision_id 원문 echo — 이 지점 도달 시 모든 part가 검증·매칭된 값이라 실위험은

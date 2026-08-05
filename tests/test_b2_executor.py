@@ -73,18 +73,21 @@ def test_contract_version_0_22_0():
     manual_meta.renumbering_note 조건부 additive(get_manual_section 대상 절 한정)
     → contract 0.23.0 → 0.24.0 minor bump(v0.33.0 별권 2 additive — 입력 스키마 무변·재연결 불요)
     → 0.24.0 → 0.25.0 minor bump(v0.34.0 structure_notice additive — 입력 스키마 무변·재연결 불요)
-    → 0.25.0 → 0.26.0 minor bump(v0.35.0 별권 1 학생인건비통합관리 additive — 입력 스키마 무변·재연결 불요).
+    → 0.25.0 → 0.26.0 minor bump(v0.35.0 별권 1 학생인건비통합관리 additive — 입력 스키마 무변·재연결 불요)
+    → 0.26.0 → 0.27.0 minor bump(v0.37.0 resolver 안전성 정비 — upcoming_revision·resolve_fallback_notice
+    응답 additive 2종·입력 스키마 무변·재연결 불요).
     직전 0.21.0: 출처·원문 확인 경로 정비(§5.22)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.26.0"
+    assert CONTRACT_VERSION == "0.27.0"
 
 
-def test_package_version_0_36_0():
-    """패키지 버전 0.36.0(배포 후 관측 반영 정비 — tool annotations 7종 + 혁신법 시행령
-    fallback 288335 현행화·contract 0.26.0 유지·입력 스키마 무변=재연결 불요).
-    직전 0.35.0(R4 — 매뉴얼 별권 1 학생인건비통합관리 제도 매뉴얼 수록·contract 0.26.0)."""
+def test_package_version_0_37_0():
+    """패키지 버전 0.37.0(resolver 안전성 정비 — 미래 시행 행 필터[미시행 본문 현행 오제공 해소·
+    2026-08-06 정보처리기준 2100000283100 라이브 실측] + 개정 예정 고지 + silent fallback 고지·
+    contract 0.27.0·입력 스키마 무변=재연결 불요).
+    직전 0.36.0(배포 후 관측 반영 정비 — tool annotations 7종 + 시행령 fallback 288335·contract 0.26.0)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.36.0"
+    assert __version__ == "0.37.0"
 
 
 def test_cache_maxsize_96_v0240():

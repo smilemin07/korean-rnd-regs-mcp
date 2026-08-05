@@ -558,7 +558,7 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
     """suggest 응답에 현행 contract_version(0.10.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.26.0"
+    assert result["contract_version"] == "0.27.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -883,7 +883,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.26.0"
+    assert result["contract_version"] == "0.27.0"
 
 
 # === _build_article_content  ===
@@ -3825,7 +3825,7 @@ def test_get_provision_detail_small_article_unchanged_v060(mock_client):
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None
     assert "content_available" not in result
-    assert result["contract_version"] == "0.26.0"
+    assert result["contract_version"] == "0.27.0"
 
 
 def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):
@@ -4722,3 +4722,228 @@ def test_v0290_prompt_surfaces_single_branch_rule():
         assert "덧붙이지 말" in surface                  # 3줄+1줄 연결 금지
         assert "선택에 맞는 standard_footer가 없는 경우" in surface  # 구버전 폴백
         assert FOOTER_LAW_LINE in surface                # 폴백 리터럴 보존
+
+
+# === v0.37.0: resolver 안전성 정비 — 미래 시행 행 필터·개정 예정 고지·silent fallback 해소 ===
+
+
+def _sr(items):
+    from korean_rnd_regs_mcp.live_api import SearchResult
+    return SearchResult(total=len(items), page=1, page_size=5, items=items)
+
+
+def test_resolver_future_row_filtered_v0370(monkeypatch):
+    """미래 시행 행 + 현행 행 혼합 → 현행 행 선택 + pending_* 필드 보존 (2026-08-06 정보처리기준 실측 형태)."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient, DocumentRef
+    monkeypatch.setattr(LawApiClient, "_today_kst", staticmethod(lambda: "20260806"))
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    sr = _sr([
+        DocumentRef(doc_type="admrul", doc_id="2100000283100", title="국가연구개발정보처리기준",
+                    extra={"시행일자": "20260820"}),
+        DocumentRef(doc_type="admrul", doc_id="2100000195842", title="국가연구개발정보처리기준",
+                    extra={"시행일자": "20210101"}),
+    ])
+    client.search_admin_rules = MagicMock(return_value=sr)
+    r = client.resolve_latest_doc_id("국가연구개발정보처리기준", "admrul", "2100000195842")
+    assert r.doc_id == "2100000195842"          # 미시행 판본을 현행으로 선택하지 않음
+    assert r.effective_date == "2021-01-01"
+    assert r.is_updated is False
+    assert r.pending_doc_id == "2100000283100"
+    assert r.pending_effective_date == "2026-08-20"
+    assert r.resolve_failed is False
+
+
+def test_resolver_future_only_falls_back_to_manifest_v0370(monkeypatch):
+    """일치 행이 전부 미래 → manifest fallback(현행 = 등록 스냅샷) + pending 보존·resolve_failed 아님."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient, DocumentRef
+    monkeypatch.setattr(LawApiClient, "_today_kst", staticmethod(lambda: "20260806"))
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    sr = _sr([
+        DocumentRef(doc_type="admrul", doc_id="2100000283100", title="국가연구개발정보처리기준",
+                    extra={"시행일자": "20260820"}),
+    ])
+    client.search_admin_rules = MagicMock(return_value=sr)
+    r = client.resolve_latest_doc_id("국가연구개발정보처리기준", "admrul", "2100000195842")
+    assert r.doc_id == "2100000195842"
+    assert r.is_updated is False
+    assert r.pending_doc_id == "2100000283100"
+    assert r.pending_effective_date == "2026-08-20"
+    assert r.resolve_failed is False            # 미래 행 존재 = 확인 성공(현행이 스냅샷일 뿐)
+
+
+def test_resolver_multiple_future_rows_keeps_earliest_v0370(monkeypatch):
+    """미래 행 복수 → 가장 이른 시행 예정만 pending으로 (다음에 도래할 판본이 고지 대상)."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient, DocumentRef
+    monkeypatch.setattr(LawApiClient, "_today_kst", staticmethod(lambda: "20260806"))
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    sr = _sr([
+        DocumentRef(doc_type="law", doc_id="900002", title="테스트법",
+                    extra={"시행일자": "20270101"}),
+        DocumentRef(doc_type="law", doc_id="900001", title="테스트법",
+                    extra={"시행일자": "20261001"}),
+        DocumentRef(doc_type="law", doc_id="800000", title="테스트법",
+                    extra={"시행일자": "20250101"}),
+    ])
+    client.search_laws = MagicMock(return_value=sr)
+    r = client.resolve_latest_doc_id("테스트법", "law", "800000")
+    assert r.doc_id == "800000"
+    assert r.pending_doc_id == "900001"
+    assert r.pending_effective_date == "2026-10-01"
+
+
+def test_resolver_malformed_date_not_treated_as_future_v0370(monkeypatch):
+    """시행일자 형식 이상(빈 값·비숫자·8자리 아님)은 미래로 단정하지 않음 — 기존 현행 후보 거동 보존."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient, DocumentRef
+    monkeypatch.setattr(LawApiClient, "_today_kst", staticmethod(lambda: "20260806"))
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    sr = _sr([
+        DocumentRef(doc_type="law", doc_id="700001", title="테스트법", extra={"시행일자": ""}),
+        DocumentRef(doc_type="law", doc_id="700002", title="테스트법", extra={"시행일자": "2026"}),
+    ])
+    client.search_laws = MagicMock(return_value=sr)
+    r = client.resolve_latest_doc_id("테스트법", "law", "700001")
+    assert r.doc_id in ("700001", "700002")     # 후보 유지(미래 필터로 제외되지 않음)
+    assert r.pending_doc_id == ""
+    assert r.resolve_failed is False
+
+
+def test_resolver_search_error_marks_resolve_failed_v0370():
+    """검색 예외 → manifest fallback + resolve_failed=True (silent fallback 해소의 신호원)."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    client.search_laws = MagicMock(side_effect=LawApiError("parse_failed", "test"))
+    r = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "283849")
+    assert r.doc_id == "283849"
+    assert r.resolve_failed is True
+    assert r.pending_doc_id == ""
+
+
+def test_resolver_no_match_marks_resolve_failed_v0370():
+    """일치 행 0건(제목 불일치) → manifest fallback + resolve_failed=True."""
+    from korean_rnd_regs_mcp.live_api import LawApiClient, DocumentRef
+    client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
+    sr = _sr([
+        DocumentRef(doc_type="law", doc_id="999999", title="전혀 다른 법령명",
+                    extra={"시행일자": "20250101"}),
+    ])
+    client.search_laws = MagicMock(return_value=sr)
+    r = client.resolve_latest_doc_id("국가연구개발혁신법", "law", "283849")
+    assert r.doc_id == "283849"
+    assert r.resolve_failed is True
+
+
+def test_resolve_status_fields_notice_text_lock_v0370():
+    """고지 문구 잠금 — 완성형 문장 2종(값 포함)·미발화 시 빈 dict."""
+    from korean_rnd_regs_mcp.live_api import ResolvedDocId
+    from korean_rnd_regs_mcp.main import _resolve_status_fields
+    rs = MagicMock()
+    rs.effective_date = "2021-01-01"
+    pending = ResolvedDocId(
+        doc_id="2100000195842", effective_date="2021-01-01", is_updated=False,
+        manifest_doc_id="2100000195842",
+        pending_doc_id="2100000283100", pending_effective_date="2026-08-20",
+    )
+    f = _resolve_status_fields(rs, pending)
+    assert f["upcoming_revision"] == (
+        "개정 예정: 2026-08-20 시행 예정인 새 판본(문서 ID 2100000283100)이 공포되어 있습니다. "
+        "본 응답은 현행 시행본 기준이며, 시행일 도래 후에는 새 판본 기준으로 재확인이 필요합니다."
+    )
+    assert "resolve_fallback_notice" not in f
+    failed = ResolvedDocId(
+        doc_id="2100000195842", effective_date="", is_updated=False,
+        manifest_doc_id="2100000195842", resolve_failed=True,
+    )
+    f2 = _resolve_status_fields(rs, failed)
+    assert f2["resolve_fallback_notice"] == (
+        "최신 판본 확인 실패: 국가법령정보 검색이 실패했거나 일치 문서를 찾지 못해 "
+        "등록 스냅샷(문서 ID 2100000195842·시행일 2021-01-01) 기준으로 응답했습니다. "
+        "최신 개정 여부는 국가법령정보센터(law.go.kr)에서 별도 확인이 필요합니다."
+    )
+    assert "upcoming_revision" not in f2
+    normal = ResolvedDocId(
+        doc_id="283849", effective_date="2025-02-28", is_updated=False, manifest_doc_id="283849",
+    )
+    assert _resolve_status_fields(rs, normal) == {}
+    assert _resolve_status_fields(rs, None) == {}
+
+
+def test_detail_doc_level_carries_upcoming_revision_v0370(mock_client):
+    """doc-level get_provision_detail 응답에 upcoming_revision 부착 (pending resolve 시)."""
+    from korean_rnd_regs_mcp.live_api import ResolvedDocId
+    def _resolve_pending(title, api_target, manifest_doc_id, ministry=None):
+        return ResolvedDocId(
+            doc_id=manifest_doc_id, effective_date="2021-01-01", is_updated=False,
+            manifest_doc_id=manifest_doc_id,
+            pending_doc_id="2100000283100", pending_effective_date="2026-08-20",
+        )
+    mock_client.resolve_latest_doc_id.side_effect = _resolve_pending
+    result = asyncio.run(get_provision_detail("admrul:2100000278740"))
+    assert "errors" not in result
+    assert result["upcoming_revision"].startswith("개정 예정: 2026-08-20 시행 예정인 새 판본")
+    assert "resolve_fallback_notice" not in result
+
+
+def test_detail_doc_level_carries_fallback_notice_v0370(mock_client):
+    """doc-level 응답에 resolve_fallback_notice 부착 (resolve 실패 fallback 시)."""
+    from korean_rnd_regs_mcp.live_api import ResolvedDocId
+    def _resolve_failed(title, api_target, manifest_doc_id, ministry=None):
+        return ResolvedDocId(
+            doc_id=manifest_doc_id, effective_date="", is_updated=False,
+            manifest_doc_id=manifest_doc_id, resolve_failed=True,
+        )
+    mock_client.resolve_latest_doc_id.side_effect = _resolve_failed
+    result = asyncio.run(get_provision_detail("admrul:2100000278740"))
+    assert "errors" not in result
+    assert result["resolve_fallback_notice"].startswith("최신 판본 확인 실패:")
+    assert "upcoming_revision" not in result
+
+
+def test_detail_article_carries_status_fields_v0370(mock_client):
+    """조문(JO) 상세 응답에도 동일 부착 — 3 반환점 균일 주입 검증."""
+    from korean_rnd_regs_mcp.live_api import ResolvedDocId
+    def _resolve_pending(title, api_target, manifest_doc_id, ministry=None):
+        return ResolvedDocId(
+            doc_id=manifest_doc_id, effective_date="2026-06-11", is_updated=False,
+            manifest_doc_id=manifest_doc_id,
+            pending_doc_id="999999", pending_effective_date="2026-12-01",
+        )
+    mock_client.resolve_latest_doc_id.side_effect = _resolve_pending
+    result = asyncio.run(get_provision_detail("law:283849:JO0015"))
+    assert "errors" not in result
+    assert result["upcoming_revision"].startswith("개정 예정: 2026-12-01")
+
+
+def test_detail_normal_resolve_adds_no_status_fields_v0370(mock_client):
+    """정상 resolve(현행 선택·pending 없음) 시 두 필드 모두 부재 — 순수 additive 무영향 확인."""
+    result = asyncio.run(get_provision_detail("law:283849"))
+    assert "errors" not in result
+    assert "upcoming_revision" not in result
+    assert "resolve_fallback_notice" not in result
+
+
+def test_search_match_carries_upcoming_revision_v0370():
+    """검색 결과(_build_match)에는 upcoming_revision만 부착 — fallback notice는 상세 전용."""
+    from korean_rnd_regs_mcp.live_api import ResolvedDocId
+    from korean_rnd_regs_mcp.main import _build_match
+    rs = MagicMock()
+    rs.api_target.value = "admrul"
+    rs.api_doc_id = "2100000195842"
+    rs.id = "rnd_info_processing"
+    rs.title = "국가연구개발정보처리기준"
+    rs.effective_date = "2021-01-01"
+    rs.known_limitations = []
+    resolved = ResolvedDocId(
+        doc_id="2100000195842", effective_date="2021-01-01", is_updated=False,
+        manifest_doc_id="2100000195842",
+        pending_doc_id="2100000283100", pending_effective_date="2026-08-20",
+        resolve_failed=False,
+    )
+    m = _build_match(rs, "JO0001", "article", "목적", "snippet", resolved)
+    assert m["upcoming_revision"].startswith("개정 예정: 2026-08-20")
+    failed = ResolvedDocId(
+        doc_id="2100000195842", effective_date="", is_updated=False,
+        manifest_doc_id="2100000195842", resolve_failed=True,
+    )
+    m2 = _build_match(rs, "JO0001", "article", "목적", "snippet", failed)
+    assert "resolve_fallback_notice" not in m2   # 검색 표면에는 미부착(설계)
+    assert "upcoming_revision" not in m2
