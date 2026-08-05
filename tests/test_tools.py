@@ -1817,7 +1817,7 @@ def test_build_annex_detail_small_returns_full_verbatim():
     ann = {"별표번호": "1", "별표제목": "정부지원 지원기준",
            "별표내용": "중소기업 75% 이하 / 중견기업 70% 이하 / 대기업 50% 이하",
            "별표서식파일링크": "/LSW/flDownload.do?flSeq=1"}
-    resp = main_module._build_annex_detail("law:285767:BP0001", "BP0001", _fake_rs(), ann, "20260506")
+    resp = main_module._build_annex_detail("law:288335:BP0001", "BP0001", _fake_rs(), ann, "20260506")
     assert resp["unit_type"] == "annex"
     assert resp["content_format"] == "plain_text_verbatim"
     assert resp["content_available"] is True
@@ -1831,7 +1831,7 @@ def test_build_annex_detail_oversized_returns_pointer_no_body():
     big = "구분\t정부지원\t기관부담\n" * 3000
     ann = {"별표번호": "2", "별표제목": "연구개발비 사용용도", "별표내용": big,
            "별표서식파일링크": "https://www.law.go.kr/x.hwp"}
-    resp = main_module._build_annex_detail("law:285767:BP0002", "BP0002", _fake_rs(), ann, "20260506")
+    resp = main_module._build_annex_detail("law:288335:BP0002", "BP0002", _fake_rs(), ann, "20260506")
     assert resp["content_format"] == "oversized_pointer"
     assert resp["content_available"] is False
     assert resp["verbatim_quote_allowed"] is False
@@ -1845,7 +1845,7 @@ def test_build_annex_detail_oversized_response_within_budget():
     """대용량 별표라도 최종 직렬화 응답이 예산(16k char)을 넘지 않음 (truncation 방지)."""
     big = "행 데이터 값 " * 6000
     ann = {"별표번호": "7", "별표제목": "제재부가금 처분기준", "별표내용": big, "별표서식파일링크": ""}
-    resp = main_module._build_annex_detail("law:285767:BP0007", "BP0007", _fake_rs(), ann, "20260506")
+    resp = main_module._build_annex_detail("law:288335:BP0007", "BP0007", _fake_rs(), ann, "20260506")
     assert len(json.dumps(resp, ensure_ascii=False)) <= main_module._ANNEX_DETAIL_CHAR_BUDGET
 
 
@@ -1853,7 +1853,7 @@ def test_build_annex_detail_external_file_only():
     """본문 텍스트 없음 + 서식파일 → external_file_only, 인용 금지."""
     ann = {"별표번호": "9", "별표제목": "서식", "별표내용": "",
            "별표서식파일링크": "/LSW/flDownload.do?flSeq=9"}
-    resp = main_module._build_annex_detail("law:285767:BP0009", "BP0009", _fake_rs(), ann, "20260506")
+    resp = main_module._build_annex_detail("law:288335:BP0009", "BP0009", _fake_rs(), ann, "20260506")
     assert resp["content_format"] == "external_file_only"
     assert resp["content_available"] is False
     assert resp["verbatim_quote_allowed"] is False
@@ -1864,7 +1864,7 @@ def test_build_annex_detail_deleted_stub():
     """삭제 stub → annex_status=deleted_stub + 경고(활성 규정 오인 방지)."""
     ann = {"별표번호": "3", "별표제목": "", "별표내용": "[별표 3] 삭제 <2022.2.28>",
            "별표서식파일링크": ""}
-    resp = main_module._build_annex_detail("law:285767:BP0003", "BP0003", _fake_rs(), ann, "20260506")
+    resp = main_module._build_annex_detail("law:288335:BP0003", "BP0003", _fake_rs(), ann, "20260506")
     assert resp.get("annex_status") == "deleted_stub"
     assert resp["content_format"] == "plain_text_verbatim"
     assert any("삭제" in w for w in resp["warnings"])
@@ -1889,7 +1889,7 @@ def test_get_provision_detail_law_annex_returns_content(mock_client):
                      "별표내용": "중소기업 75% 이하", "별표서식파일링크": ""}],
         "annex_parse_error": None,
     }
-    result = asyncio.run(get_provision_detail("law:285767:BP0001"))
+    result = asyncio.run(get_provision_detail("law:288335:BP0001"))
     assert result["unit_type"] == "annex"
     assert result["content_format"] == "plain_text_verbatim"
     assert "75%" in result["content"]
@@ -1901,7 +1901,7 @@ def test_get_provision_detail_law_annex_parse_failure_surfaced(mock_client):
     mock_client.get_law_detail.return_value = {
         **base, "annexes": [], "annex_parse_error": "ParseError",
     }
-    result = asyncio.run(get_provision_detail("law:285767:BP0001"))
+    result = asyncio.run(get_provision_detail("law:288335:BP0001"))
     assert "errors" in result
     assert result["errors"][0]["code"] == "annex_unavailable_parse_failed"
 
@@ -1929,7 +1929,7 @@ def test_annex_snippet_single_long_line_truncates_with_indicator():
 def test_build_annex_detail_both_empty_is_external_not_empty_verbatim():
     """리뷰 보강: 본문·서식파일 모두 빈 별표 → 빈 verbatim 오인이 아니라 external_file_only."""
     ann = {"별표번호": "5", "별표제목": "", "별표내용": "", "별표서식파일링크": ""}
-    resp = main_module._build_annex_detail("law:285767:BP0005", "BP0005", _fake_rs(), ann, "20260506")
+    resp = main_module._build_annex_detail("law:288335:BP0005", "BP0005", _fake_rs(), ann, "20260506")
     assert resp["content_format"] == "external_file_only"
     assert resp["content_available"] is False
     assert resp["verbatim_quote_allowed"] is False
@@ -1939,7 +1939,7 @@ def test_build_annex_detail_active_annex_with_delete_verb_not_flagged():
     """리뷰 보강: 짧은 활성 별표가 '삭제' 동사를 포함해도(개정표기 '<' 없음) deleted_stub 오탐 안 함."""
     ann = {"별표번호": "4", "별표제목": "처분기준",
            "별표내용": "위반 시 등록을 삭제한다", "별표서식파일링크": ""}
-    resp = main_module._build_annex_detail("law:285767:BP0004", "BP0004", _fake_rs(), ann, "20260506")
+    resp = main_module._build_annex_detail("law:288335:BP0004", "BP0004", _fake_rs(), ann, "20260506")
     assert resp.get("annex_status") != "deleted_stub"
     assert resp["content_format"] == "plain_text_verbatim"
 
@@ -1995,9 +1995,9 @@ def test_get_provision_detail_branch_annex_strict_match(mock_client):
         ],
         "annex_parse_error": None,
     }
-    stub = asyncio.run(get_provision_detail("law:285767:BP0001"))
+    stub = asyncio.run(get_provision_detail("law:288335:BP0001"))
     assert stub.get("annex_status") == "deleted_stub"
-    active = asyncio.run(get_provision_detail("law:285767:BP000102"))
+    active = asyncio.run(get_provision_detail("law:288335:BP000102"))
     assert active.get("annex_status") != "deleted_stub"
     assert "이행강제금" in active["content"]
     assert active["dependent_article_hints"] == ["제17조의3"]
@@ -2018,7 +2018,7 @@ def test_get_provision_detail_bp_ignores_forms(mock_client):
         ],
         "annex_parse_error": None,
     }
-    result = asyncio.run(get_provision_detail("law:285767:BP0001"))
+    result = asyncio.run(get_provision_detail("law:288335:BP0001"))
     assert "지원 비율" in result["content"]
 
 
@@ -2062,11 +2062,11 @@ def test_doc_level_annexes_listing(mock_client):
         ],
         "annex_parse_error": None,
     }
-    result = asyncio.run(get_provision_detail("law:285767"))
+    result = asyncio.run(get_provision_detail("law:288335"))
     assert result["annexes_count"] == 3  # 전건 집계 — 하위호환 유지
     assert result["annexes_count_by_kind"] == {"별표": 2, "별지": 1}
     listed = result["annexes"]
-    assert [a["provision_id"] for a in listed] == ["law:285767:BP0001", "law:285767:BP000102"]
+    assert [a["provision_id"] for a in listed] == ["law:288335:BP0001", "law:288335:BP000102"]
     assert listed[0]["deleted"] is True
     assert listed[1]["label"] == "별표 1의2"
     assert listed[1]["dependent_article_hints"] == ["제17조의3"]
@@ -2899,7 +2899,7 @@ def test_doc_level_articles_base_over_budget_reverts_truncation_flag_v070(mock_c
             {"조문번호": "2", "조문제목": "정의", "조문내용": "본문", "structured": {"title": "", "paragraphs": []}},
         ],
     }
-    result = asyncio.run(get_provision_detail("law:285767"))
+    result = asyncio.run(get_provision_detail("law:288335"))
     assert len(result["annexes"]) == 200             # 거대 base 구성(pre-existing R5 경로)
     assert result["articles"] == []                  # 목록 전부 제거
     assert "articles_truncated" not in result        # 플래그 원복(base를 더 키우지 않음)
@@ -2932,7 +2932,7 @@ def test_doc_level_annex_parse_error_honesty(mock_client):
     mock_client.get_law_detail.return_value = {
         **base, "annexes": [], "annex_parse_error": "ParseError",
     }
-    result = asyncio.run(get_provision_detail("law:285767"))
+    result = asyncio.run(get_provision_detail("law:288335"))
     assert result["annexes_unavailable"] is True
     assert result["annex_parse_error"] == "ParseError"
     assert any("별표 파싱 실패" in w for w in result["warnings"])
@@ -4093,7 +4093,7 @@ def test_build_annex_detail_oversized_exposes_chunk_access_v0200():
     big = "구분\t정부지원\t기관부담\n" * 3000
     ann = {"별표번호": "2", "별표제목": "연구개발비 사용용도", "별표내용": big,
            "별표서식파일링크": "https://www.law.go.kr/x.hwp"}
-    resp = main_module._build_annex_detail("law:285767:BP0002", "BP0002", _fake_rs(), ann, "20260506")
+    resp = main_module._build_annex_detail("law:288335:BP0002", "BP0002", _fake_rs(), ann, "20260506")
     # 기존 v0.2.x 포인터 계약 무변(잠금)
     assert resp["content_format"] == "oversized_pointer"
     assert resp["verbatim_quote_allowed"] is False
@@ -4111,7 +4111,7 @@ def test_build_annex_detail_chunk_returns_verbatim_partial_v0200():
     big = "\n".join(f"제재부가금 부과기준 행 {i:04d} — 위반횟수별 기준" for i in range(1500))
     ann = {"별표번호": "7", "별표제목": "제재부가금 처분기준", "별표내용": big, "별표서식파일링크": ""}
     chunks = main_module._annex_chunk_texts(big)
-    resp = main_module._build_annex_detail("law:285767:BP0007", "BP0007", _fake_rs(), ann, "20260506",
+    resp = main_module._build_annex_detail("law:288335:BP0007", "BP0007", _fake_rs(), ann, "20260506",
                                            annex_chunk=2)
     assert resp["content"] == chunks[1], "content는 청크 원문 그대로(마커·안내문 혼입 금지)"
     assert resp["content_format"] == "plain_text_verbatim"
@@ -4129,7 +4129,7 @@ def test_build_annex_detail_chunk_out_of_range_not_found_v0200():
     """범위 밖 annex_chunk → 기존 오류코드 not_found + 유효 범위·chunk_count 안내(신규 오류코드 0)."""
     big = "행 데이터 값 " * 6000
     ann = {"별표번호": "7", "별표제목": "제재부가금 처분기준", "별표내용": big, "별표서식파일링크": ""}
-    resp = main_module._build_annex_detail("law:285767:BP0007", "BP0007", _fake_rs(), ann, "20260506",
+    resp = main_module._build_annex_detail("law:288335:BP0007", "BP0007", _fake_rs(), ann, "20260506",
                                            annex_chunk=99)
     assert resp["errors"][0]["code"] == "not_found"
     assert "1.." in resp["errors"][0]["message"]
@@ -4141,7 +4141,7 @@ def test_build_annex_detail_chunk_on_small_annex_ignored_v0200():
     ann = {"별표번호": "1", "별표제목": "정부지원 지원기준",
            "별표내용": "중소기업 75% 이하 / 중견기업 70% 이하 / 대기업 50% 이하",
            "별표서식파일링크": ""}
-    resp = main_module._build_annex_detail("law:285767:BP0001", "BP0001", _fake_rs(), ann, "20260506",
+    resp = main_module._build_annex_detail("law:288335:BP0001", "BP0001", _fake_rs(), ann, "20260506",
                                            annex_chunk=1)
     assert resp["content_format"] == "plain_text_verbatim"
     assert "75%" in resp["content"]
@@ -4153,7 +4153,7 @@ def test_build_annex_detail_chunk_force_oversized_degrades_to_pointer_v0200():
     """백스톱(force_oversized) 재호출 시 청크 요청도 포인터로 강등(airtight) — 청크 안내는 유지."""
     big = "행 데이터 값 " * 6000
     ann = {"별표번호": "7", "별표제목": "제재부가금 처분기준", "별표내용": big, "별표서식파일링크": ""}
-    resp = main_module._build_annex_detail("law:285767:BP0007", "BP0007", _fake_rs(), ann, "20260506",
+    resp = main_module._build_annex_detail("law:288335:BP0007", "BP0007", _fake_rs(), ann, "20260506",
                                            force_oversized=True, annex_chunk=1)
     assert resp["content_format"] == "oversized_pointer"
     assert resp["verbatim_quote_allowed"] is False
@@ -4328,7 +4328,7 @@ def test_build_annex_detail_locate_attaches_block_additive_v0210():
     """oversized + annex_locate → 포인터 응답 유지(기존 필드 잠금) + annex_locate_result additive."""
     big = "\n".join(f"별표 기준행 {i:04d}" for i in range(1500)) + "\n지원단가 RCMS 연계행"
     ann = {"별표번호": "2", "별표제목": "연구개발비 사용용도", "별표내용": big, "별표서식파일링크": ""}
-    resp = main_module._build_annex_detail("law:285767:BP0002", "BP0002", _fake_rs(), ann, "20260506",
+    resp = main_module._build_annex_detail("law:288335:BP0002", "BP0002", _fake_rs(), ann, "20260506",
                                            annex_locate="RCMS")
     # 기존 포인터 계약 무변(잠금)
     assert resp["content_format"] == "oversized_pointer"
@@ -4349,7 +4349,7 @@ def test_build_annex_detail_locate_precedence_and_ignores_v0210():
     big = "\n".join(f"별표 기준행 {i:04d}" for i in range(1500))
     ann = {"별표번호": "7", "별표제목": "제재부가금 처분기준", "별표내용": big, "별표서식파일링크": ""}
     # (a) 동시 지정 — 청크 응답 유지 + locate 무시 경고
-    both = main_module._build_annex_detail("law:285767:BP0007", "BP0007", _fake_rs(), ann, "20260506",
+    both = main_module._build_annex_detail("law:288335:BP0007", "BP0007", _fake_rs(), ann, "20260506",
                                            annex_chunk=1, annex_locate="RCMS")
     assert both["content_format"] == "plain_text_verbatim" and both["chunk_index"] == 1
     assert "annex_locate_result" not in both
@@ -4357,13 +4357,13 @@ def test_build_annex_detail_locate_precedence_and_ignores_v0210():
     # (b) tier-1(전문 수록)
     small = {"별표번호": "1", "별표제목": "정부지원 지원기준",
              "별표내용": "중소기업 75% 이하 / 중견기업 70% 이하", "별표서식파일링크": ""}
-    t1 = main_module._build_annex_detail("law:285767:BP0001", "BP0001", _fake_rs(), small, "20260506",
+    t1 = main_module._build_annex_detail("law:288335:BP0001", "BP0001", _fake_rs(), small, "20260506",
                                          annex_locate="중소기업")
     assert t1["content_format"] == "plain_text_verbatim"
     assert "annex_locate_result" not in t1
     assert any("annex_locate 무시" in w for w in t1["warnings"])
     # (c) 빈 검색어
-    empty = main_module._build_annex_detail("law:285767:BP0007", "BP0007", _fake_rs(), ann, "20260506",
+    empty = main_module._build_annex_detail("law:288335:BP0007", "BP0007", _fake_rs(), ann, "20260506",
                                             annex_locate="   ")
     assert empty["content_format"] == "oversized_pointer"
     assert "annex_locate_result" not in empty
@@ -4548,13 +4548,13 @@ def test_annex_locate_query_cap_blocks_budget_vector_v0210():
     """(diff 적대검증 Codex blocking 해소) 초장문 검색어 → 무시+경고·query echo 예산 잠식 차단."""
     big = "\n".join(f"별표 기준행 {i:04d}" for i in range(1500))
     ann = {"별표번호": "2", "별표제목": "테스트", "별표내용": big, "별표서식파일링크": ""}
-    resp = main_module._build_annex_detail("law:285767:BP0002", "BP0002", _fake_rs(), ann, "20260506",
+    resp = main_module._build_annex_detail("law:288335:BP0002", "BP0002", _fake_rs(), ann, "20260506",
                                            annex_locate="가" * 20000)
     assert "annex_locate_result" not in resp, "cap 초과 검색어는 스캔 자체를 수행하지 않음"
     assert any("검색어가 너무 깁니다" in w for w in resp["warnings"])
     assert len(json.dumps(resp, ensure_ascii=False)) <= main_module._ANNEX_DETAIL_CHAR_BUDGET
     # cap 경계: 정확히 상한 길이는 허용
-    ok = main_module._build_annex_detail("law:285767:BP0002", "BP0002", _fake_rs(), ann, "20260506",
+    ok = main_module._build_annex_detail("law:288335:BP0002", "BP0002", _fake_rs(), ann, "20260506",
                                          annex_locate="가" * main_module._ANNEX_LOCATE_QUERY_MAX)
     assert "annex_locate_result" in ok
     assert len(json.dumps(ok, ensure_ascii=False)) <= main_module._ANNEX_DETAIL_CHAR_BUDGET
@@ -4565,7 +4565,7 @@ def test_annex_locate_megaline_match_position_v0210():
     excerpt는 매치 중심 윈도우라 매치 문구가 반드시 포함."""
     mega = "가" * 20000 + "TARGET" + "나" * 2000  # 단일 줄·oversized·TARGET은 2번째 청크 구간
     ann = {"별표번호": "3", "별표제목": "테스트", "별표내용": mega, "별표서식파일링크": ""}
-    resp = main_module._build_annex_detail("law:285767:BP0003", "BP0003", _fake_rs(), ann, "20260506",
+    resp = main_module._build_annex_detail("law:288335:BP0003", "BP0003", _fake_rs(), ann, "20260506",
                                            annex_locate="TARGET")
     blk = resp["annex_locate_result"]
     assert blk["total_match_count"] == 1
@@ -4678,7 +4678,7 @@ def test_std_footer_on_success_paths_v0290(mock_client):
                      "별표내용": "중소기업 75% 이하", "별표서식파일링크": ""}],
         "annex_parse_error": None,
     }
-    bp = asyncio.run(get_provision_detail("law:285767:BP0001"))
+    bp = asyncio.run(get_provision_detail("law:288335:BP0001"))
     assert doc["standard_footer"] == provision_footer
     assert jo["standard_footer"] == provision_footer
     assert bp["standard_footer"] == provision_footer  # 별표 경로(적대검토 지적 — BP 명시 잠금)

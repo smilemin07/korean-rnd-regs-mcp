@@ -32,13 +32,13 @@ rule_sets:
     retrieval: live_api
     api_target: law
     api_id_type: MST
-    api_doc_id: "285767"
+    api_doc_id: "288335"  # 2026-07-28 시행 일부개정(제35조의2 신설) — 2026-08-05 LIVE 재프로브·검색 행/상세 시행일자 일치
     unit_types: both  # v0.2: 별표 1~7 검색·상세 지원 (get_law_detail 별표 파싱). 대용량 별표는 size-tiered 포인터
     query:
       - 국가연구개발혁신법 시행령
       - 혁신법 시행령
     license_status: public_data
-    effective_date: "2026-06-11"  # MST 285767 불변, 분리시행분 발효 — 법령도 MST 불변 시행일 진행 사례
+    effective_date: "2026-07-28"  # 2026-08-05 LIVE 재프로브: MST 285767→288335 변경·별표 1~7 구성 불변(별표2·7 oversized 유지)
     source_url: https://www.law.go.kr/법령/국가연구개발혁신법시행령
     known_limitations:
       - "별표 1~7(연구개발비 지원기준·사용용도·등록범위·참여제한·제재부가금 등) 검색·상세 조회 지원(v0.2). 소형 별표는 본문 전문 제공, 대용량 별표(별표2·7)는 분량상 본문 미수록(content_format=oversized_pointer) — 전문은 공식 링크·search_provision로 확인"
