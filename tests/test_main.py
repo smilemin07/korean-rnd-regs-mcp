@@ -810,3 +810,21 @@ def test_kt_autonomous_registered_v0260():
     assert "kt_autonomous_driving" in body
     assert "(국토교통부) 자율주행기술개발혁신사업 운영관리규정" in body
     assert "자율주행 사업단" in body
+
+
+# === v0.36.0: 혁신법 시행령 fallback 현행화 (배포 후 관측 반영 정비) ===
+def test_innovation_decree_fallback_current_v0360():
+    """v0.36.0: innovation_decree fallback 정적 잠금(2026-08-05 전수 감사 CHANGED 반영).
+
+    LIVE 재프로브(law-api-prober 2026-08-05): lawSearch 정확일치 행 = MST 288335
+    (시행 2026-07-28 일부개정·조문 68→69 제35조의2 신설·별표 1~7 구성 불변) 1건뿐
+    (구 285767 행 소멸). fallback은 검색 실패 시 최후 경로인데 LIVE acceptance의
+    field_equals는 WARN 클래스라 CI가 값 회귀를 직접 보증하지 않는 공백이 있었음
+    (diff 적대검토 MAJOR — 전례 test_sme_tech_family_current_docids_v0131).
+    """
+    from korean_rnd_regs_mcp.manifest import load_manifest
+    items = {rs.id: rs for rs in load_manifest()}
+    rs = items["innovation_decree"]
+    assert rs.api_target == "law"
+    assert rs.api_doc_id == "288335"
+    assert rs.effective_date == "2026-07-28"

@@ -26,6 +26,17 @@ _MANUAL_SOURCE_LINE = (
 )
 _PROVISION_FOOTER = _LAW_LINE + "\n" + _MANUAL_SOURCE_LINE
 
+# 신설 제35조의2 실측 verbatim(2026-08-05 LIVE 확보·242자) — 빈 본문 회귀 차단(diff 적대검토 MINOR 반영)
+_JO003502_TITLE = "연구개발성과의 교부ㆍ열람을 위한 기탁"
+_JO003502_CONTENT = (
+    "제35조의2(연구개발성과의 교부ㆍ열람을 위한 기탁)\n"
+    "① 법 제17조제3항에서 \"대통령령으로 정하는 연구개발성과\"란 제3조제3호에 따른 논문을 말한다.\n"
+    "② 연구개발기관과 연구자가 법 제17조제3항에 따라 연구개발성과를 기탁하려는 경우에는 전담기관이 "
+    "별도로 정하는 방법과 절차에 따라야 한다.\n"
+    "③ 중앙행정기관의 장은 연구개발기관과 연구자가 제2항에 따른 기탁의 방법 및 절차를 알 수 있도록 "
+    "해당 기관의 인터넷 홈페이지에 게시해야 한다."
+)
+
 CHECKS = [
     {
         "name": "무회귀 핵심 — 광역 '연구개발비' 대형 규정 도달 + recall(annotations·manifest 갱신의 검색 무영향)",
@@ -50,11 +61,13 @@ CHECKS = [
         ],
     },
     {
-        "name": "★신규 B — 신설 제35조의2(가지조문 JO003502) 신 MST 상세 조회 정상",
+        "name": "★신규 B — 신설 제35조의2(가지조문 JO003502) 신 MST 상세: 제목·본문 242자 verbatim 정합",
         "tool": "get_provision_detail",
         "args": {"provision_id": "law:288335:JO003502"},
         "asserts": [
             {"kind": "field_equals", "path": "content_format", "value": "plain_text_verbatim"},  # WARN — 신규
+            {"kind": "field_equals", "path": "title", "value": _JO003502_TITLE},               # WARN — 빈 응답 회귀 차단
+            {"kind": "field_equals", "path": "content", "value": _JO003502_CONTENT},           # WARN — 본문 verbatim 정합
         ],
     },
     {

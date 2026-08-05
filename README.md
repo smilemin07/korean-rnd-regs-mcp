@@ -634,7 +634,7 @@ pip install -e ".[dev]"
 
 ```bash
 pytest
-# 642 passed (mock 기반, 네트워크 미사용)
+# 643 passed (mock 기반, 네트워크 미사용)
 ```
 
 ### 빌드
