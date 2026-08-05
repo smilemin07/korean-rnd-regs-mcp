@@ -79,12 +79,12 @@ def test_contract_version_0_22_0():
     assert CONTRACT_VERSION == "0.26.0"
 
 
-def test_package_version_0_35_0():
-    """패키지 버전 0.35.0(R4 — 매뉴얼 별권 1 학생인건비통합관리 제도 매뉴얼 수록·26단위·
-    contract 0.26.0·입력 스키마 무변=재연결 불요).
-    직전 0.34.0(structure_notice 완성형 승격 + 오류 self-echo 마스킹 — contract 0.25.0)."""
+def test_package_version_0_36_0():
+    """패키지 버전 0.36.0(배포 후 관측 반영 정비 — tool annotations 7종 + 혁신법 시행령
+    fallback 288335 현행화·contract 0.26.0 유지·입력 스키마 무변=재연결 불요).
+    직전 0.35.0(R4 — 매뉴얼 별권 1 학생인건비통합관리 제도 매뉴얼 수록·contract 0.26.0)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.35.0"
+    assert __version__ == "0.36.0"
 
 
 def test_cache_maxsize_96_v0240():

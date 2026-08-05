@@ -3,6 +3,22 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.36.0] - 2026-08-05
+
+**배포 후 관측 반영 정비 — 도구 read-only 주석 + 혁신법 시행령 fallback 현행화(contract 0.26.0 유지)** — ①MCP 표준 tool annotations를 도구 7종 전체에 부여하여 조회 전용 서버임을 클라이언트가 기계적으로 식별할 수 있게 합니다(ChatGPT 개발자 모드 실계정 검증에서 주석 부재 시 조회 도구가 "쓰기(write)"로 분류되어 확인 대화상자가 뜨는 마찰이 관측됨). ②국가연구개발혁신법 시행령의 fallback 문서 ID를 현행(MST 288335·2026-07-28 시행 일부개정)으로 갱신합니다. 도구 로직·응답 문면·입력 스키마·매뉴얼 데이터 무변, `contract_version` **0.26.0 유지**, 패키지 **0.35.0 → 0.36.0**.
+
+### Added
+
+- **tool annotations 7종**: 전 도구 `readOnlyHint=true`·`destructiveHint=false`, `openWorldHint`는 외부 law.go.kr OpenAPI를 호출하는 3종(`search_provision`·`get_provision_detail`·`suggest_review_sources`)만 true, 로컬 전용 4종(`health`·`list_rule_sets`·`search_manual`·`get_manual_section`)은 false(`idempotentHint`·`title`은 의도적 미지정). 기존 연결은 갱신하지 않아도 종전과 동일하게 동작하며, 주석은 클라이언트가 도구 목록을 갱신(claude.ai 커넥터 ⋮ "Refresh tools list"·ChatGPT 커넥터 재스캔)한 뒤 반영됩니다.
+
+### Changed
+
+- **혁신법 시행령 fallback 현행화**: manifest의 `innovation_decree` fallback MST 285767 → **288335**(시행일 2026-06-11 → **2026-07-28**). 평시에는 search-first 자동 추종으로 이미 현행이 제공되고 있었으며, 이 갱신은 상위 API 검색 실패 시의 최후 경로(fallback)가 구판을 가리키던 것을 정합화합니다(2026-08-05 전수 감사 64규정 중 CHANGED 판정). 신 MST 실측 대조: 조문 68→69(제35조의2 「연구개발성과의 교부·열람을 위한 기탁」 신설 — 기존 가지조문 경로 JO003502로 조회 가능)·별표 1~7 구성 불변(별표 2·7 대용량 포인터 유지).
+
+### Internal
+
+- annotations 잠금 테스트 15건(registry·wire 직렬화 양면·7도구 전수). 국가연구개발정보처리기준의 신 고시(2100000283100)는 시행일(2026-08-20) 도래 후 별도 갱신 예정 — 미시행 판본을 fallback으로 고정하지 않기 위한 의도적 보류(평시 검색 경로는 종전과 동일). pytest 626 → 642.
+
 ## [0.35.0] - 2026-08-05
 
 **혁신법 매뉴얼 별권 1 「학생인건비통합관리 제도 매뉴얼」 수록(contract 0.26.0)** — 학생인건비통합관리 제도(사용용도·계상기준·통합관리계정·지급·잔액과 이자 처리·이관·반납·통합관리기관 지정과 지정취소) 해설·FAQ·지정 현황·표준 운영 가이드라인·점검 자료집을 매뉴얼 도구로 조회할 수 있게 됩니다. 종전에는 연구개발비 사용 기준 제86조~제99조 등 조문 원문만 제공되어 제도 해설·실무 절차 층이 없었습니다. 별권 1은 **26.7 게시 세트·5개 장 22개 절 + FAQ + 참고 3건·인쇄 3~91쪽**이며, 기존 매뉴얼 도구 2종에 통합되어 **새 도구가 추가되지 않습니다**. `contract_version` **0.25.0 → 0.26.0**(§5.27), 패키지 **0.34.0 → 0.35.0**. **입력 스키마 무변 → 웹 커넥터 재연결 불요.** 기존 매뉴얼 데이터 3종(본권·별권 3·별권 2)은 byte 불변입니다.
