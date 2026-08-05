@@ -77,19 +77,20 @@ def test_contract_version_0_22_0():
     → 0.26.0 → 0.27.0 minor bump(v0.37.0 resolver 안전성 정비 — upcoming_revision·resolve_fallback_notice
     응답 additive 2종·입력 스키마 무변·재연결 불요)
     → 0.27.0 → 0.28.0 minor bump(v0.38.0 과제평가 표준지침 수록 — eval id 계열·manual_eval_unavailable·
-    footer_manual_line per-source 문면·입력 스키마 무변·재연결 불요).
+    footer_manual_line per-source 문면·입력 스키마 무변·재연결 불요)
+    → 0.28.0 → 0.29.0 minor bump(v0.39.0 별권 4 연구시설·장비비 통합관리제 운영·관리 매뉴얼 additive —
+    b4 단일 레벨 id 계열·manual_b4_unavailable·장애 envelope 격리 사실 문면 정비·입력 스키마 무변·재연결 불요).
     직전 0.21.0: 출처·원문 확인 경로 정비(§5.22)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.28.0"
+    assert CONTRACT_VERSION == "0.29.0"
 
 
-def test_package_version_0_38_0():
-    """패키지 버전 0.38.0(「국가연구개발 과제평가 표준지침」(25.12) 수록 — 매뉴얼 트랙 최초의
-    비(非)혁신법-매뉴얼 독립 소스·eval- 15단위·54,507자·descriptor rank 4·contract 0.28.0·
-    입력 스키마 무변=재연결 불요).
-    직전 0.37.0(resolver 안전성 정비 — 미래 시행 행 필터·개정 예정/확인 실패 고지·contract 0.27.0)."""
+def test_package_version_0_39_0():
+    """패키지 버전 0.39.0(R5 — 혁신법 매뉴얼 별권 4 「연구시설･장비비 통합관리제 운영･관리 매뉴얼」
+    수록·b4- 11단위·39,297자·descriptor rank 5·contract 0.29.0·입력 스키마 무변=재연결 불요).
+    직전 0.38.0(과제평가 표준지침 25.12 수록 — eval- 15단위·contract 0.28.0)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.38.0"
+    assert __version__ == "0.39.0"
 
 
 def test_cache_maxsize_96_v0240():

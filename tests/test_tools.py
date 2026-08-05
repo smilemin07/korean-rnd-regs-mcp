@@ -558,7 +558,7 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
     """suggest 응답에 현행 contract_version(0.10.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.28.0"
+    assert result["contract_version"] == "0.29.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -883,7 +883,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.28.0"
+    assert result["contract_version"] == "0.29.0"
 
 
 # === _build_article_content  ===
@@ -3825,7 +3825,7 @@ def test_get_provision_detail_small_article_unchanged_v060(mock_client):
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None
     assert "content_available" not in result
-    assert result["contract_version"] == "0.28.0"
+    assert result["contract_version"] == "0.29.0"
 
 
 def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):
@@ -4622,7 +4622,7 @@ def test_manual_track_guard_all_surfaces_v0270():
     for tok in [
         "4절 근거 조항은 법령·행정규칙만으로 구성",
         "3절 핵심 답변·7절 권고 조치의 보조 설명",
-        "혁신법 매뉴얼 별권 중 1종",  # v0.35.0: 별권 1 수록으로 2종 → 1종 문면 갱신
+        "혁신법 매뉴얼 본권·별권 1~4 전권 수록",  # v0.39.0: 별권 4 수록으로 별권 시리즈 완결 문면
     ]:
         assert tok in template, f"REVIEW_PROMPT에 v0.27.0 매뉴얼 통합 토큰 '{tok}' 누락"
     # 자가충돌 잔존 방지: 구 미커버 문구가 남아 있으면 안 됨

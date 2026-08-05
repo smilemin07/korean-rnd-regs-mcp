@@ -51,10 +51,10 @@ def test_section_id_re_accepts_b1_forms():
 
 
 def test_supplement_descriptor_b1_appended():
-    """descriptor append-only(D9) — v0.38.0 eval 추가 후에도 b1의 위치·rank·정합 불변."""
+    """descriptor append-only(D9) — v0.39.0 b4 추가 후에도 b1의 위치·rank·정합 불변."""
     descs = main_mod._MANUAL_SUPPLEMENTS
-    assert [d["source_id"] for d in descs] == ["b3", "b2", "b1", "eval"]
-    assert [d["source_rank"] for d in descs] == [1, 2, 3, 4]
+    assert [d["source_id"] for d in descs] == ["b3", "b2", "b1", "eval", "b4"]
+    assert [d["source_rank"] for d in descs] == [1, 2, 3, 4, 5]
     b1 = descs[2]
     assert b1["prefix"] == "b1-"
     assert b1["error_code"] == "manual_b1_unavailable"
@@ -125,10 +125,10 @@ def test_b1_corrupt_data_isolated(fresh_cache, monkeypatch, tmp_path, payload_te
     assert isinstance(r, manual_mod.ManualLoadError), tag
     resp = asyncio.run(search_manual("협약 변경"))
     assert resp["errors"] == []
-    assert resp["searched_sources"] == ["main", "b3", "b2", "eval"]
+    assert resp["searched_sources"] == ["main", "b3", "b2", "eval", "b4"]
     assert resp["unavailable_sources"] == ["b1"]
     assert resp["source_warnings"][0]["code"] == "manual_b1_unavailable"
-    assert "본권·별권 3·별권 2·과제평가 표준지침만 검색한 부분 결과" in resp["source_warnings"][0]["message"]
+    assert "본권·별권 3·별권 2·과제평가 표준지침·별권 4만 검색한 부분 결과" in resp["source_warnings"][0]["message"]
     resp2 = asyncio.run(get_manual_section("b1-1-1"))
     assert resp2["errors"][0]["code"] == "manual_b1_unavailable"
 
@@ -140,7 +140,10 @@ def test_b1_detail_fail_mentions_main_only_when_verified(fresh_cache, monkeypatc
     msg = resp["errors"][0]["message"]
     assert resp["errors"][0]["code"] == "manual_b1_unavailable"
     assert "별권 1(학생인건비통합관리 제도 매뉴얼) 데이터 조회 불가" in msg
-    assert "본권 매뉴얼 검색·조회와 규정 도구는 정상입니다" in msg
+    # v0.39.0 문면 정비: 미확인 "정상" 단정 제거 — 확인된 사실(본권 로드)과 격리 사실만
+    assert "본권 매뉴얼 데이터는 정상 로드되었습니다" in msg
+    assert "규정 도구(search_provision·get_provision_detail 등) 경로에는 전파되지 않습니다" in msg
+    assert "규정 도구는 정상입니다" not in msg
     assert "제86조~제99조" in msg
     # 본권·별권 3·별권 2 조회 무영향
     assert asyncio.run(get_manual_section("1-5"))["content_available"] is True
@@ -148,13 +151,13 @@ def test_b1_detail_fail_mentions_main_only_when_verified(fresh_cache, monkeypatc
     assert asyncio.run(get_manual_section("b2-1-1"))["content_available"] is True
 
 
-# ── D10: 소스 가용성 전수 (v0.38.0: eval 추가로 2^4=16 → 2^5=32조합 확장) ────
+# ── D10: 소스 가용성 전수 (v0.39.0: b4 추가로 2^5=32 → 2^6=64조합 확장) ────
 
 @pytest.mark.parametrize(
-    "main_ok, b3_ok, b2_ok, b1_ok, eval_ok", list(itertools.product([True, False], repeat=5))
+    "main_ok, b3_ok, b2_ok, b1_ok, eval_ok, b4_ok", list(itertools.product([True, False], repeat=6))
 )
-def test_availability_32_combinations(fresh_cache, monkeypatch, tmp_path, main_ok, b3_ok, b2_ok, b1_ok, eval_ok):
-    """5소스 boolean 전수(D10 확장) — 대표 조합이 놓치는 '전부 실패 vs 일부 실패' 조립 분기·
+def test_availability_64_combinations(fresh_cache, monkeypatch, tmp_path, main_ok, b3_ok, b2_ok, b1_ok, eval_ok, b4_ok):
+    """6소스 boolean 전수(D10 확장) — 대표 조합이 놓치는 '전부 실패 vs 일부 실패' 조립 분기·
     오류 순서·부분 결과 문면을 전 조합에서 잠금."""
     if not main_ok:
         monkeypatch.setattr(manual_mod, "_DATA_PATH", tmp_path / "no_main.json")
@@ -166,8 +169,11 @@ def test_availability_32_combinations(fresh_cache, monkeypatch, tmp_path, main_o
         monkeypatch.setattr(manual_mod, "_B1_DATA_PATH", tmp_path / "no_b1.json")
     if not eval_ok:
         monkeypatch.setattr(manual_mod, "_EVAL_DATA_PATH", tmp_path / "no_eval.json")
+    if not b4_ok:
+        monkeypatch.setattr(manual_mod, "_B4_DATA_PATH", tmp_path / "no_b4.json")
     resp = asyncio.run(search_manual("협약 변경"))
-    flags = (("main", main_ok), ("b3", b3_ok), ("b2", b2_ok), ("b1", b1_ok), ("eval", eval_ok))
+    flags = (("main", main_ok), ("b3", b3_ok), ("b2", b2_ok), ("b1", b1_ok),
+             ("eval", eval_ok), ("b4", b4_ok))
     expected_sources = [s for s, ok in flags if ok]
     expected_unavail = [s for s, ok in flags if not ok]
     if not expected_sources:
@@ -175,16 +181,18 @@ def test_availability_32_combinations(fresh_cache, monkeypatch, tmp_path, main_o
         assert codes == [
             "manual_unavailable", "manual_b3_unavailable",
             "manual_b2_unavailable", "manual_b1_unavailable",
-            "manual_eval_unavailable",
+            "manual_eval_unavailable", "manual_b4_unavailable",
         ]
-        # 종합 안내는 계약 규약상 "마지막 오류"에 부착(§5.24) — eval 추가로 부착처가
-        # b1에서 eval로 이동(v0.33.0 b3→b2·v0.35.0 b2→b1 이동과 동일 전례). 앞선 소스
+        # 종합 안내는 계약 규약상 "마지막 오류"에 부착(§5.24) — b4 추가로 부착처가
+        # eval에서 b4로 이동(v0.35.0 b2→b1·v0.38.0 b1→eval 이동과 동일 전례). 앞선 소스
         # 오류는 자기 소스 상태만 말하는 순수 문면으로 잠금(diff 적대검토 Codex 반영).
         for e in resp["errors"][:-1]:
             assert "모두" not in e["message"], e["code"]
             assert "(reason:" in e["message"], e["code"]
-        assert "본권·별권 3·별권 2·별권 1·과제평가 표준지침 매뉴얼 데이터가 모두 로드 불가" in resp["errors"][-1]["message"]
-        assert "규정 도구(search_provision·get_provision_detail 등)는 정상" in resp["errors"][-1]["message"]
+        assert "본권·별권 3·별권 2·별권 1·과제평가 표준지침·별권 4 매뉴얼 데이터가 모두 로드 불가" in resp["errors"][-1]["message"]
+        # v0.39.0 문면 정비: 미확인 "정상" 단정 대신 격리 사실 문면
+        assert "규정 도구(search_provision·get_provision_detail 등) 경로에는 전파되지 않습니다" in resp["errors"][-1]["message"]
+        assert "규정 도구(search_provision·get_provision_detail 등)는 정상" not in resp["errors"][-1]["message"]
         assert resp["manual_meta_available"] is False
         return
     assert resp["errors"] == []
@@ -192,7 +200,8 @@ def test_availability_32_combinations(fresh_cache, monkeypatch, tmp_path, main_o
     if expected_unavail:
         assert resp["unavailable_sources"] == expected_unavail
         assert [w["source"] for w in resp["source_warnings"]] == expected_unavail
-        labels = {"main": "본권", "b3": "별권 3", "b2": "별권 2", "b1": "별권 1", "eval": "과제평가 표준지침"}
+        labels = {"main": "본권", "b3": "별권 3", "b2": "별권 2", "b1": "별권 1",
+                  "eval": "과제평가 표준지침", "b4": "별권 4"}
         ok_label = "·".join(labels[s] for s in expected_sources)
         for w in resp["source_warnings"]:
             assert f"본 응답은 {ok_label}만 검색한 부분 결과입니다" in w["message"]
@@ -311,7 +320,7 @@ def test_golden_v0340_baseline_preserved(fresh_cache):
     def norm(obj):
         s = json.dumps(obj, ensure_ascii=False, sort_keys=True)
         return s.replace('"contract_version": "0.25.0"', '"contract_version": "N"') \
-                .replace('"contract_version": "0.28.0"', '"contract_version": "N"')
+                .replace('"contract_version": "0.29.0"', '"contract_version": "N"')
 
     assert norm(asyncio.run(get_manual_section("3-13"))) == norm(golden["detail_3_13"])
     assert norm(asyncio.run(get_manual_section("b3-5-3"))) == norm(golden["detail_b3_5_3"])
@@ -338,7 +347,7 @@ def test_b1_all_ids_citation_footer(fresh_cache):
         meta = r["manual_meta"]
         assert meta["manual_basis_date"] is None, sid
         assert "법령 기준일 원문 미표기" in meta["notice"], sid
-        assert r["contract_version"] == "0.28.0", sid
+        assert r["contract_version"] == "0.29.0", sid
         assert r["format_note"].startswith("본 content는 「학생인건비통합관리 제도 매뉴얼」"), sid
         if sid == "b1-ref-3":
             # 포인터 응답 = 본문 미전달 → footer 2줄 규약(허위 인용 고지 차단)
@@ -452,27 +461,31 @@ def test_mixed_meta_main_b1_pair(fresh_cache):
 def test_v0350_surface_locks():
     instructions = main_mod.mcp.instructions or ""
     assert "별권 1 「학생인건비통합관리 제도 매뉴얼」" in instructions
-    assert "학생인건비 계상기준·지급액 등 구체값은 연구개발비 사용 기준 원문" in instructions
+    # v0.39.0: 별권 4 수록으로 instructions 교차확인 문면이 학생인건비·연구시설장비비 통합 지칭으로 갱신
+    assert "학생인건비·연구시설장비비 계상기준·적립·사용 요건 등 구체값은 연구개발비 사용 기준 원문" in instructions
     tmpl = main_mod._REVIEW_PROMPT_TEMPLATE
-    assert "(본권·별권 3 제재처분 가이드라인·별권 2 기술료 제도 매뉴얼·별권 1 학생인건비통합관리 제도 매뉴얼)" in tmpl
-    assert "별권 중 1종(연구시설장비" in tmpl
+    assert "(본권·별권 3 제재처분 가이드라인·별권 2 기술료 제도 매뉴얼·별권 1 학생인건비통합관리 제도 매뉴얼·별권 4 연구시설･장비비 통합관리제 운영･관리 매뉴얼)" in tmpl
+    assert "본권·별권 1~4 전권 수록" in tmpl  # v0.39.0: 별권 4 수록으로 시리즈 완결 문면
     sm_doc = main_mod.search_manual.fn.__doc__ if hasattr(main_mod.search_manual, "fn") else main_mod.search_manual.__doc__
     gs_doc = main_mod.get_manual_section.fn.__doc__ if hasattr(main_mod.get_manual_section, "fn") else main_mod.get_manual_section.__doc__
     assert '"b1"=별권 1' in sm_doc and "26개 단위" in sm_doc
     assert "b1-3-4" in gs_doc and "rnd_funding_standard" in gs_doc
-    # 자가충돌 잔존 방지: 구 미커버 문면이 남아 있으면 안 됨
+    # 자가충돌 잔존 방지: 구 미커버 문면이 남아 있으면 안 됨(v0.39.0: 별권 4 수록으로
+    # "별권 중 N종" 미커버 지칭 자체가 소멸 — 남아 있으면 자가충돌)
     for surface in (tmpl, instructions):
         assert "별권 중 2종" not in surface
-        assert "학생인건비·연구시설장비" not in surface
+        assert "별권 중 1종" not in surface
 
 
 def test_manual_data_source_url_identical_across_files():
-    """4개 매뉴얼 데이터 파일의 source_url 동일성(같은 26.7 게시물 canonical 경로 —
-    diff 적대검토 Codex BLOCKING 반영: b1이 다른 board 경로로 수록됐던 결함의 재발 방지)."""
+    """5개 시리즈 데이터 파일의 source_url 동일성(같은 26.7 게시물 canonical 경로 —
+    diff 적대검토 Codex BLOCKING 반영: b1이 다른 board 경로로 수록됐던 결함의 재발 방지.
+    v0.39.0: b4 포함 — 비시리즈 manual_eval.json은 KAIA 게시라 대상 아님)."""
     root = pathlib.Path(__file__).resolve().parent.parent / "src" / "korean_rnd_regs_mcp"
     urls = {
         name: json.loads((root / name).read_text(encoding="utf-8"))["meta"]["source_url"]
-        for name in ("manual_body.json", "manual_b3.json", "manual_b2.json", "manual_b1.json")
+        for name in ("manual_body.json", "manual_b3.json", "manual_b2.json", "manual_b1.json",
+                     "manual_b4.json")
     }
     assert len(set(urls.values())) == 1, urls
     assert urls["manual_b1.json"] == (

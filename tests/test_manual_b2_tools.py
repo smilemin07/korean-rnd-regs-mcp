@@ -95,10 +95,10 @@ def test_b2_corrupt_data_isolated(fresh_cache, monkeypatch, tmp_path, payload_te
     assert isinstance(r, manual_mod.ManualLoadError), tag
     resp = asyncio.run(search_manual("협약 변경"))
     assert resp["errors"] == []
-    assert resp["searched_sources"] == ["main", "b3", "b1", "eval"]
+    assert resp["searched_sources"] == ["main", "b3", "b1", "eval", "b4"]
     assert resp["unavailable_sources"] == ["b2"]
     assert resp["source_warnings"][0]["code"] == "manual_b2_unavailable"
-    assert "본권·별권 3·별권 1·과제평가 표준지침만 검색한 부분 결과" in resp["source_warnings"][0]["message"]
+    assert "본권·별권 3·별권 1·과제평가 표준지침·별권 4만 검색한 부분 결과" in resp["source_warnings"][0]["message"]
     resp2 = asyncio.run(get_manual_section("b2-1-1"))
     assert resp2["errors"][0]["code"] == "manual_b2_unavailable"
 
@@ -110,7 +110,9 @@ def test_b2_detail_fail_mentions_main_only_when_verified(fresh_cache, monkeypatc
     msg = resp["errors"][0]["message"]
     assert resp["errors"][0]["code"] == "manual_b2_unavailable"
     assert "별권 2(기술료 제도 매뉴얼) 데이터 조회 불가" in msg
-    assert "본권 매뉴얼 검색·조회와 규정 도구는 정상입니다" in msg
+    # v0.39.0 문면 정비: 미확인 "정상" 단정 제거 — 확인된 사실(본권 로드)과 격리 사실만
+    assert "본권 매뉴얼 데이터는 정상 로드되었습니다" in msg
+    assert "규정 도구(search_provision·get_provision_detail 등) 경로에는 전파되지 않습니다" in msg
     assert "제38조~제41조" in msg
     # 본권·별권 3 조회 무영향
     assert asyncio.run(get_manual_section("1-5"))["content_available"] is True
@@ -130,14 +132,15 @@ def test_availability_combinations_envelope(fresh_cache, monkeypatch, tmp_path, 
     if not b2_ok:
         monkeypatch.setattr(manual_mod, "_B2_DATA_PATH", tmp_path / "no_b2.json")
     resp = asyncio.run(search_manual("협약 변경"))
-    expected_sources = [s for s, ok in (("main", main_ok), ("b3", b3_ok), ("b2", b2_ok)) if ok] + ["b1", "eval"]
+    expected_sources = [s for s, ok in (("main", main_ok), ("b3", b3_ok), ("b2", b2_ok)) if ok] + ["b1", "eval", "b4"]
     expected_unavail = [s for s, ok in (("main", main_ok), ("b3", b3_ok), ("b2", b2_ok)) if not ok]
     assert resp["errors"] == []
     assert resp["searched_sources"] == expected_sources
     if expected_unavail:
         assert resp["unavailable_sources"] == expected_unavail
         assert [w["source"] for w in resp["source_warnings"]] == expected_unavail
-        ok_label = "·".join({"main": "본권", "b3": "별권 3", "b2": "별권 2", "b1": "별권 1", "eval": "과제평가 표준지침"}[s] for s in expected_sources)
+        ok_label = "·".join({"main": "본권", "b3": "별권 3", "b2": "별권 2", "b1": "별권 1",
+                             "eval": "과제평가 표준지침", "b4": "별권 4"}[s] for s in expected_sources)
         for w in resp["source_warnings"]:
             assert f"본 응답은 {ok_label}만 검색한 부분 결과입니다" in w["message"]
     else:
@@ -239,7 +242,7 @@ def test_golden_v0320_baseline_preserved(fresh_cache):
         return s.replace('"contract_version": "0.23.0"', '"contract_version": "N"') \
                 .replace('"contract_version": "0.24.0"', '"contract_version": "N"') \
                 .replace('"contract_version": "0.25.0"', '"contract_version": "N"') \
-                .replace('"contract_version": "0.28.0"', '"contract_version": "N"')
+                .replace('"contract_version": "0.29.0"', '"contract_version": "N"')
 
     assert norm(asyncio.run(get_manual_section("3-13"))) == norm(golden["detail_3_13"])
     assert norm(asyncio.run(get_manual_section("b3-5-3"))) == norm(golden["detail_b3_5_3"])
@@ -265,7 +268,7 @@ def test_b2_all_ids_full_text_citation_footer(fresh_cache):
         assert meta["manual_basis_date"] is None, sid
         assert meta["standard_footer"].count("※") == 4, sid
         assert "법령 기준일 원문 미표기" in meta["notice"], sid
-        assert r["contract_version"] == "0.28.0", sid
+        assert r["contract_version"] == "0.29.0", sid
         assert r["format_note"].startswith("본 content는 「국가연구개발사업 기술료 제도 매뉴얼」"), sid
 
 
@@ -363,8 +366,8 @@ def test_v0330_surface_locks():
     assert "별권 2 「국가연구개발사업 기술료 제도 매뉴얼」" in instructions
     assert "기술료율·납부 상한 등 구체값은 시행령 제38조~제41조 원문" in instructions
     tmpl = main_mod._REVIEW_PROMPT_TEMPLATE
-    assert "(본권·별권 3 제재처분 가이드라인·별권 2 기술료 제도 매뉴얼·별권 1 학생인건비통합관리 제도 매뉴얼)" in tmpl
-    assert "별권 중 1종(연구시설장비" in tmpl
+    assert "(본권·별권 3 제재처분 가이드라인·별권 2 기술료 제도 매뉴얼·별권 1 학생인건비통합관리 제도 매뉴얼·별권 4 연구시설･장비비 통합관리제 운영･관리 매뉴얼)" in tmpl
+    assert "본권·별권 1~4 전권 수록" in tmpl  # v0.39.0: 별권 4 수록으로 시리즈 완결 문면
     sm_doc = main_mod.search_manual.fn.__doc__ if hasattr(main_mod.search_manual, "fn") else main_mod.search_manual.__doc__
     gs_doc = main_mod.get_manual_section.fn.__doc__ if hasattr(main_mod.get_manual_section, "fn") else main_mod.get_manual_section.__doc__
     assert '"b2"=별권 2' in sm_doc and "15개 단위" in sm_doc
@@ -373,6 +376,7 @@ def test_v0330_surface_locks():
     desc = None
     for surface in (tmpl, instructions):
         assert "별권 중 3종" not in surface
+        assert "별권 중 1종" not in surface
         assert "학생인건비·기술료·연구시설장비" not in surface
 
 
@@ -388,11 +392,20 @@ def test_b2_packaging_force_include():
 
 
 def test_supplement_descriptor_consistency():
-    """descriptor·정규식 드리프트 가드 — 프리픽스 집합이 SECTION_ID_RE와 일치(P0 D3 대체 장치)."""
+    """descriptor·정규식 드리프트 가드 — 프리픽스 집합이 SECTION_ID_RE와 일치(P0 D3 대체 장치).
+    v0.39.0: b4는 장 없는 평면 편제라 유효 id 형태가 다름 — descriptor별 유효 예시로 검사
+    (종전 prefix+"1-1" 공통 가정은 b4에 성립하지 않음 — 계획 /disc Codex 지적 반영)."""
     prefixes = {d["prefix"] for d in main_mod._MANUAL_SUPPLEMENTS}
-    assert prefixes == {"b3-", "b2-", "b1-", "eval-"}
+    assert prefixes == {"b3-", "b2-", "b1-", "eval-", "b4-"}
+    valid_examples = {
+        "b3-": ("b3-1-1", "b3-ref-1"),
+        "b2-": ("b2-1-1", "b2-ref-1"),
+        "b1-": ("b1-1-1", "b1-ref-1"),
+        "eval-": ("eval-1-1", "eval-ref-1"),
+        "b4-": ("b4-0", "b4-ref-1"),
+    }
     for d in main_mod._MANUAL_SUPPLEMENTS:
-        assert SECTION_ID_RE.match(d["prefix"] + "1-1"), d["source_id"]
-        assert SECTION_ID_RE.match(d["prefix"] + "ref-1"), d["source_id"]
+        for example in valid_examples[d["prefix"]]:
+            assert SECTION_ID_RE.match(example), d["source_id"]
     ranks = [d["source_rank"] for d in main_mod._MANUAL_SUPPLEMENTS]
     assert ranks == sorted(ranks) and ranks[0] >= 1  # append-only·main=0 예약

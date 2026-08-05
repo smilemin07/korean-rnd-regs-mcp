@@ -89,7 +89,7 @@ def test_file_missing_fail_safe(fresh_cache, monkeypatch, tmp_path):
     # v0.32.0(D5 장애 4조합): 본권 불가·별권 정상 → 별권만으로 부분 검색 성공 + source_warnings
     resp = asyncio.run(search_manual("협약 변경"))
     assert resp["errors"] == []
-    assert resp["searched_sources"] == ["b3", "b2", "b1", "eval"]
+    assert resp["searched_sources"] == ["b3", "b2", "b1", "eval", "b4"]
     assert resp["unavailable_sources"] == ["main"]
     assert resp["source_warnings"][0]["code"] == "manual_unavailable"
     assert "부분 결과" in resp["source_warnings"][0]["message"]
@@ -102,15 +102,18 @@ def test_file_missing_fail_safe(fresh_cache, monkeypatch, tmp_path):
 
 
 def test_both_sources_missing_error(fresh_cache, monkeypatch, tmp_path):
-    """전 소스(본권·별권 3·별권 2·별권 1) 불가 — 오류 응답에 네 코드가 함께 실림(v0.35.0 16조합)."""
+    """전 소스(본권·별권 3·별권 2·별권 1·과제평가 표준지침·별권 4) 불가 — 오류 응답에 여섯 코드가
+    함께 실림(v0.39.0 64조합)."""
     monkeypatch.setattr(manual_mod, "_DATA_PATH", tmp_path / "no_main.json")
     monkeypatch.setattr(manual_mod, "_B3_DATA_PATH", tmp_path / "no_b3.json")
     monkeypatch.setattr(manual_mod, "_B2_DATA_PATH", tmp_path / "no_b2.json")
     monkeypatch.setattr(manual_mod, "_B1_DATA_PATH", tmp_path / "no_b1.json")
     monkeypatch.setattr(manual_mod, "_EVAL_DATA_PATH", tmp_path / "no_eval.json")
+    monkeypatch.setattr(manual_mod, "_B4_DATA_PATH", tmp_path / "no_b4.json")
     resp = asyncio.run(search_manual("협약 변경"))
     codes = {e["code"] for e in resp["errors"]}
-    assert codes == {"manual_unavailable", "manual_b3_unavailable", "manual_b2_unavailable", "manual_b1_unavailable", "manual_eval_unavailable"}
+    assert codes == {"manual_unavailable", "manual_b3_unavailable", "manual_b2_unavailable",
+                     "manual_b1_unavailable", "manual_eval_unavailable", "manual_b4_unavailable"}
     assert resp["manual_meta_available"] is False
 
 
@@ -119,7 +122,7 @@ def test_b3_file_missing_fail_safe(fresh_cache, monkeypatch, tmp_path):
     monkeypatch.setattr(manual_mod, "_B3_DATA_PATH", tmp_path / "no_b3.json")
     resp = asyncio.run(search_manual("협약 변경"))
     assert resp["errors"] == []
-    assert resp["searched_sources"] == ["main", "b2", "b1", "eval"]
+    assert resp["searched_sources"] == ["main", "b2", "b1", "eval", "b4"]
     assert resp["unavailable_sources"] == ["b3"]
     assert resp["source_warnings"][0]["code"] == "manual_b3_unavailable"
     resp2 = asyncio.run(get_manual_section("b3-4-2"))
@@ -197,7 +200,7 @@ def test_search_excerpts_raw_with_page_anchor():
 def test_search_zero_hit_anchor():
     r = asyncio.run(search_manual("존재하지않는키워드검증용문자열"))
     assert r["returned"] == 0 and r["total_matched"] == 0
-    assert r["scanned_sections"] == 122  # 본권 43 + 별권3 23 + 별권2 15 + 별권1 26 + 과제평가 표준지침 15 (v0.38.0)
+    assert r["scanned_sections"] == 133  # 본권 43 + 별권3 23 + 별권2 15 + 별권1 26 + 과제평가 표준지침 15 + 별권4 11 (v0.39.0)
     assert "규정의 부재를 뜻하지 않" in r["note"]
     assert r["manual_meta"]["legal_effect"] == "not_binding"
 
@@ -371,11 +374,11 @@ def test_budget_constants_parity_with_annex():
 
 def test_manual_responses_carry_contract_version():
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.28.0"
+    assert CONTRACT_VERSION == "0.29.0"
     r = asyncio.run(search_manual("기술료"))
-    assert r["contract_version"] == "0.28.0"
+    assert r["contract_version"] == "0.29.0"
     r2 = asyncio.run(get_manual_section("1-4"))
-    assert r2["contract_version"] == "0.28.0"
+    assert r2["contract_version"] == "0.29.0"
 
 
 # === v0.28.0: 인용 앵커(citation) · 하단 표준 안내(standard_footer) 응답 구조화 ===
@@ -704,3 +707,28 @@ def test_v0310_renumbering_note_fail_safe():
         {"renumbering_note": "n", "renumbering_note_section_ids": ["3-12"]}
     )
     assert "renumbering_note" not in no_sid  # search_manual 경로(미전달) 미부착
+
+
+def test_main_corrupt_structure_isolated_envelope(fresh_cache, monkeypatch, tmp_path):
+    """본권 데이터가 유효 JSON이나 구조 손상(null section·비리스트 pages)일 때 예외 누출 없이
+    ManualLoadError envelope로 격리(v0.39.0 — diff 적대검토 Codex MAJOR 반영: 종전에는
+    인덱스 구축 중 AttributeError가 도구 호출로 누출)."""
+    import asyncio as _a
+    for tag, payload_text in {
+        "null_section": '{"meta": {}, "sections": [null, 5]}',
+        "string_pages": '{"meta": {}, "sections": [{"id": "1-1", "pages": "notalist"}]}',
+        "top_level_array_sections": '{"meta": {}, "sections": [[1, 2]]}',
+    }.items():
+        manual_mod._reset_cache_for_tests()
+        bad = tmp_path / f"main_{tag}.json"
+        bad.write_text(payload_text, encoding="utf-8")
+        monkeypatch.setattr(manual_mod, "_DATA_PATH", bad)
+        r = load_manual()
+        assert isinstance(r, ManualLoadError), tag
+        assert r.reason == "schema_invalid", tag
+        assert "전파되지 않습니다" in r.message, tag
+        resp = _a.run(search_manual("협약 변경"))
+        assert resp["errors"] == [], tag           # 별권들로 부분 검색 지속(예외 누출 0)
+        assert "main" in resp["unavailable_sources"], tag
+        resp2 = _a.run(get_manual_section("1-1"))
+        assert resp2["errors"][0]["code"] == "manual_unavailable", tag

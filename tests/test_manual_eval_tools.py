@@ -150,7 +150,7 @@ def test_eval_corrupt_data_isolated(fresh_cache, monkeypatch, tmp_path):
     assert isinstance(r, manual_mod.ManualLoadError)
     resp = asyncio.run(search_manual("협약 변경"))
     assert resp["errors"] == []
-    assert resp["searched_sources"] == ["main", "b3", "b2", "b1"]
+    assert resp["searched_sources"] == ["main", "b3", "b2", "b1", "b4"]
     assert resp["unavailable_sources"] == ["eval"]
     assert resp["source_warnings"][0]["code"] == "manual_eval_unavailable"
     resp2 = asyncio.run(get_manual_section("eval-1-1"))
@@ -159,8 +159,10 @@ def test_eval_corrupt_data_isolated(fresh_cache, monkeypatch, tmp_path):
 
 
 def test_eval_descriptor_appended_last(fresh_cache):
+    """v0.39.0: b4 append로 eval은 마지막에서 두 번째 — rank 4 불변(append-only 잠금)."""
     descs = main_mod._MANUAL_SUPPLEMENTS
-    ev = descs[-1]
+    ev = descs[-2]
+    assert descs[-1]["source_id"] == "b4"
     assert ev["source_id"] == "eval" and ev["source_rank"] == 4 and ev["prefix"] == "eval-"
     assert ev["error_code"] == "manual_eval_unavailable"
     assert "국가연구개발 과제평가 표준지침" in ev["label"]
