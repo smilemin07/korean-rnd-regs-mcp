@@ -68,7 +68,7 @@ def test_cache_lock_never_wraps_network_or_parse():
     assert lock_blocks >= 8, f"_cache_lock 블록이 {lock_blocks}개뿐 — 캐시 touch 직렬화 누락 의심"
 
 
-def test_contract_version_0_22_0():
+def test_contract_version_0_31_0():
     """v0.31.0: 매뉴얼 본권 26.7판 현행화(§5.23) — 데이터 판 교체(41→43절·재번호 8건) +
     manual_meta.renumbering_note 조건부 additive(get_manual_section 대상 절 한정)
     → contract 0.23.0 → 0.24.0 minor bump(v0.33.0 별권 2 additive — 입력 스키마 무변·재연결 불요)
@@ -81,18 +81,21 @@ def test_contract_version_0_22_0():
     → 0.28.0 → 0.29.0 minor bump(v0.39.0 별권 4 연구시설·장비비 통합관리제 운영·관리 매뉴얼 additive —
     b4 단일 레벨 id 계열·manual_b4_unavailable·장애 envelope 격리 사실 문면 정비·입력 스키마 무변·재연결 불요)
     → 0.29.0 → 0.30.0 minor bump(v0.40.0 검색·후보 경로 표준 안내 확대 — search/suggest 정규 반환
-    standard_footer additive·whole-or-omit·선택 지시 3도구 확대·폴백 KISTEP 줄 교정·입력 스키마 무변·재연결 불요).
+    standard_footer additive·whole-or-omit·선택 지시 3도구 확대·폴백 KISTEP 줄 교정·입력 스키마 무변·재연결 불요)
+    → 0.30.0 → 0.31.0 minor bump(v0.41.0 검색·후보 footer 발화 신호 보강 — search/suggest 정규 반환에
+    standard_footer_note 인접 지시 additive[footer 직전 키·footer-먼저 2단 폴백]·예외 문면 정밀화·
+    입력 스키마 무변·재연결 불요).
     직전 0.21.0: 출처·원문 확인 경로 정비(§5.22)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.30.0"
+    assert CONTRACT_VERSION == "0.31.0"
 
 
-def test_package_version_0_40_0():
-    """패키지 버전 0.40.0(검색·후보 경로 표준 안내 확대 — search_provision·suggest_review_sources
-    정규 반환 standard_footer·contract 0.30.0·입력 스키마 무변=재연결 불요).
-    직전 0.39.0(R5 별권 4 수록 — b4- 11단위·contract 0.29.0)."""
+def test_package_version_0_41_0():
+    """패키지 버전 0.41.0(검색·후보 footer 발화 신호 보강 — standard_footer_note 인접 지시·
+    예외 문면 정밀화·contract 0.31.0·입력 스키마 무변=재연결 불요).
+    직전 0.40.0(검색·후보 경로 표준 안내 확대 — standard_footer additive·contract 0.30.0)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.40.0"
+    assert __version__ == "0.41.0"
 
 
 def test_cache_maxsize_96_v0240():

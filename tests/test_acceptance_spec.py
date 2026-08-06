@@ -58,3 +58,21 @@ def test_spec_structure_and_frozen_kinds(spec_path):
     assert kinds & _RUN.BLOCK_ELIGIBLE, f"{spec_path.stem}: 회귀 검출 신호(fetched_ok/returned_not_below) 최소 1개 필요"
     for p in getattr(spec, "LEVEL_B_PROMPTS", []):
         assert "probe_prompt" in p and "expect_behavior" in p
+
+
+def test_spec_footer_literals_match_server_constants_v0410():
+    """★spec 리터럴 drift 가드(v0.41.0): 버전 spec이 footer·note 기대값을 리터럴로 들고 있으므로,
+    서버 상수가 바뀌면 spec도 함께 바뀌어야 함(불일치 시 acceptance가 WARN로만 표류하는 것을
+    pytest 단계에서 차단). _NOTE·_FOOTER2 속성을 가진 spec 전부에 적용."""
+    from korean_rnd_regs_mcp.main import _STD_FOOTER_NOTE
+    from korean_rnd_regs_mcp.manual import FOOTER_LAW_LINE, FOOTER_MANUAL_SOURCE_LINE
+    footer2 = FOOTER_LAW_LINE + "\n" + FOOTER_MANUAL_SOURCE_LINE
+    checked = 0
+    for path in _SPECS:
+        spec = _load(path)
+        if hasattr(spec, "_FOOTER2"):
+            assert spec._FOOTER2 == footer2, f"{path.stem}: _FOOTER2가 서버 상수와 불일치"
+            checked += 1
+        if hasattr(spec, "_NOTE"):
+            assert spec._NOTE == _STD_FOOTER_NOTE, f"{path.stem}: _NOTE가 서버 상수와 불일치"
+    assert checked >= 1, "footer 리터럴 spec이 최소 1개는 검사돼야 함"

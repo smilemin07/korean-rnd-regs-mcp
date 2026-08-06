@@ -558,7 +558,7 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
     """suggest 응답에 현행 contract_version(0.10.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.30.0"
+    assert result["contract_version"] == "0.31.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -883,7 +883,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.30.0"
+    assert result["contract_version"] == "0.31.0"
 
 
 # === _build_article_content  ===
@@ -3825,7 +3825,7 @@ def test_get_provision_detail_small_article_unchanged_v060(mock_client):
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None
     assert "content_available" not in result
-    assert result["contract_version"] == "0.30.0"
+    assert result["contract_version"] == "0.31.0"
 
 
 def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):
@@ -4611,12 +4611,18 @@ def test_manual_track_guard_all_surfaces_v0270():
         assert tok in template, f"REVIEW_PROMPT에 v0.27.0 하단 안내 토큰 '{tok}' 누락"
 
     # instructions 전용: 매뉴얼 라우팅·0건 의미·경계 제외
+    # v0.41.0: 예외 문면 정밀화 — 부정 조건(서버 운영 안내 한정)·긍정 조건(목록형·0건 포섭) 각각 잠금
     for tok in [
         "search_manual로 절을 찾고",
         "규정의 부재를 뜻하지 않으므로",
-        "규정 내용 판단이 없는 답변에는 이 하단 안내를 붙이지 마십시오",
+        # v0.41.0 문면 saliency 의존 릴리스 — 부정·긍정 조건을 정규화 완전 문장으로 잠금(Codex MINOR 반영)
+        "단, 도구 상태·설치·연결 등 서버 운영 안내만 하는 답변에는 이 하단 안내를 붙이지 마십시오.",
+        "규정 검색 결과나 조문·별표·검토 후보를 안내하는 답변에는 목록형이거나 검색 결과가 없어도 "
+        "앞의 standard_footer 선택·생략 폴백 규칙에 따라 붙이십시오.",
     ]:
-        assert tok in instructions, f"SERVER_INSTRUCTIONS에 v0.27.0 라우팅 토큰 '{tok}' 누락"
+        assert tok in instructions, f"SERVER_INSTRUCTIONS에 라우팅·footer 문면 토큰 '{tok}' 누락"
+    # v0.41.0: 구 예외 문면 잔존 방지(정밀화 회귀 차단)
+    assert "규정 내용 판단이 없는 답변에는" not in instructions, "구 예외 문면 잔존(v0.41.0 정밀화 회귀)"
 
     # template 전용: 4절 격리·배치 절 명시·미커버 정정(자가충돌 해소)
     for tok in [
@@ -5216,15 +5222,18 @@ def test_search_std_footer_absent_on_entry_errors_v0400(mock_client, monkeypatch
 
 
 def test_search_std_footer_whole_or_omit_v0400(mock_client, monkeypatch):
-    """whole-or-omit — 상한을 낮추면 footer만 빠지고 응답은 전 필드 동일(결과 수 무회귀의 구조적 보장)."""
+    """whole-or-omit — 상한을 낮추면 footer·note만 빠지고 응답은 전 필드 동일(결과 수 무회귀의 구조적 보장)."""
     from korean_rnd_regs_mcp import main as main_mod
     baseline = asyncio.run(search_provision("특별평가"))
     assert "standard_footer" in baseline
+    assert "standard_footer_note" in baseline  # v0.41.0
     monkeypatch.setattr(main_mod, "_STD_FOOTER_RESPONSE_MAX", 10)
     omitted = asyncio.run(search_provision("특별평가"))
     assert "standard_footer" not in omitted
+    assert "standard_footer_note" not in omitted
     stripped = dict(baseline)
     stripped.pop("standard_footer")
+    stripped.pop("standard_footer_note")
     assert omitted == stripped
 
 
@@ -5245,15 +5254,18 @@ def test_suggest_std_footer_on_empty_keywords_v0400(mock_client):
 
 
 def test_suggest_std_footer_whole_or_omit_v0400(mock_client, monkeypatch):
-    """suggest whole-or-omit — footer 외 전 필드 동일(cap·overflow 조립 byte 불변)."""
+    """suggest whole-or-omit — footer·note 외 전 필드 동일(cap·overflow 조립 byte 불변)."""
     from korean_rnd_regs_mcp import main as main_mod
     baseline = asyncio.run(suggest_review_sources("특별평가 사유는 무엇인가?"))
     assert "standard_footer" in baseline
+    assert "standard_footer_note" in baseline  # v0.41.0
     monkeypatch.setattr(main_mod, "_STD_FOOTER_RESPONSE_MAX", 10)
     omitted = asyncio.run(suggest_review_sources("특별평가 사유는 무엇인가?"))
     assert "standard_footer" not in omitted
+    assert "standard_footer_note" not in omitted
     stripped = dict(baseline)
     stripped.pop("standard_footer")
+    stripped.pop("standard_footer_note")
     assert omitted == stripped
 
 
@@ -5309,3 +5321,108 @@ def test_suggest_std_footer_omitted_on_error_inflation_v0400(mock_client):
     assert result["total"] == 0 and result.get("errors")
     assert len(_json.dumps(result, ensure_ascii=False)) > 16000  # 전제: 실제로 예산 초과
     assert "standard_footer" not in result
+
+
+# === v0.41.0: 검색·후보 footer 발화 신호 보강 — standard_footer_note 인접 지시 + 예외 문면 정밀화 ===
+# P0 프로브 실측(2026-08-06): 호스트가 footer 값을 보고도 목록형·판단형 답변에서 미부착(Claude) /
+# 마지막 필드 소실 보고(ChatGPT) → 데이터와 함께 소비되는 인접 지시(in-band)로 보강.
+# 설계 불변식: ①note는 search/suggest 정규 반환 한정(상세 무접촉) ②키 순서 note→footer(마지막 필드
+# 소실 대비) ③footer-먼저 2단 폴백(note+footer 초과 시 footer만 재시도 — v0.40.0 부착 커버리지 무회귀)
+# ④note 단독 부착 경로 없음.
+
+
+def test_search_std_footer_note_attached_v0410(mock_client):
+    """search 정상 응답: note 존재·상수 완전 일치·문면 핵심 토큰·note가 footer 바로 앞 키."""
+    from korean_rnd_regs_mcp import main as main_mod
+    result = asyncio.run(search_provision("특별평가"))
+    note = result["standard_footer_note"]
+    assert note == main_mod._STD_FOOTER_NOTE  # 완전 동등성(오타·공백 drift 차단 — Gemini MINOR 반영)
+    assert "목록만 나열하는 답변(결과 0건 포함)에도" in note
+    assert "마지막 줄들로 그대로 1회 표시" in note
+    assert "매뉴얼 응답의 standard_footer를 대신 사용" in note
+    assert "중복 부착하지 마십시오" in note
+    keys = list(result.keys())
+    assert keys.index("standard_footer_note") + 1 == keys.index("standard_footer")
+    assert keys[-1] == "standard_footer"
+
+
+def test_search_std_footer_note_on_zero_hit_v0410(mock_client):
+    """search 0건 응답에도 note+footer 동반(목록형·0건이 실측 실패 지점)."""
+    result = asyncio.run(search_provision("존재하지않는키워드조합xyz"))
+    assert result["returned"] == 0
+    assert "standard_footer_note" in result and "standard_footer" in result
+
+
+def test_suggest_std_footer_note_attached_v0410(mock_client):
+    """suggest 정상·무키워드 degraded 응답 모두 note+footer 동반·키 순서 유지."""
+    normal = asyncio.run(suggest_review_sources("특별평가 사유는 무엇인가?"))
+    keys = list(normal.keys())
+    assert keys.index("standard_footer_note") + 1 == keys.index("standard_footer")
+    degraded = asyncio.run(suggest_review_sources("?!"))  # 키워드 추출 불가 → 무키워드 정규 반환
+    assert degraded["extracted_keywords"] == []
+    assert "standard_footer_note" in degraded and "standard_footer" in degraded
+
+
+def test_std_footer_note_absent_on_entry_errors_v0410(mock_client, monkeypatch):
+    """진입부 오류 envelope(invalid_query·무키 auth_failed)에는 note·footer 동시 부재."""
+    from korean_rnd_regs_mcp import main as main_mod
+    short = asyncio.run(search_provision("법"))
+    assert "standard_footer_note" not in short and "standard_footer" not in short
+    err = {"errors": [{"code": "auth_failed", "message": "synthetic"}]}
+    monkeypatch.setattr(main_mod, "_http_no_key_error", lambda: dict(err))
+    for resp in (
+        asyncio.run(search_provision("특별평가")),
+        asyncio.run(suggest_review_sources("특별평가 사유는?")),
+    ):
+        assert "standard_footer_note" not in resp and "standard_footer" not in resp
+
+
+def test_std_footer_note_two_stage_fallback_v0410(mock_client, monkeypatch):
+    """★2단 폴백: 상한이 note+footer는 못 담고 footer만 담는 구간이면 footer만 부착
+    (v0.40.0 부착 커버리지 무회귀의 구조적 보장 — 원자적 both-or-omit이 아님)."""
+    import json as _json
+    from korean_rnd_regs_mcp import main as main_mod
+    baseline = asyncio.run(search_provision("특별평가"))
+    footer_only = dict(baseline)
+    footer_only.pop("standard_footer_note")
+    footer_only_len = len(_json.dumps(footer_only, ensure_ascii=False))
+    full_len = len(_json.dumps(baseline, ensure_ascii=False))
+    assert footer_only_len < full_len
+    monkeypatch.setattr(main_mod, "_STD_FOOTER_RESPONSE_MAX", footer_only_len)
+    boundary = asyncio.run(search_provision("특별평가"))
+    assert "standard_footer" in boundary          # footer는 유지(무회귀)
+    assert "standard_footer_note" not in boundary  # note만 생략
+    assert boundary == footer_only
+
+
+def test_std_footer_note_not_on_detail_v0410(mock_client):
+    """상세(get_provision_detail) 응답에는 note 미부착 — 기확인 정상 경로 무접촉(P4·P2 보호)."""
+    detail = asyncio.run(get_provision_detail("law:283849"))
+    assert "standard_footer" in detail
+    assert "standard_footer_note" not in detail
+
+
+def test_std_footer_note_no_leak_into_items_v0410(mock_client):
+    """note·footer가 results/candidates/overflow 원소 내부로 누출되지 않음(top-level 한정)."""
+    search = asyncio.run(search_provision("특별평가"))
+    assert all("standard_footer_note" not in r for r in search["results"])
+    suggest = asyncio.run(suggest_review_sources("특별평가 사유는 무엇인가?"))
+    for coll in (suggest.get("candidates") or [], suggest.get("overflow_candidates") or []):
+        assert all("standard_footer_note" not in c for c in coll)
+
+
+def test_search_suggest_docstring_note_guidance_v0410():
+    """도구 docstring 2종: note 인접 지시 안내(따르되 note 자체는 답변에 옮기지 말 것) +
+    목록형 표시 규칙 완전 문장 잠금(Codex MINOR 반영 — 문면 saliency 의존 릴리스)."""
+    import re as _re
+
+    def _norm(s):
+        return _re.sub(r"\s+", " ", s or "")
+
+    sdoc = _norm(search_provision.__doc__)
+    qdoc = _norm(suggest_review_sources.__doc__)
+    for doc in (sdoc, qdoc):
+        assert "standard_footer_note(인접 지시)" in doc
+        assert "note 자체는 답변에 옮기지 마십시오" in doc
+    assert "검색 결과만으로 규정 내용을 안내·판단하는 답변에도, 목록만 나열하는 답변에도 마지막 줄들로 그대로 표시하십시오" in sdoc
+    assert "후보 목록만으로 규정 내용을 안내·판단하는 답변에도, 후보만 나열하는 답변에도 마지막 줄들로 그대로 표시하십시오" in qdoc

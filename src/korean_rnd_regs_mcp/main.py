@@ -186,7 +186,9 @@ _SERVER_INSTRUCTIONS = (
     "\"※ 매뉴얼 해설 부분은 「국가연구개발혁신법 매뉴얼」을 참고한 설명입니다. 매뉴얼은 법령·행정규칙이 아니며, "
     "내용이 다를 때는 법령·행정규칙 원문이 우선합니다.\"와 매뉴얼 응답 manual_meta의 notice 값 한 줄을 이 순서 그대로 추가하십시오. "
     "footer 블록은 답변당 정확히 1개만 표시하고, 여러 값을 연결·반복하거나 같은 취지의 면책·확인 문구를 별도로 만들어 중복 부착하지 마십시오. "
-    "단 도구 상태 확인·설치 안내처럼 규정 내용 판단이 없는 답변에는 이 하단 안내를 붙이지 마십시오."
+    "단, 도구 상태·설치·연결 등 서버 운영 안내만 하는 답변에는 이 하단 안내를 붙이지 마십시오. "
+    "규정 검색 결과나 조문·별표·검토 후보를 안내하는 답변에는 목록형이거나 검색 결과가 없어도 "
+    "앞의 standard_footer 선택·생략 폴백 규칙에 따라 붙이십시오."
 )
 
 mcp = FastMCP("korean-rnd-regs-mcp", instructions=_SERVER_INSTRUCTIONS, version=__version__)
@@ -1779,8 +1781,10 @@ async def search_provision(query: str) -> dict:
     v0.40.0: 진입부 오류(무키 인증 오류·invalid_query)를 제외한 정규 응답(0건·부분 오류 포함)에는
     답변 하단 표준 안내 완성형 standard_footer(법령 확인·매뉴얼 원문 안내)가 원칙적으로
     동반됩니다(응답이 크기 상한에 달한 극단 케이스는 생략될 수 있음) — 검색 결과만으로 규정
-    내용을 안내·판단하는 답변에도 마지막 줄들로 그대로 표시하십시오
+    내용을 안내·판단하는 답변에도, 목록만 나열하는 답변에도 마지막 줄들로 그대로 표시하십시오
     (매뉴얼 내용을 인용한 답변은 매뉴얼 응답의 standard_footer를 대신 사용).
+    v0.41.0: standard_footer 바로 앞의 standard_footer_note(인접 지시)는 위 표시 규칙의
+    요약이니 그대로 따르되, note 자체는 답변에 옮기지 마십시오.
 
     v0.16.0: law 조문 매치에 최신 개정 이력 힌트가 있으면 `latest_history`(예 "개정 2025.12.30(공포)")를
     additive 노출 — '최근 개정 조문' 질의에서 검색 결과만으로 개정 조문을 인지 가능(마커 부재 매치·평면
@@ -2026,7 +2030,8 @@ async def search_provision(query: str) -> dict:
     # v0.40.0: 검색만 보고 답하는 경로에도 하단 표준 안내 도달 — whole-or-omit이라
     # 기존 결과·순서·절단(위 pop 루프)은 byte 불변. 진입부 오류(invalid_query·auth)는
     # early-return이라 이 지점에 오지 않음(정규 반환 전부 부착 — 부분 오류 errors 병존 포함).
-    return _attach_std_footer(response)
+    # v0.41.0: 인접 지시 note 동반(P0 프로브 — 목록형 답변에서 부착 지시 미발화 실측 대응).
+    return _attach_std_footer(response, include_note=True)
 
 
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "openWorldHint": True})  # 외부 law.go.kr 호출
@@ -2063,8 +2068,10 @@ async def suggest_review_sources(
 
     v0.40.0: 진입부 오류(무키 인증 오류)를 제외한 정규 응답(0건·키워드 추출 실패 안내·부분 오류
     포함)에는 답변 하단 표준 안내 완성형 standard_footer(법령 확인·매뉴얼 원문 안내)가 원칙적으로
-    동반됩니다(크기 상한 도달 시 생략 가능) — 후보 목록만으로 규정 내용을 안내·판단하는 답변에도
-    마지막 줄들로 그대로 표시하십시오.
+    동반됩니다(크기 상한 도달 시 생략 가능) — 후보 목록만으로 규정 내용을 안내·판단하는 답변에도,
+    후보만 나열하는 답변에도 마지막 줄들로 그대로 표시하십시오.
+    v0.41.0: standard_footer 바로 앞의 standard_footer_note(인접 지시)는 위 표시 규칙의
+    요약이니 그대로 따르되, note 자체는 답변에 옮기지 마십시오.
     """
     _e = _http_no_key_error()
     if _e is not None:
@@ -2081,6 +2088,7 @@ async def suggest_review_sources(
 
     if not used:
         # v0.40.0: 무키워드 degraded도 정규 반환(오류 envelope 아님) — footer 부착 대상.
+        # v0.41.0: 인접 지시 note 동반(검색·후보 경로 공통).
         return _attach_std_footer({
             "question": question,
             "extracted_keywords": [],
@@ -2095,7 +2103,7 @@ async def suggest_review_sources(
             "note": _DEGRADED_NOTE_EMPTY,
             "disclaimer": _DISCLAIMER,
             "contract_version": CONTRACT_VERSION,
-        })
+        }, include_note=True)
 
     async def _search_union(kw_list: list[str]) -> tuple[dict[str, dict], list[dict]]:
         """키워드들을 1-hop 동의어로 확장해 search_provision union (dedupe).
@@ -2225,14 +2233,24 @@ async def suggest_review_sources(
     )
     # v0.40.0: 후보 제안만 보고 답하는 경로에도 하단 표준 안내 도달 — whole-or-omit이라
     # candidates·overflow_candidates 조립(위 예산 로직)은 byte 불변.
-    return _attach_std_footer(response)
+    # v0.41.0: 인접 지시 note 동반(P0 프로브 — 후보 나열형 답변에서 부착 지시 미발화 실측 대응).
+    return _attach_std_footer(response, include_note=True)
 
 
 _STD_FOOTER_RESPONSE_MAX = 16000  # 최종 상한(도구 응답 16k 예산) — 부착은 모든 tier/백스톱 이후 마지막 단계라 headroom(15,700) 기준 아님
 
+# v0.41.0: 검색·후보 응답 한정 인접 지시(manual_meta.standard_footer_note 패턴의 top-level 확장).
+# 목록형·0건 답변이 부착 실패의 실측 지점(P0 프로브)이라 그 경우를 문면에 명시 명명.
+# note는 footer와 함께 있을 때만 의미가 있으므로 단독 부착 경로 없음(아래 2단 폴백 참조).
+_STD_FOOTER_NOTE = (
+    "아래 standard_footer 값은 검색 결과·후보 목록만 나열하는 답변(결과 0건 포함)에도 "
+    "최종 답변의 마지막 줄들로 그대로 1회 표시하십시오. 매뉴얼 내용을 인용한 답변은 "
+    "매뉴얼 응답의 standard_footer를 대신 사용하고, 같은 취지 안내를 중복 부착하지 마십시오."
+)
 
-def _attach_std_footer(resp: dict) -> dict:
-    """규정 도구 정규 응답에 답변 하단 표준 안내(법령 확인 + 매뉴얼 원문 안내 2줄) 부착 (v0.29.0·v0.30.0·v0.40.0).
+
+def _attach_std_footer(resp: dict, include_note: bool = False) -> dict:
+    """규정 도구 정규 응답에 답변 하단 표준 안내(법령 확인 + 매뉴얼 원문 안내 2줄) 부착 (v0.29.0·v0.30.0·v0.40.0·v0.41.0).
 
     문면은 manual.FOOTER_LAW_LINE·FOOTER_MANUAL_SOURCE_LINE 단일 출처(매뉴얼 footer의
     처음 두 줄과 동일 문자열 — 호스트 dedup 자연 성립·값 일치는 테스트로 잠금).
@@ -2241,9 +2259,22 @@ def _attach_std_footer(resp: dict) -> dict:
     응답(v0.29.0) + search_provision·suggest_review_sources의 진입부 오류(auth_failed·
     invalid_query)를 제외한 정규 반환(v0.40.0 — 0건·무키워드 degraded·부분 오류 errors 병존
     포함. v0.29.0이 이연한 "search/suggest만 보고 답하는 경로" 갭 해소).
+
+    include_note=True(search·suggest 전용 — 상세 경로는 기존 거동 불변): standard_footer
+    바로 앞 키로 standard_footer_note(인접 지시)를 함께 부착. 2단 폴백 —
+    ①note+footer 직렬화 ≤16,000자면 둘 다 부착 ②초과면 footer만으로 재시도(v0.40.0
+    부착 커버리지 무회귀 보장) ③그래도 초과면 원본 무변경 생략. note 단독 부착은
+    구조적으로 불가(지시 대상인 footer 없는 note는 무의미).
     """
+    footer_val = FOOTER_LAW_LINE + "\n" + FOOTER_MANUAL_SOURCE_LINE
+    if include_note:
+        candidate = dict(resp)
+        candidate["standard_footer_note"] = _STD_FOOTER_NOTE
+        candidate["standard_footer"] = footer_val
+        if len(json.dumps(candidate, ensure_ascii=False)) <= _STD_FOOTER_RESPONSE_MAX:
+            return candidate
     candidate = dict(resp)
-    candidate["standard_footer"] = FOOTER_LAW_LINE + "\n" + FOOTER_MANUAL_SOURCE_LINE
+    candidate["standard_footer"] = footer_val
     if len(json.dumps(candidate, ensure_ascii=False)) <= _STD_FOOTER_RESPONSE_MAX:
         return candidate
     return resp
