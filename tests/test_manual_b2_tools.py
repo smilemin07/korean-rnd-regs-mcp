@@ -242,7 +242,7 @@ def test_golden_v0320_baseline_preserved(fresh_cache):
         return s.replace('"contract_version": "0.23.0"', '"contract_version": "N"') \
                 .replace('"contract_version": "0.24.0"', '"contract_version": "N"') \
                 .replace('"contract_version": "0.25.0"', '"contract_version": "N"') \
-                .replace('"contract_version": "0.29.0"', '"contract_version": "N"')
+                .replace('"contract_version": "0.30.0"', '"contract_version": "N"')
 
     assert norm(asyncio.run(get_manual_section("3-13"))) == norm(golden["detail_3_13"])
     assert norm(asyncio.run(get_manual_section("b3-5-3"))) == norm(golden["detail_b3_5_3"])
@@ -268,7 +268,7 @@ def test_b2_all_ids_full_text_citation_footer(fresh_cache):
         assert meta["manual_basis_date"] is None, sid
         assert meta["standard_footer"].count("※") == 4, sid
         assert "법령 기준일 원문 미표기" in meta["notice"], sid
-        assert r["contract_version"] == "0.29.0", sid
+        assert r["contract_version"] == "0.30.0", sid
         assert r["format_note"].startswith("본 content는 「국가연구개발사업 기술료 제도 매뉴얼」"), sid
 
 

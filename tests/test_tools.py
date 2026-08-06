@@ -558,7 +558,7 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
     """suggest 응답에 현행 contract_version(0.10.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.29.0"
+    assert result["contract_version"] == "0.30.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -883,7 +883,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.29.0"
+    assert result["contract_version"] == "0.30.0"
 
 
 # === _build_article_content  ===
@@ -3825,7 +3825,7 @@ def test_get_provision_detail_small_article_unchanged_v060(mock_client):
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None
     assert "content_available" not in result
-    assert result["contract_version"] == "0.29.0"
+    assert result["contract_version"] == "0.30.0"
 
 
 def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):
@@ -5156,3 +5156,156 @@ def test_resolver_malformed_date_selection_deterministic_v0370(monkeypatch):
     assert r.doc_id == "700002"
     assert r.pending_doc_id == ""
     assert r.resolve_failed is False
+
+
+# === v0.40.0: 검색·후보 경로 표준 안내 확대 — search/suggest standard_footer(§5.31) ===
+
+
+def test_search_std_footer_attached_v0400(mock_client):
+    """정상 검색 응답 부착 + 문면 = 규정 상세와 동일 문자열(3도구 '아무 하나만' 규칙 유지)."""
+    from korean_rnd_regs_mcp.manual import FOOTER_LAW_LINE, FOOTER_MANUAL_SOURCE_LINE
+    provision_footer = FOOTER_LAW_LINE + "\n" + FOOTER_MANUAL_SOURCE_LINE
+    result = asyncio.run(search_provision("특별평가"))
+    assert result["total"] >= 1
+    assert result["standard_footer"] == provision_footer
+    detail = asyncio.run(get_provision_detail("law:283849"))
+    assert detail["standard_footer"] == result["standard_footer"]
+    # top-level 전용 — results 원소 내부로 누출 없음
+    assert all("standard_footer" not in m for m in result["results"])
+
+
+def test_search_std_footer_on_zero_hit_v0400(mock_client):
+    """0건 정규 반환에도 부착 — 규정 부재 취지의 답변에도 원문 확인 안내는 유효."""
+    result = asyncio.run(search_provision("존재하지않는키워드조합쿼리"))
+    assert result["total"] == 0 and not result.get("errors")
+    assert "standard_footer" in result
+
+
+def test_search_std_footer_with_partial_errors_v0400(mock_client):
+    """부분 오류(errors 병존) 정규 반환 부착 — footer는 검색 성공을 주장하지 않아 부분 실패와 양립."""
+    mock_client.get_admin_rule_detail.side_effect = LawApiError("parse_failed", "synthetic error")
+    result = asyncio.run(search_provision("특별평가"))
+    assert result.get("errors")            # admrul 전건 오류 전파
+    assert result["total"] >= 1            # law 결과는 정상(부분 응답)
+    assert "standard_footer" in result
+
+
+def test_search_std_footer_on_all_fanout_errors_v0400(mock_client):
+    """전건 fan-out 오류 envelope(정규 반환)도 부착 — 진입부 오류만 제외하는 §5.31 규약."""
+    mock_client.get_law_detail.side_effect = LawApiError("parse_failed", "synthetic error")
+    mock_client.get_admin_rule_detail.side_effect = LawApiError("parse_failed", "synthetic error")
+    result = asyncio.run(search_provision("특별평가"))
+    assert result["total"] == 0 and result.get("errors")
+    assert "standard_footer" in result
+
+
+def test_search_std_footer_absent_on_entry_errors_v0400(mock_client, monkeypatch):
+    """진입부 오류 envelope 미부착: invalid_query·무키(auth_failed) early-return."""
+    from korean_rnd_regs_mcp import main as main_mod
+    short = asyncio.run(search_provision("법"))
+    assert short["errors"][0]["code"] == "invalid_query"
+    assert "standard_footer" not in short
+    err = {"errors": [{"code": "auth_failed", "message": "synthetic"}]}
+    monkeypatch.setattr(main_mod, "_http_no_key_error", lambda: dict(err))
+    nokey_search = asyncio.run(search_provision("특별평가"))
+    assert nokey_search["errors"][0]["code"] == "auth_failed"
+    assert "standard_footer" not in nokey_search
+    nokey_suggest = asyncio.run(suggest_review_sources("특별평가 사유는?"))
+    assert nokey_suggest["errors"][0]["code"] == "auth_failed"
+    assert "standard_footer" not in nokey_suggest
+
+
+def test_search_std_footer_whole_or_omit_v0400(mock_client, monkeypatch):
+    """whole-or-omit — 상한을 낮추면 footer만 빠지고 응답은 전 필드 동일(결과 수 무회귀의 구조적 보장)."""
+    from korean_rnd_regs_mcp import main as main_mod
+    baseline = asyncio.run(search_provision("특별평가"))
+    assert "standard_footer" in baseline
+    monkeypatch.setattr(main_mod, "_STD_FOOTER_RESPONSE_MAX", 10)
+    omitted = asyncio.run(search_provision("특별평가"))
+    assert "standard_footer" not in omitted
+    stripped = dict(baseline)
+    stripped.pop("standard_footer")
+    assert omitted == stripped
+
+
+def test_suggest_std_footer_attached_v0400(mock_client):
+    """suggest 정상 응답 부착 + candidates·overflow 원소 누출 없음 + 기존 조립 불변."""
+    from korean_rnd_regs_mcp.manual import FOOTER_LAW_LINE, FOOTER_MANUAL_SOURCE_LINE
+    result = asyncio.run(suggest_review_sources("특별평가 사유는 무엇인가?"))
+    assert result["standard_footer"] == FOOTER_LAW_LINE + "\n" + FOOTER_MANUAL_SOURCE_LINE
+    assert all("standard_footer" not in c for c in result["candidates"])
+    assert all("standard_footer" not in o for o in result.get("overflow_candidates", []))
+
+
+def test_suggest_std_footer_on_empty_keywords_v0400(mock_client):
+    """무키워드 degraded early-return(정규 반환·오류 envelope 아님)에도 부착."""
+    result = asyncio.run(suggest_review_sources("abc 123 ???"))
+    assert result["candidates"] == [] and result["note"] == _DEGRADED_NOTE_EMPTY
+    assert "standard_footer" in result
+
+
+def test_suggest_std_footer_whole_or_omit_v0400(mock_client, monkeypatch):
+    """suggest whole-or-omit — footer 외 전 필드 동일(cap·overflow 조립 byte 불변)."""
+    from korean_rnd_regs_mcp import main as main_mod
+    baseline = asyncio.run(suggest_review_sources("특별평가 사유는 무엇인가?"))
+    assert "standard_footer" in baseline
+    monkeypatch.setattr(main_mod, "_STD_FOOTER_RESPONSE_MAX", 10)
+    omitted = asyncio.run(suggest_review_sources("특별평가 사유는 무엇인가?"))
+    assert "standard_footer" not in omitted
+    stripped = dict(baseline)
+    stripped.pop("standard_footer")
+    assert omitted == stripped
+
+
+def test_v0400_prompt_surfaces_footer_selection_rules():
+    """프롬프트 2표면 문면 잠금: 선택 규칙 3도구 확대·구 단일 지목 문면 잔존 금지·폴백 2줄 정합."""
+    from korean_rnd_regs_mcp.main import _SERVER_INSTRUCTIONS, review_regulation_prompt
+    from korean_rnd_regs_mcp.manual import FOOTER_LAW_LINE, FOOTER_MANUAL_SOURCE_LINE
+    template = review_regulation_prompt("X")
+    for surface in (_SERVER_INSTRUCTIONS, template):
+        assert "규정 도구(search_provision·suggest_review_sources·get_provision_detail) 응답의 값" in surface
+        assert "규정 조회(get_provision_detail) 응답의 값" not in surface
+        # 생략 폴백 = 실제 footer 2줄과 동일 문자열(법령 확인 + KISTEP) — §5.22 미동기 갭 교정
+        assert FOOTER_LAW_LINE in surface
+        assert FOOTER_MANUAL_SOURCE_LINE in surface
+
+
+def test_v0400_search_suggest_docstrings_mention_footer():
+    """도구 자체 표면(docstring)에서 standard_footer 소비 안내 — 상세 도구와 동형."""
+    assert "standard_footer" in search_provision.__doc__
+    assert "standard_footer" in suggest_review_sources.__doc__
+
+
+def test_suggest_std_footer_with_partial_errors_v0400(mock_client):
+    """suggest 부분 오류(내부 search 오류 전파·errors 병존) 정규 반환 부착 — §5.31 행렬 잠금.
+
+    ★키워드 1개로 한정: suggest는 오류를 origin 키워드별로 전파하므로 다키워드 질문에서
+    전 규정 오류가 (키워드 수 × 규정 수)로 불어나 응답 16k 초과 → whole-or-omit 생략(규약
+    일관 동작·아래 오버플로 테스트가 별도 잠금). 부착 자체의 행렬 검증은 예산 내 시나리오로.
+    """
+    mock_client.get_admin_rule_detail.side_effect = LawApiError("parse_failed", "synthetic error")
+    result = asyncio.run(suggest_review_sources("특별평가 사유는 무엇인가?", keywords=["특별평가"]))
+    assert result.get("errors")            # admrul 오류가 키워드 태그와 함께 전파
+    assert result["total"] >= 1            # law 후보는 정상(부분 응답)
+    assert "standard_footer" in result
+
+
+def test_suggest_std_footer_on_all_search_errors_v0400(mock_client):
+    """suggest 전건 내부 search 오류 envelope(정규 반환)도 부착 — 진입부 오류만 제외."""
+    mock_client.get_law_detail.side_effect = LawApiError("parse_failed", "synthetic error")
+    mock_client.get_admin_rule_detail.side_effect = LawApiError("parse_failed", "synthetic error")
+    result = asyncio.run(suggest_review_sources("특별평가 사유는 무엇인가?", keywords=["특별평가"]))
+    assert result["total"] == 0 and result.get("errors")
+    assert "standard_footer" in result
+
+
+def test_suggest_std_footer_omitted_on_error_inflation_v0400(mock_client):
+    """다키워드 × 전 규정 오류로 errors가 팽창해 16k를 넘으면 footer만 생략(whole-or-omit) —
+    기존 필드는 그대로. 실측 발견(2026-08-06)을 규약 동작으로 잠금."""
+    import json as _json
+    mock_client.get_law_detail.side_effect = LawApiError("parse_failed", "synthetic error")
+    mock_client.get_admin_rule_detail.side_effect = LawApiError("parse_failed", "synthetic error")
+    result = asyncio.run(suggest_review_sources("특별평가 사유는 무엇인가?"))  # 규칙 추출 다키워드
+    assert result["total"] == 0 and result.get("errors")
+    assert len(_json.dumps(result, ensure_ascii=False)) > 16000  # 전제: 실제로 예산 초과
+    assert "standard_footer" not in result

@@ -178,9 +178,10 @@ _SERVER_INSTRUCTIONS = (
     "standard_footer 값(서버가 완성한 안내 블록)을 최종 답변의 마지막 줄(들)로 요약·윤문 없이 그대로 옮겨 표시하십시오 "
     "— 직접 조립하지 마십시오. 값 선택은 마지막 응답 값을 고르지 말고 최종 답변에 매뉴얼 내용을 인용했는지로 정하십시오: "
     "인용했으면 매뉴얼 응답 manual_meta의 값을(처음 두 줄에 법령·매뉴얼 원문 확인 안내가 이미 포함 — 규정 응답의 값을 덧붙이지 말 것), "
-    "인용하지 않았으면 규정 조회(get_provision_detail) 응답의 값을(여러 응답에 같은 값이 있으면 아무 하나만) 사용하십시오. "
+    "인용하지 않았으면 규정 도구(search_provision·suggest_review_sources·get_provision_detail) 응답의 값을(여러 응답에 같은 값이 있으면 아무 하나만) 사용하십시오. "
     "선택에 맞는 standard_footer가 없는 경우(구버전 응답·크기 상한으로 생략된 응답)에만 "
-    "\"※ 정확한 최종 확인은 국가법령정보센터(law.go.kr)의 관련 규정 원문을 기준으로 해주시기 바랍니다.\"를 직접 표시하고, "
+    "\"※ 정확한 최종 확인은 국가법령정보센터(law.go.kr)의 관련 규정 원문을 기준으로 해주시기 바랍니다.\"와 "
+    "\"※ 「국가연구개발혁신법 매뉴얼」 등 연구행정 관련 매뉴얼 원문은 KISTEP 홈페이지(www.kistep.re.kr)에서 확인하시기 바랍니다.\"를 이 순서로 직접 표시하고, "
     "매뉴얼 내용을 인용했다면 이어서 "
     "\"※ 매뉴얼 해설 부분은 「국가연구개발혁신법 매뉴얼」을 참고한 설명입니다. 매뉴얼은 법령·행정규칙이 아니며, "
     "내용이 다를 때는 법령·행정규칙 원문이 우선합니다.\"와 매뉴얼 응답 manual_meta의 notice 값 한 줄을 이 순서 그대로 추가하십시오. "
@@ -1775,6 +1776,12 @@ async def search_provision(query: str) -> dict:
     snippet은 _SNIPPET_MAX (2000자)로 제한, 전체 응답은 16k char 예산 내(초과 시 뒤쪽
     결과 절단·truncated=true — 광역 질의는 키워드를 좁혀 재검색할 것) — MCP output size limit 회피.
 
+    v0.40.0: 진입부 오류(무키 인증 오류·invalid_query)를 제외한 정규 응답(0건·부분 오류 포함)에는
+    답변 하단 표준 안내 완성형 standard_footer(법령 확인·매뉴얼 원문 안내)가 원칙적으로
+    동반됩니다(응답이 크기 상한에 달한 극단 케이스는 생략될 수 있음) — 검색 결과만으로 규정
+    내용을 안내·판단하는 답변에도 마지막 줄들로 그대로 표시하십시오
+    (매뉴얼 내용을 인용한 답변은 매뉴얼 응답의 standard_footer를 대신 사용).
+
     v0.16.0: law 조문 매치에 최신 개정 이력 힌트가 있으면 `latest_history`(예 "개정 2025.12.30(공포)")를
     additive 노출 — '최근 개정 조문' 질의에서 검색 결과만으로 개정 조문을 인지 가능(마커 부재 매치·평면
     admrul·별표는 생략). 날짜는 공포일(값에 (공포) 표기·시행일 아님)이고, 검색 매치는 키워드에 걸린 조문에
@@ -2016,7 +2023,10 @@ async def search_provision(query: str) -> dict:
         response["upcoming_revisions"] = _upcoming_out
     if errors:
         response["errors"] = errors
-    return response
+    # v0.40.0: 검색만 보고 답하는 경로에도 하단 표준 안내 도달 — whole-or-omit이라
+    # 기존 결과·순서·절단(위 pop 루프)은 byte 불변. 진입부 오류(invalid_query·auth)는
+    # early-return이라 이 지점에 오지 않음(정규 반환 전부 부착 — 부분 오류 errors 병존 포함).
+    return _attach_std_footer(response)
 
 
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "openWorldHint": True})  # 외부 law.go.kr 호출
@@ -2050,6 +2060,11 @@ async def suggest_review_sources(
     응답의 candidates는 상위 일부만 포함합니다(cap). cap에 밀린 조문은 overflow_candidates에
     [label·provision_id]로 함께 반환되니, 관련 있어 보이면 그 provision_id로 get_provision_detail을 호출해 확인하십시오.
     최종 판단은 사용자의 책임이며, 별표·매뉴얼·기관 운영규정 별도 확인이 필요합니다.
+
+    v0.40.0: 진입부 오류(무키 인증 오류)를 제외한 정규 응답(0건·키워드 추출 실패 안내·부분 오류
+    포함)에는 답변 하단 표준 안내 완성형 standard_footer(법령 확인·매뉴얼 원문 안내)가 원칙적으로
+    동반됩니다(크기 상한 도달 시 생략 가능) — 후보 목록만으로 규정 내용을 안내·판단하는 답변에도
+    마지막 줄들로 그대로 표시하십시오.
     """
     _e = _http_no_key_error()
     if _e is not None:
@@ -2065,7 +2080,8 @@ async def suggest_review_sources(
         keyword_source = "fallback"
 
     if not used:
-        return {
+        # v0.40.0: 무키워드 degraded도 정규 반환(오류 envelope 아님) — footer 부착 대상.
+        return _attach_std_footer({
             "question": question,
             "extracted_keywords": [],
             "keyword_source": keyword_source,
@@ -2079,7 +2095,7 @@ async def suggest_review_sources(
             "note": _DEGRADED_NOTE_EMPTY,
             "disclaimer": _DISCLAIMER,
             "contract_version": CONTRACT_VERSION,
-        }
+        })
 
     async def _search_union(kw_list: list[str]) -> tuple[dict[str, dict], list[dict]]:
         """키워드들을 1-hop 동의어로 확장해 search_provision union (dedupe).
@@ -2207,20 +2223,24 @@ async def suggest_review_sources(
         keyword_source, _search_calls, (time.monotonic() - _suggest_start) * 1000.0,
         len(all_errors), len(candidates),
     )
-    return response
+    # v0.40.0: 후보 제안만 보고 답하는 경로에도 하단 표준 안내 도달 — whole-or-omit이라
+    # candidates·overflow_candidates 조립(위 예산 로직)은 byte 불변.
+    return _attach_std_footer(response)
 
 
 _STD_FOOTER_RESPONSE_MAX = 16000  # 최종 상한(도구 응답 16k 예산) — 부착은 모든 tier/백스톱 이후 마지막 단계라 headroom(15,700) 기준 아님
 
 
 def _attach_std_footer(resp: dict) -> dict:
-    """규정 상세 성공 응답에 답변 하단 표준 안내(법령 확인 + 매뉴얼 원문 안내 2줄) 부착 (v0.29.0·v0.30.0).
+    """규정 도구 정규 응답에 답변 하단 표준 안내(법령 확인 + 매뉴얼 원문 안내 2줄) 부착 (v0.29.0·v0.30.0·v0.40.0).
 
     문면은 manual.FOOTER_LAW_LINE·FOOTER_MANUAL_SOURCE_LINE 단일 출처(매뉴얼 footer의
     처음 두 줄과 동일 문자열 — 호스트 dedup 자연 성립·값 일치는 테스트로 잠금).
     후보 사본의 최종 직렬화가 16,000자를 넘으면 원본을 전혀 변경하지 않고 생략(whole-or-omit)
-    — 기존 tier 판정·백스톱·필드 완전 불변. 커버 대상은 get_provision_detail 성공 응답 기반
-    답변이며, search/suggest만 보고 답하는 경로는 잔존(후속 eval 관측 — v0.29.0 /disc 3/3).
+    — 기존 tier 판정·백스톱·필드·결과 절단 완전 불변. 커버 대상 = get_provision_detail 성공
+    응답(v0.29.0) + search_provision·suggest_review_sources의 진입부 오류(auth_failed·
+    invalid_query)를 제외한 정규 반환(v0.40.0 — 0건·무키워드 degraded·부분 오류 errors 병존
+    포함. v0.29.0이 이연한 "search/suggest만 보고 답하는 경로" 갭 해소).
     """
     candidate = dict(resp)
     candidate["standard_footer"] = FOOTER_LAW_LINE + "\n" + FOOTER_MANUAL_SOURCE_LINE
@@ -2836,8 +2856,8 @@ _REVIEW_PROMPT_TEMPLATE = """당신은 연구행정 관련 규정 검토 전문�
 
 ### 답변 하단 표준 안내 (항상 적용 — 위 1~8절 형식과 별개의 최종 종결부)
 - 하단 표준 안내는 도구 응답의 standard_footer 값(서버가 완성한 안내 블록)을 답변 하단(최종 답변의 마지막 줄들)에 요약·윤문 없이 그대로 옮겨 표시할 것. 직접 조립하지 말 것.
-- 값 선택은 마지막 응답 값을 고르지 말고 최종 답변에 매뉴얼 내용을 인용했는지로 정할 것: 인용했으면 매뉴얼 응답 manual_meta의 값(처음 두 줄에 법령·매뉴얼 원문 확인 안내가 이미 포함 — 규정 응답의 값을 덧붙이지 말 것), 인용하지 않았으면 규정 조회(get_provision_detail) 응답의 값(여러 응답에 같은 값이 있으면 아무 하나만).
-- 선택에 맞는 standard_footer가 없는 경우(구버전 응답·크기 상한으로 생략된 응답)에만 "※ 정확한 최종 확인은 국가법령정보센터(law.go.kr)의 관련 규정 원문을 기준으로 해주시기 바랍니다."를 직접 표시하고, 매뉴얼 내용을 인용했다면 이어서 "※ 매뉴얼 해설 부분은 「국가연구개발혁신법 매뉴얼」을 참고한 설명입니다. 매뉴얼은 법령·행정규칙이 아니며, 내용이 다를 때는 법령·행정규칙 원문이 우선합니다."와 매뉴얼 응답 manual_meta의 notice 값 한 줄을 이 순서 그대로 추가할 것.
+- 값 선택은 마지막 응답 값을 고르지 말고 최종 답변에 매뉴얼 내용을 인용했는지로 정할 것: 인용했으면 매뉴얼 응답 manual_meta의 값(처음 두 줄에 법령·매뉴얼 원문 확인 안내가 이미 포함 — 규정 응답의 값을 덧붙이지 말 것), 인용하지 않았으면 규정 도구(search_provision·suggest_review_sources·get_provision_detail) 응답의 값(여러 응답에 같은 값이 있으면 아무 하나만).
+- 선택에 맞는 standard_footer가 없는 경우(구버전 응답·크기 상한으로 생략된 응답)에만 "※ 정확한 최종 확인은 국가법령정보센터(law.go.kr)의 관련 규정 원문을 기준으로 해주시기 바랍니다."와 "※ 「국가연구개발혁신법 매뉴얼」 등 연구행정 관련 매뉴얼 원문은 KISTEP 홈페이지(www.kistep.re.kr)에서 확인하시기 바랍니다."를 이 순서로 직접 표시하고, 매뉴얼 내용을 인용했다면 이어서 "※ 매뉴얼 해설 부분은 「국가연구개발혁신법 매뉴얼」을 참고한 설명입니다. 매뉴얼은 법령·행정규칙이 아니며, 내용이 다를 때는 법령·행정규칙 원문이 우선합니다."와 매뉴얼 응답 manual_meta의 notice 값 한 줄을 이 순서 그대로 추가할 것.
 - footer 블록은 답변당 정확히 1개만 표시하고, 여러 값을 연결·반복하거나 같은 취지의 면책·확인 문구를 별도로 만들어 중복 부착하지 말 것.
 """
 
