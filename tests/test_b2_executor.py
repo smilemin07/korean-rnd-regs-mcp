@@ -68,7 +68,7 @@ def test_cache_lock_never_wraps_network_or_parse():
     assert lock_blocks >= 8, f"_cache_lock 블록이 {lock_blocks}개뿐 — 캐시 touch 직렬화 누락 의심"
 
 
-def test_contract_version_0_31_0():
+def test_contract_version_0_32_0():
     """v0.31.0: 매뉴얼 본권 26.7판 현행화(§5.23) — 데이터 판 교체(41→43절·재번호 8건) +
     manual_meta.renumbering_note 조건부 additive(get_manual_section 대상 절 한정)
     → contract 0.23.0 → 0.24.0 minor bump(v0.33.0 별권 2 additive — 입력 스키마 무변·재연결 불요)
@@ -86,18 +86,21 @@ def test_contract_version_0_31_0():
     standard_footer_note 인접 지시 additive[footer 직전 키·footer-먼저 2단 폴백]·예외 문면 정밀화·
     입력 스키마 무변·재연결 불요)
     → 0.31.0 유지(v0.42.0 suggest fallback 요청 프레임 필터 — 응답 필드·shape·오류코드·입력 스키마
-    불변이고 fallback 키워드 추출 규칙만 변경. §5.33·§6 유지 행 참조).
+    불변이고 fallback 키워드 추출 규칙만 변경. §5.33·§6 유지 행 참조)
+    → 0.31.0 → 0.32.0 minor bump(v0.43.0 「국가 R&D 연구비 부적정집행 사례집」(KAIA·25.5) 수록 —
+    case 2레벨 id 계열·manual_case_unavailable·descriptor rank 6·규범성 가드 데이터 주도·
+    입력 스키마 무변·재연결 불요. §5.34 참조).
     직전 0.21.0: 출처·원문 확인 경로 정비(§5.22)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.31.0"
+    assert CONTRACT_VERSION == "0.32.0"
 
 
-def test_package_version_0_42_0():
-    """패키지 버전 0.42.0(suggest fallback 요청 프레임 필터 — 프레임 명사 stopword 확장 +
-    이웃 문맥 기반 프레임 용언·명사 제거·어미 정규화 미도입·contract 0.31.0 유지=재연결 불요).
-    직전 0.41.0(검색·후보 footer 발화 신호 보강 — standard_footer_note 인접 지시·contract 0.31.0)."""
+def test_package_version_0_43_0():
+    """패키지 버전 0.43.0(「국가 R&D 연구비 부적정집행 사례집」(KAIA·25.5) 수록 — 매뉴얼 트랙
+    7번째 소스·case- id 계열·contract 0.32.0=입력 스키마 무변·재연결 불요).
+    직전 0.42.0(suggest fallback 요청 프레임 필터 — contract 0.31.0 유지)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.42.0"
+    assert __version__ == "0.43.0"
 
 
 def test_cache_maxsize_96_v0240():

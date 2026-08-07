@@ -28,11 +28,13 @@ MANUAL_CHUNK_CONTENT_BUDGET = 12000
 
 SECTION_ID_RE = re.compile(
     r"^(?:\d+-\d+|ref-\d+|b3-(?:\d+-\d+|ref-\d+)|b2-(?:\d+-\d+|ref-\d+)|b1-(?:\d+-\d+|ref-\d+)"
-    r"|eval-(?:\d+-\d+|ref-\d+)|b4-(?:\d+|ref-\d+))$"
+    r"|eval-(?:\d+-\d+|ref-\d+)|b4-(?:\d+|ref-\d+)|case-\d+-\d+)$"
 )
 # ★b4는 단일 레벨(b4-0~b4-9·b4-ref-1) — 별권 4는 장(章) 없는 평면 편제라 인위 2레벨을 만들지
 # 않는다(v0.39.0 계획 /disc 3/3). b4-1-1형은 매치 실패 = invalid_section_id(의도 동작).
 # b4-99처럼 형식은 유효하나 실재하지 않는 id는 not_found로 안내된다.
+# ★case(v0.43.0·부적정집행 사례집)는 2레벨(case-1-1·case-2-1~case-2-10·case-3-1·case-4-1)만 —
+# 원문에 부록이 없어 case-ref-N 형식은 두지 않는다(투기적 허용 금지).
 
 _DATA_PATH = Path(__file__).parent / "manual_body.json"
 
@@ -84,6 +86,12 @@ _EVAL_CACHE: ManualData | ManualLoadError | None = None
 _B4_DATA_PATH = Path(__file__).parent / "manual_b4.json"
 _B4_LOCK = threading.Lock()
 _B4_CACHE: ManualData | ManualLoadError | None = None
+
+# 「국가 R&D 연구비 부적정집행 사례집」(KAIA·25.5) — 매뉴얼 트랙 최초의 기관(KAIA) 발간 사례집
+# 소스 (v0.43.0). 동일 사상의 독립 병렬 경로 — 한 소스 실패는 그 소스 조회에만 격리된다.
+_CASE_DATA_PATH = Path(__file__).parent / "manual_case.json"
+_CASE_LOCK = threading.Lock()
+_CASE_CACHE: ManualData | ManualLoadError | None = None
 
 
 def mdot_normalize(s: str) -> str:
@@ -572,9 +580,99 @@ def _load_b4_uncached() -> ManualData | ManualLoadError:
     return data
 
 
+def load_manual_case() -> ManualData | ManualLoadError:
+    """manual_case.json lazy 싱글턴 로드 — 별권·과제평가 표준지침과 동일 사상의 독립 병렬 경로 (v0.43.0)."""
+    global _CASE_CACHE
+    if _CASE_CACHE is not None:
+        return _CASE_CACHE
+    with _CASE_LOCK:
+        if _CASE_CACHE is not None:
+            return _CASE_CACHE
+        _CASE_CACHE = _load_case_uncached()
+        return _CASE_CACHE
+
+
+def _load_case_uncached() -> ManualData | ManualLoadError:
+    """별권 4 강화 로더 복제(case- 프리픽스) — 기존 로더 무변.
+
+    추가 검증: id 중복 0·case- 프리픽스·라우팅 정규식 일치(2레벨 case-N-M)·section_index 연속·
+    pages 비어 있지 않음·printed_page 정수·text 문자열·meta.section_count 일치.
+    메시지는 사례집 자신의 상태만 말한다.
+    """
+    if not _CASE_DATA_PATH.exists():
+        return ManualLoadError(
+            reason="file_missing",
+            message="부적정집행 사례집 데이터 파일(manual_case.json)이 패키지에 없습니다 — 패키징 누락 가능.",
+        )
+    try:
+        with open(_CASE_DATA_PATH, encoding="utf-8") as f:
+            payload = json.load(f)
+    except (ValueError, OSError) as exc:
+        return ManualLoadError(
+            reason="json_parse_failed",
+            message=f"부적정집행 사례집 데이터 파일 파싱 실패({type(exc).__name__}).",
+        )
+    if not isinstance(payload, dict):
+        return ManualLoadError(
+            reason="schema_invalid",
+            message="부적정집행 사례집 데이터 스키마 이상(최상위가 객체 아님).",
+        )
+    meta = payload.get("meta")
+    sections = payload.get("sections")
+    if not isinstance(meta, dict) or not isinstance(sections, list) or not sections:
+        return ManualLoadError(
+            reason="schema_invalid",
+            message="부적정집행 사례집 데이터 스키마 이상(meta/sections 부재).",
+        )
+    # v0.43.0 diff 적대검토 Codex 채택: source_title·edition 결측 데이터가 로드되면 citation이
+    # 본권 폴백("국가연구개발혁신법 매뉴얼(본권)")으로 오귀속될 수 있어 필수 meta를 fail-closed.
+    for req in ("source_title", "edition"):
+        if not isinstance(meta.get(req), str) or not meta.get(req):
+            return ManualLoadError(
+                reason="schema_invalid",
+                message=f"부적정집행 사례집 데이터 스키마 이상(meta.{req} 결측 — 출처 오귀속 방지 차단).",
+            )
+    try:
+        data = ManualData(meta=meta, sections=sections)
+        for idx, sec in enumerate(sections):
+            if not isinstance(sec, dict):
+                raise TypeError(f"section 원소 타입 이상: {type(sec).__name__}")
+            sid = sec.get("id", "")
+            if not isinstance(sid, str) or not sid.startswith("case-") or not SECTION_ID_RE.match(sid):
+                raise TypeError(f"section id 이상: {sid!r}")
+            if sid in data.by_id:
+                raise TypeError(f"section id 중복: {sid!r}")
+            if sec.get("section_index") != idx:
+                raise TypeError(f"section_index 불연속: {sid!r}")
+            pages = sec.get("pages")
+            if not isinstance(pages, list) or not pages:
+                raise TypeError(f"pages 비어 있음/타입 이상: {sid!r}")
+            for p in pages:
+                if not isinstance(p, dict) or type(p.get("printed_page")) is not int \
+                        or not isinstance(p.get("text"), str):
+                    raise TypeError(f"page 항목 타입 이상: {sid!r}")
+            data.by_id[sid] = sec
+            full = "\n".join(p.get("text", "") for p in pages)
+            data.full_text[sid] = full
+            data.norm_body[sid] = mdot_normalize(full)
+            title_fields = " ".join(
+                [str(sec.get("section_title", "")), str(sec.get("chapter_title", "")), str(sec.get("section_label", ""))]
+                + [str(x) for x in sec.get("subsection_titles", []) if isinstance(x, str)]
+            )
+            data.norm_title[sid] = mdot_normalize(title_fields)
+        if meta.get("section_count") != len(sections):
+            raise TypeError(f"meta.section_count {meta.get('section_count')!r} != 실제 {len(sections)}")
+    except Exception as exc:
+        return ManualLoadError(
+            reason="schema_invalid",
+            message=f"부적정집행 사례집 데이터 구조 손상({type(exc).__name__}) — 인덱스 구축 실패.",
+        )
+    return data
+
+
 def _reset_cache_for_tests() -> None:
     """테스트 전용 — 캐시 초기화(운영 코드에서 호출 금지)."""
-    global _CACHE, _B3_CACHE, _B2_CACHE, _B1_CACHE, _EVAL_CACHE, _B4_CACHE
+    global _CACHE, _B3_CACHE, _B2_CACHE, _B1_CACHE, _EVAL_CACHE, _B4_CACHE, _CASE_CACHE
     with _LOCK:
         _CACHE = None
     with _B3_LOCK:
@@ -587,6 +685,8 @@ def _reset_cache_for_tests() -> None:
         _EVAL_CACHE = None
     with _B4_LOCK:
         _B4_CACHE = None
+    with _CASE_LOCK:
+        _CASE_CACHE = None
 
 
 # 답변 하단 표준 안내 — 서버 프롬프트(instructions·review 템플릿)와 문면이 일치해야 하는
@@ -606,7 +706,13 @@ FOOTER_MANUAL_LINE = (
 )
 
 
-def build_standard_footer(notice: str, manual_content_included: bool, manual_line: str | None = None) -> str:
+def build_standard_footer(
+    notice: str,
+    manual_content_included: bool,
+    manual_line: str | None = None,
+    source_line: str | None = None,
+    extra_source_lines: list[str] | None = None,
+) -> str:
     """답변 하단 표준 안내 완성형 블록 (v0.28.0·v0.30.0 매뉴얼 원문 안내 줄 추가).
 
     manual_content_included = 이 응답이 매뉴얼 해설 텍스트를 실제로 실어 보냈는가
@@ -619,8 +725,17 @@ def build_standard_footer(notice: str, manual_content_included: bool, manual_lin
     manual_line(v0.38.0): 3번째 줄 per-source 문면 — 기본 문면이 「국가연구개발혁신법 매뉴얼」을
     명시하므로 비시리즈 독립 자료(과제평가 표준지침)는 데이터 meta.footer_manual_line로 자기
     문면을 공급한다(기존 4소스는 키 부재 → 기본 문면·기존 응답 byte 불변).
+
+    source_line(v0.43.0): 2번째 줄(원문 확인처) per-source 문면 — 기본 문면이 KISTEP 홈페이지를
+    명시하므로 비KISTEP 발간 자료(KAIA 부적정집행 사례집)는 데이터 meta.footer_source_line로
+    자기 확인처를 공급한다(단독 응답 한정 교체 — 기존 소스는 키 부재 → 기본 문면·byte 불변.
+    diff 적대검토 Codex MAJOR 채택: KAIA 자료 원문 확인처를 KISTEP으로 오귀속하지 않기 위함).
+    extra_source_lines(v0.43.0): 혼합 응답 전용 — 기본 확인처 줄을 유지한 채 커스텀 확인처
+    줄(들)을 뒤에 병기한다(혼합 구성에 KISTEP 계열·KAIA 계열이 공존하므로 교체가 아니라 병기).
     """
-    lines = [FOOTER_LAW_LINE, FOOTER_MANUAL_SOURCE_LINE]
+    lines = [FOOTER_LAW_LINE, source_line or FOOTER_MANUAL_SOURCE_LINE]
+    if extra_source_lines:
+        lines.extend(extra_source_lines)
     if manual_content_included:
         lines.append(manual_line or FOOTER_MANUAL_LINE)
         lines.append(f"※ {notice}")
@@ -741,8 +856,11 @@ def manual_meta_block(
         "law_priority_note": _law_priority_note(meta, subject, basis, edition),
         "notice": notice,
         # v0.38.0: footer 3번째 줄 per-source 문면(meta.footer_manual_line) — 키 부재 소스는 기본 문면(byte 불변)
+        # v0.43.0: footer 2번째 줄(원문 확인처)도 per-source(meta.footer_source_line) — KAIA 발간
+        # 사례집 단독 응답이 원문 확인처를 KISTEP으로 오귀속하지 않게 함(키 부재 소스 byte 불변)
         "standard_footer": build_standard_footer(
-            notice, manual_content_included, _one_line(meta.get("footer_manual_line")) or None
+            notice, manual_content_included, _one_line(meta.get("footer_manual_line")) or None,
+            source_line=_one_line(meta.get("footer_source_line")) or None,
         ),
         "standard_footer_note": (
             "위 standard_footer는 답변 마지막에 그대로(요약·윤문 없이) 1회 표시할 완성형 안내입니다. "
@@ -866,12 +984,26 @@ def mixed_manual_meta_block(
         # v0.38.0(diff 적대검토 Codex MAJOR 반영): 혼합 footer 3번째 줄 — 전 소스가 기본 문면이면
         # 기본(기존 조합 byte 불변·v0.32.0 보존 잠금), 전 소스가 같은 커스텀이면 그 문면, 기본+커스텀
         # 혼합이면 일반 지칭 문면(primary 문면만 쓰면 다른 소스 발췌가 오귀속 — 자료 열거는 notice 담당).
+        # v0.43.0: 혼합 구성에 커스텀 원문 확인처 소스(footer_source_line — KAIA 사례집)가 있으면
+        # 기본 확인처 줄 뒤에 병기(교체 아님 — KISTEP 계열 소스가 함께 있으므로. 기존 조합은
+        # 커스텀 확인처 소스가 없어 byte 불변).
         "standard_footer": build_standard_footer(
             notice, manual_content_included,
             _mixed_manual_line([primary_meta] + [m for _oid, m in others]),
+            extra_source_lines=_mixed_extra_source_lines([primary_meta] + [m for _oid, m in others]),
         ),
     })
     return out
+
+
+def _mixed_extra_source_lines(metas: list[dict]) -> list[str] | None:
+    """혼합 응답의 커스텀 원문 확인처 줄 수집(v0.43.0) — 데이터 순서 유지·중복 제거. 없으면 None."""
+    seen: list[str] = []
+    for m in metas:
+        line = _one_line(m.get("footer_source_line"))
+        if line and line not in seen:
+            seen.append(line)
+    return seen or None
 
 
 def _mixed_manual_line(metas: list[dict]) -> str | None:
@@ -998,6 +1130,15 @@ MANUAL_FORMAT_NOTE_EVAL = (
     "범부처 표준지침이며 법령·행정규칙 원문이 아닙니다(각 부처는 이를 고려해 자체 평가지침을 마련). "
     "표 포함 페이지는 PDF 추출 특성상 셀 텍스트 순서·제목 위치가 원본 배치와 다를 수 있으므로, "
     "수치·조건을 인용할 때는 표기된 인쇄쪽으로 원문 대조를 권장합니다."
+)
+
+# 부적정집행 사례집 전용 format note (v0.43.0 — 기관(KAIA) 발간 참고 사례집이라 문서 성격을 정확히 기재).
+MANUAL_FORMAT_NOTE_CASE = (
+    "본 content는 「국가 R&D 연구비 부적정집행 사례집」(국토교통과학기술진흥원(KAIA) 발간, 2025.05) "
+    "PDF에서 추출한 텍스트 그대로입니다. 이 자료는 교육·참고용 사례집이며 법령·행정규칙 원문이 "
+    "아니고, 개별 사안에 대한 정산 판정·제재처분 결정도 아닙니다. 사례·FAQ 박스가 좌우로 배치된 "
+    "페이지는 PDF 추출 특성상 텍스트 순서가 원본 배치와 다를 수 있으므로, 수치·조건을 인용할 때는 "
+    "표기된 인쇄쪽으로 원문 대조를 권장합니다."
 )
 
 

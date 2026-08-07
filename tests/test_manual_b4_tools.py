@@ -157,7 +157,7 @@ def test_b4_all_ids_serve(fresh_cache):
     for sid in B4_ALL_IDS:
         r = asyncio.run(get_manual_section(sid))
         assert r.get("errors") is None, sid
-        assert r["contract_version"] == "0.31.0", sid
+        assert r["contract_version"] == "0.32.0", sid
         assert 3 <= r["page_start"] <= r["page_end"] <= 50, sid
         if sid == "b4-ref-1":
             assert r["content_available"] is False, sid
@@ -195,8 +195,8 @@ def test_b4_reference_title_queries_reach_parent(fresh_cache):
 def test_b4_search_merge_and_citation(fresh_cache):
     r = asyncio.run(search_manual("연구시설 장비비 통합관리계정"))
     assert r["errors"] == []
-    assert r["searched_sources"] == ["main", "b3", "b2", "b1", "eval", "b4"]
-    assert r["scanned_sections"] == 133
+    assert r["searched_sources"] == ["main", "b3", "b2", "b1", "eval", "b4", "case"]
+    assert r["scanned_sections"] == 146
     b4_hits = [m for m in r["matches"] if m["source"] == "b4"]
     assert b4_hits
     for m in b4_hits:
@@ -205,8 +205,11 @@ def test_b4_search_merge_and_citation(fresh_cache):
 
 
 def test_b4_mixed_meta_with_main(fresh_cache):
-    """본권+별권 4 혼합 meta — sources 병기·provenance 별권 4 안내·footer는 기본 문면(시리즈 혼합)."""
-    r = asyncio.run(search_manual("연구시설 장비비 통합관리계정"))
+    """본권+별권 4 혼합 meta — sources 병기·provenance 별권 4 안내·footer는 기본 문면(시리즈 혼합).
+    v0.43.0: 종전 질의("연구시설 장비비 통합관리계정")는 case 소스도 매치되어 혼합 footer로
+    바뀌므로, 시리즈-only 혼합 시나리오를 보존하는 질의로 교체(케이스 혼합 footer는
+    test_manual_case_tools.py에서 별도 잠금)."""
+    r = asyncio.run(search_manual("통합 연구시설 장비비 적립"))
     meta = r["manual_meta"]
     assert set(meta["sources"].keys()) >= {"main", "b4"}
     assert "sources.b4" in meta["provenance_note"]
@@ -237,10 +240,10 @@ def test_b4_corrupt_data_isolated(fresh_cache, monkeypatch, tmp_path):
     assert isinstance(r, manual_mod.ManualLoadError)
     resp = asyncio.run(search_manual("협약 변경"))
     assert resp["errors"] == []
-    assert resp["searched_sources"] == ["main", "b3", "b2", "b1", "eval"]
+    assert resp["searched_sources"] == ["main", "b3", "b2", "b1", "eval", "case"]
     assert resp["unavailable_sources"] == ["b4"]
     assert resp["source_warnings"][0]["code"] == "manual_b4_unavailable"
-    assert "본권·별권 3·별권 2·별권 1·과제평가 표준지침만 검색한 부분 결과" in resp["source_warnings"][0]["message"]
+    assert "본권·별권 3·별권 2·별권 1·과제평가 표준지침·부적정집행 사례집만 검색한 부분 결과" in resp["source_warnings"][0]["message"]
     resp2 = asyncio.run(get_manual_section("b4-5"))
     msg = resp2["errors"][0]["message"]
     assert resp2["errors"][0]["code"] == "manual_b4_unavailable"
@@ -256,8 +259,9 @@ def test_b4_corrupt_data_isolated(fresh_cache, monkeypatch, tmp_path):
 
 
 def test_b4_descriptor_appended_last(fresh_cache):
+    """append-only: v0.43.0 case 추가 후에도 b4의 위치(index 4)·rank 5 불변."""
     descs = main_mod._MANUAL_SUPPLEMENTS
-    b4 = descs[-1]
+    b4 = descs[4]
     assert b4["source_id"] == "b4" and b4["source_rank"] == 5 and b4["prefix"] == "b4-"
     assert b4["error_code"] == "manual_b4_unavailable"
     assert "연구시설·장비비 통합관리제 운영·관리 매뉴얼" in b4["label"]
