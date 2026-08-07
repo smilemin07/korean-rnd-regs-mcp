@@ -5313,14 +5313,25 @@ def test_suggest_std_footer_on_all_search_errors_v0400(mock_client):
 
 def test_suggest_std_footer_omitted_on_error_inflation_v0400(mock_client):
     """다키워드 × 전 규정 오류로 errors가 팽창해 16k를 넘으면 footer만 생략(whole-or-omit) —
-    기존 필드는 그대로. 실측 발견(2026-08-06)을 규약 동작으로 잠금."""
+    기존 필드는 그대로. 실측 발견(2026-08-06)을 규약 동작으로 잠금.
+
+    v0.42.0: 구 질문("특별평가 사유는 무엇인가?")은 요청 프레임 필터가 "무엇인가"를 제거해
+    키워드가 2개로 줄면서 예산 초과 전제가 깨졌다(15,225자). 검증 대상은 예산 초과 시의
+    whole-or-omit 규약이므로, 전제를 되살리도록 질문만 다키워드로 교체한다."""
     import json as _json
     mock_client.get_law_detail.side_effect = LawApiError("parse_failed", "synthetic error")
     mock_client.get_admin_rule_detail.side_effect = LawApiError("parse_failed", "synthetic error")
-    result = asyncio.run(suggest_review_sources("특별평가 사유는 무엇인가?"))  # 규칙 추출 다키워드
+    # 규칙 추출 다키워드 (특별평가·사유·연구개발비·정산·절차)
+    result = asyncio.run(suggest_review_sources("특별평가 사유와 연구개발비 정산 절차는 무엇인가?"))
     assert result["total"] == 0 and result.get("errors")
     assert len(_json.dumps(result, ensure_ascii=False)) > 16000  # 전제: 실제로 예산 초과
     assert "standard_footer" not in result
+    # v0.41.0 규약: note 단독 부착 경로 없음 — footer가 생략되면 note도 없다
+    assert "standard_footer_note" not in result
+    # "기존 필드는 그대로" — core 필드는 whole-or-omit의 영향을 받지 않는다
+    for key in ("question", "extracted_keywords", "keyword_source", "candidates", "total",
+                "overflow_candidates", "note", "disclaimer", "contract_version"):
+        assert key in result
 
 
 # === v0.41.0: 검색·후보 footer 발화 신호 보강 — standard_footer_note 인접 지시 + 예외 문면 정밀화 ===
@@ -5426,3 +5437,240 @@ def test_search_suggest_docstring_note_guidance_v0410():
         assert "note 자체는 답변에 옮기지 마십시오" in doc
     assert "검색 결과만으로 규정 내용을 안내·판단하는 답변에도, 목록만 나열하는 답변에도 마지막 줄들로 그대로 표시하십시오" in sdoc
     assert "후보 목록만으로 규정 내용을 안내·판단하는 답변에도, 후보만 나열하는 답변에도 마지막 줄들로 그대로 표시하십시오" in qdoc
+
+
+# === v0.42.0: suggest fallback 요청 프레임 필터 ===
+# 관측 결함(2026-08-07): keywords 미제공 질문 "…전용할 때 검토해야 할 규정 후보와 검토 순서"에서
+# 서버 규칙 추출이 '검토해야·규정·후보·검토·순서'를 키워드로 만들어, 코퍼스 258건에 걸리는 '검토'
+# 단독 매칭 조문("규제의 재검토"류)이 후보 상위를 점유했다.
+# 설계 불변식: ①어미 정규화 없음(어간 승격 금지 — 명사 훼손·광역 어간 희석 회피) ②프레임 판정은
+# 조사 strip 직후 원래 토큰 순서의 이웃으로만 ③명사 "검토"는 더 좁은 집합으로만 제거
+# ④client 제공 keywords 무접촉 ⑤전부 걸러지면 기존 degraded 경로로 낙하.
+
+_A1_QUESTION = "연구개발비를 다른 비목으로 전용할 때 검토해야 할 규정 후보와 검토 순서"
+
+
+def test_extract_keywords_drops_request_frame_v0420():
+    """관측 질문: 요청 프레임어 소멸·실질 명사 보존(추가 키워드 없음 = 순수 제거)."""
+    result = _extract_keywords(_A1_QUESTION, max_count=10)
+    assert result == ["연구개발비", "비목", "전용할"]
+    for noise in ("검토해야", "규정", "후보", "검토", "순서"):
+        assert noise not in result
+
+
+def test_extract_keywords_no_stem_normalization_v0420():
+    """어미 정규화를 도입하지 않는다 — 활용형은 원형 그대로 남는다(어간 승격 금지).
+
+    광역 어간 희석 회피(실측 2026-08-07: 실시 422·사용 453·평가 551 vs 활용형 '실시해야' 13)와
+    명사 훼손 회피('참여제한'→'참여제')가 근거. 정규화는 별도 검증 과제로 분리했다.
+    """
+    assert "전용할" in _extract_keywords(_A1_QUESTION, max_count=10)
+    assert "통합관리하려면" in _extract_keywords("연구시설·장비비를 통합관리하려면", max_count=10)
+
+
+def test_extract_keywords_noun_traps_unchanged_v0420():
+    """명사 함정 무회귀 — 어미를 자르지 않으므로 구조적으로 훼손이 불가능하다."""
+    cases = {
+        "참여제한 처분을 받으면 어떻게 되는가": "참여제한",
+        "기술료 납부기한을 연장할 수 있는가": "납부기한",
+        "무제한으로 이월할 수 있는가": "무제한",
+        "전문기관의 관할과 역할은 무엇인가": "관할",
+        "연구개발과제를 세분할할 수 있는 요건": "세분할할",
+    }
+    for question, must_keep in cases.items():
+        assert must_keep in _extract_keywords(question, max_count=10)
+    # '역할'도 동일 질문에서 보존
+    assert "역할" in _extract_keywords("전문기관의 관할과 역할은 무엇인가", max_count=10)
+
+
+def test_extract_keywords_preserves_review_noun_in_legal_context_v0420():
+    """명사 '검토'는 법령 문맥에서 보존 — 좁은 집합(_FRAME_SHAPE_WORDS)에만 반응."""
+    # '규정'은 넓은 집합에만 있어 명사 '검토'를 지우지 않는다
+    assert "검토" in _extract_keywords("연구개발기관에 대한 사전 검토 규정을 알려줘", max_count=10)
+    assert "검토" in _extract_keywords("검토 결과 통보는 언제 이루어지는가", max_count=10)
+    assert "검토" in _extract_keywords("중복성 검토 결과를 통보받은 경우", max_count=10)
+    # '재검토'는 어간이 달라 프레임 규칙에 걸리지 않는다
+    assert "재검토" in _extract_keywords("제재처분에 대한 재검토 요청 절차를 알려달라", max_count=10)
+
+
+def test_extract_keywords_preserves_frame_verb_without_frame_neighbor_v0420():
+    """실질 의미로 쓰인 프레임 용언은 보존 — 이웃에 프레임 명사가 없으면 제거하지 않는다."""
+    result = _extract_keywords("위원회가 검토해야 하는 사항은 무엇인가", max_count=10)
+    assert "검토해야" in result
+
+
+def test_extract_keywords_new_stopwords_v0420():
+    """의문형·요청 표면어만 제거(코퍼스 매칭 0건 또는 검색 무가치) + 법적 의미어는 보존."""
+    dropped = _extract_keywords(
+        "연구시설·장비비를 통합관리하려면 어떤 절차를 거쳐야 하는가", max_count=10
+    )
+    assert "하는가" not in dropped
+    assert "절차" in dropped
+    # ★의무 표현은 stopword 금지 — "실시해야"(13건)처럼 활용형 자체가 고정밀일 수 있다
+    assert "거쳐야" in dropped
+    assert "받아야" in _extract_keywords("승인을 받아야 하는 경우", max_count=10)
+    # 법적 의미가 있는 단어는 stopword로 만들지 않았다
+    kept = _extract_keywords("평가 결과 통지 기한은 어떻게 되는가", max_count=10)
+    assert "결과" in kept and "통지" in kept and "기한" in kept
+    assert "되는가" not in kept
+    from korean_rnd_regs_mcp import main as main_mod
+
+    for legal_word in ("결과", "확인", "조회", "정리", "안내", "통보", "통지"):
+        assert legal_word not in main_mod._KEYWORD_STOPWORDS
+
+
+def test_extract_keywords_frame_only_question_is_empty_v0420():
+    """요청 형식만 있는 질문은 빈 목록 — 무관 후보를 만들지 않고 degraded 경로로 넘긴다."""
+    for question in (
+        "검토 순서와 규정 후보 목록 추천",
+        "검토 순서를 정리해 달라",
+        "관련 조문 목록을 추천해 달라",
+        "관련 법령 조문을 안내해 달라",
+    ):
+        assert _extract_keywords(question, max_count=10) == []
+
+
+def test_is_frame_request_verb_boundaries_v0420():
+    """어간+어미 정확 일치만 True — prefix 오탐·어미 없는 명사 오탐 차단."""
+    from korean_rnd_regs_mcp.main import _is_frame_request_verb
+
+    assert _is_frame_request_verb("검토해야") is True
+    assert _is_frame_request_verb("검토할") is True
+    assert _is_frame_request_verb("추천해") is True
+    assert _is_frame_request_verb("검토") is False        # 어미 없음 = 명사
+    assert _is_frame_request_verb("재검토해야") is False   # 어간이 '재검토'
+    assert _is_frame_request_verb("검토위원회") is False   # 잔여가 어미 아님
+
+
+def test_frame_constant_invariants_v0420():
+    """상수 불변식: 좁은 집합 ⊆ 넓은 집합, ★프레임 어휘는 전역 stopword가 아님(실제 조문어),
+    어간은 어미로 끝나지 않음."""
+    from korean_rnd_regs_mcp import main as main_mod
+
+    assert main_mod._FRAME_SHAPE_WORDS <= main_mod._FRAME_REQUEST_WORDS
+    # ★전역 삭제 금지 — 위치·문맥과 무관하게 지우면 '평가위원 후보단'·'중장기 기술확보 목록'
+    #   같은 실제 조문 제목을 잃는다(2026-08-07 적대검토 적발). 꼬리 요청 절에서만 제거한다.
+    assert main_mod._FRAME_REQUEST_WORDS.isdisjoint(main_mod._KEYWORD_STOPWORDS)
+    assert main_mod._FRAME_CONTEXT_NOUNS.isdisjoint(main_mod._KEYWORD_STOPWORDS)
+    for stem in main_mod._FRAME_VERB_STEMS:
+        assert not stem.endswith(main_mod._FRAME_VERB_ENDINGS)
+
+
+def test_suggest_client_keywords_untouched_by_frame_filter_v0420(mock_client):
+    """client 제공 keywords는 프레임 필터 무접촉 — 호스트 의도를 서버가 임의로 지우지 않는다."""
+    result = asyncio.run(
+        suggest_review_sources("아무 상황", keywords=["검토", "규정", "특별평가"])
+    )
+    assert result["keyword_source"] == "client"
+    assert result["extracted_keywords"] == ["검토", "규정", "특별평가"]
+
+
+def test_suggest_frame_only_question_degrades_v0420(mock_client):
+    """프레임어만 있는 질문 → 무키워드 degraded 정규 반환(오류 아님) + footer 동반."""
+    result = asyncio.run(suggest_review_sources("검토 순서와 규정 후보 목록 추천"))
+    assert result["keyword_source"] == "fallback"
+    assert result["extracted_keywords"] == []
+    assert result["candidates"] == [] and result["total"] == 0
+    assert "[degraded]" in result["note"]
+    assert "standard_footer" in result  # v0.40.0 부착 커버리지 무회귀
+    assert "code" not in result         # 오류 envelope이 아님
+
+
+def test_suggest_observed_defect_keywords_v0420(mock_client):
+    """관측 질문의 suggest 응답 잠금 — extracted_keywords에서 프레임 노이즈 소멸."""
+    result = asyncio.run(suggest_review_sources(_A1_QUESTION))
+    assert result["keyword_source"] == "fallback"
+    assert result["extracted_keywords"] == ["연구개발비", "비목", "전용할"]
+
+
+# === v0.42.0 적대검토 반영(2026-08-07 diff 라운드) ===
+# 적발: ①보조용언("하는")이 끼면 바로 옆 칸만 보던 이웃 판정이 요청 문맥을 놓쳐 '검토해야'가
+# 생존(MAJOR) ②붙여 쓴 합성 어미('검토해야할')가 어미 목록에 없어 미탐(MINOR).
+# 처방: _frame_neighbor가 문법 필러(기존 stopword)를 건너뛴 내용어 이웃을 찾고, 합성 어미 보강.
+
+
+def test_frame_neighbor_skips_grammatical_filler_v0420():
+    """보조용언이 끼어도 요청 문맥을 인식 — '검토해야 하는 규정 후보'."""
+    result = _extract_keywords("연구개발비를 전용할 때 검토해야 하는 규정 후보", max_count=10)
+    assert result == ["연구개발비", "전용할"]
+    assert "검토해야" not in result
+
+
+def test_frame_verb_compound_ending_v0420():
+    """붙여 쓴 합성 어미도 요청 프레임으로 인식 — '검토해야할'."""
+    from korean_rnd_regs_mcp.main import _is_frame_request_verb
+
+    assert _is_frame_request_verb("검토해야할") is True
+    assert _is_frame_request_verb("검토하여야할") is True
+    assert _is_frame_request_verb("검토하는지") is True
+    assert _extract_keywords("검토해야할 규정 후보", max_count=10) == []
+
+
+def test_frame_neighbor_does_not_overreach_v0420():
+    """필러만 건너뛴다 — 내용어가 사이에 있으면 요청 문맥으로 보지 않는다(과잉 삭제 차단)."""
+    # '사항'(내용어)이 이웃이므로 실질 의미의 '검토해야'는 그대로 보존
+    assert "검토해야" in _extract_keywords("위원회가 검토해야 하는 사항은 무엇인가", max_count=10)
+    # 명사 '검토'도 내용어 이웃('대상')이면 보존
+    assert "검토" in _extract_keywords("검토 대상 사업의 목록", max_count=10)
+
+
+def test_frame_neighbor_skips_only_fillers_v0420():
+    """이웃 탐색은 문법 필러(stopword)만 건너뛴다 — 프레임어·내용어는 그대로 반환."""
+    from korean_rnd_regs_mcp import main as main_mod
+
+    tokens = ["검토", "하는", "규정", "후보"]
+    assert main_mod._frame_neighbor(tokens, 0, +1) == "규정"   # '하는'(필러) 건너뜀
+    assert main_mod._frame_neighbor(tokens, 3, -1) == "규정"
+    assert main_mod._frame_neighbor(tokens, 0, -1) == ""       # 경계
+
+
+
+# === v0.42.0 적대검토 2차 반영 — 꼬리 요청 절 한정 재설계 ===
+# 적발(Codex MAJOR-1·2): 프레임 명사를 전역 stopword로 넣으면 실제 조문 제목을 지운다
+#   (코퍼스 실측: '산업기술혁신평가위원 후보단'·'평가위원 추천 기준'·'중장기 기술확보 목록'·
+#   '국방기술 통제목록의 작성'·'다른 법령과의 관계'). 의무 표현 '받아야'(54)·'거쳐야'(27)도 같다.
+# 처방: 전역 삭제를 버리고 **질문 꼬리의 요청 절**에서만 제거(내용어를 만나면 중지).
+
+
+def test_frame_nouns_preserved_as_regulation_terms_v0420():
+    """★코퍼스 반례 — 프레임 명사가 실제 조문어로 쓰이면 보존한다(뒤에 내용어가 있음)."""
+    assert _extract_keywords("평가위원 후보 추천 기준을 알려줘", max_count=10) == [
+        "평가위원", "후보", "추천", "기준",
+    ]
+    assert "목록" in _extract_keywords("중장기 기술확보 목록 수정 절차", max_count=10)
+    assert _extract_keywords("후보 추천 절차", max_count=10) == ["후보", "추천", "절차"]
+    assert "법령" in _extract_keywords("다른 법령과의 관계를 알려줘", max_count=10)
+    assert "규정" in _extract_keywords("이 규정의 목적은 무엇인가", max_count=10)
+
+
+def test_frame_verb_preserved_when_content_follows_v0420():
+    """★코퍼스 반례 — 프레임 용언 뒤에 내용어가 오면 법적 행위 서술로 보아 보존한다."""
+    result = _extract_keywords("평가위원 후보를 추천해야 할 기관", max_count=10)
+    assert result == ["평가위원", "후보", "추천해야", "기관"]
+
+
+def test_request_frame_scan_stops_at_content_word_v0420():
+    """꼬리 스캔은 내용어에서 멈춘다 — 앞쪽 실질 질문은 어떤 경우에도 건드리지 않는다."""
+    # 문미 '검토해야'는 제거되지만 그 앞의 '받아야'·'승인'은 보존
+    assert _extract_keywords(
+        "연구개발과제의 협약을 변경하려면 사전 승인을 받아야 하는지 검토해야 한다", max_count=10
+    ) == ["연구개발과제", "협약", "변경하려면", "사전", "승인", "받아야"]
+    # 필러가 끼어도 꼬리 판정은 이어진다
+    assert _extract_keywords(
+        "연구개발비를 전용할 때 검토해야 하는 규정 후보", max_count=10
+    ) == ["연구개발비", "전용할"]
+
+
+def test_suggest_client_zero_hit_fallback_uses_new_rules_v0420(mock_client):
+    """client 키워드 0건 보강 경로(client+fallback)도 새 추출 규칙을 쓴다 — 무접촉 아님."""
+    result = asyncio.run(
+        suggest_review_sources(
+            "특별평가 사유를 알려줘. 검토 순서와 규정 후보 목록 추천",
+            keywords=["절대로없는키워드zzz"],
+        )
+    )
+    assert result["keyword_source"] == "client+fallback"
+    # 꼬리 요청 절이 제거되어 실질 명사만 보강 키워드가 된다
+    assert "특별평가" in result["extracted_keywords"]
+    for noise in ("후보", "순서", "목록", "추천", "규정"):
+        assert noise not in result["extracted_keywords"]

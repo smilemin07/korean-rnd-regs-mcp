@@ -275,6 +275,27 @@ _RANK_NAMES = {
     5: "Supplementary 법률",   # 부패방지법·청탁금지법·공익신고자보호법 등
     6: "Supplementary 시행령",
 }
+# v0.42.0: 요청 프레임 어휘 — 질문 끝의 "무엇을 달라"는 요청 절을 이루는 단어들.
+#   ★전역 stopword가 아니다: 이 단어들은 실제 조문 제목이기도 하다(코퍼스 실측 2026-08-07·64규정
+#   단독 검색: 목록 35 — "중장기 기술확보 목록"·"국방기술 통제목록의 작성" / 추천 23 — "평가위원
+#   추천 기준" / 후보 21 — "산업기술혁신평가위원 후보단" / 법령 95 — "다른 법령과의 관계" /
+#   규정 503 · 조문 21 · 순서 4). 그래서 위치·문맥과 무관하게 지우면 정답 조문을 잃는다.
+#   대신 아래 _drop_request_frame이 **질문 꼬리의 요청 절에 속할 때만** 제거한다.
+_FRAME_REQUEST_WORDS = frozenset({"후보", "순서", "추천", "목록", "규정", "조문", "법령"})
+# 명사 "검토" 전용의 좁은 판정 집합 — "사전 검토 규정"·"중복성 검토"처럼 법령 용어와 붙는
+#   규정·조문·법령은 넣지 않는다(넣으면 실질 조문어 "검토"가 삭제됨 — 실측 확인).
+_FRAME_SHAPE_WORDS = frozenset({"후보", "순서", "목록", "추천"})
+# 요청 프레임 용언의 어간·어미 — "검토해야"·"추천해 달라"처럼 요청을 서술하는 활용형 판정용.
+#   어간을 키워드로 승격(정규화)하지는 않는다: 어미를 잘라 남긴 조각이 "참여제한"→"참여제"처럼
+#   명사를 훼손하고, 광역 어간(실측: 실시 422·사용 453·평가 551)은 정밀도를 떨어뜨리기 때문.
+#   활용형 자체가 고정밀 검색어인 경우도 있어("실시해야" 13건) 정규화는 별도 검증 과제로 분리한다.
+_FRAME_VERB_STEMS = ("검토", "추천", "정리", "안내")
+#   붙여 쓴 합성형("검토해야할")·구어 요청형("검토해줘")도 포함 — 질문에 흔하다.
+_FRAME_VERB_ENDINGS = (
+    "하여야할", "해주세요", "하여야", "하려면", "해야할", "하는지", "해달라", "해줘",
+    "해야", "하는", "해서", "하고", "했던", "한다", "하여", "할", "한", "해",
+)
+_FRAME_CONTEXT_NOUNS = frozenset({"검토"})
 _KEYWORD_STOPWORDS = frozenset({
     "대해", "관련", "관해", "관하여", "경우", "에서", "으로", "에게",
     "있는", "있을", "있나요", "있는지", "있습니까", "있습니다",
@@ -292,6 +313,16 @@ _KEYWORD_STOPWORDS = frozenset({
     "일부", "다른", "해당", "여부", "위해", "통해",
     # v0.1.7: fallback 질문 필러 추가 (안전망 품질 — 등장 앞순서를 점유하던 노이즈 제거)
     "참여", "중인", "중이다", "올해", "그에", "구성", "싶다", "따라야", "알려달라", "억원",
+    # v0.42.0: 의문형·요청 표면어만 추가. 기존 "해야"·"따라야"·"알려달라"(v0.1.7)와 동류이며,
+    #   코퍼스 매칭이 0건이거나(무엇인가·있는가·되는가·하는가·이루어지는가·알려줘·해줘·주세요
+    #   전부 0건 실측 2026-08-07) 검색어로 무가치한 문법 표면형(하는지 8·달라 5 — 본문에 우연히
+    #   포함된 매칭)이다. 키워드 1개당 64규정 fan-out 1회를 아끼는 효과도 있다.
+    #   ★법적 의미가 있는 단어는 넣지 않는다: 결과·확인·조회·정리·안내·통보·통지(실질 조문어)와
+    #   의무 표현 "받아야"(54건 "승인을 받아야 한다")·"거쳐야"(27건 "심의를 거쳐야 한다") —
+    #   후자는 활용형 자체가 고정밀 검색어인 경우("실시해야" 13건)와 같은 부류다.
+    #   ★요청 프레임 명사(후보·순서·추천·목록·규정·조문·법령)도 넣지 않는다(실제 조문 제목).
+    "무엇인가", "있는가", "없는가", "되는가", "하는가", "가능한가", "필요한가",
+    "이루어지는가", "하는지", "달라", "알려줘",
 })
 # 흔한 한국어 조사 (긴 것부터 정렬 — endswith 매칭 우선순위)
 # 1글자 조사 중 "이/가/에/도/만/로"는 명사 끝 음절에 자주 등장(false positive risk) → strip 안 함.
@@ -323,13 +354,80 @@ def _strip_particle(word: str) -> str:
     return word
 
 
+def _is_frame_request_verb(word: str) -> bool:
+    """"검토해야"·"추천해"처럼 요청 프레임 용언의 활용형인가 (어간 + 어미 정확 일치).
+
+    토큰을 버릴지 판단만 하고 어간을 키워드로 남기지 않으므로, 어미를 잘라낸 조각이
+    생기지 않는다 — 명사 훼손 위험 0. "재검토해야"는 어간이 "재검토"라 여기 걸리지 않는다.
+    """
+    for stem in _FRAME_VERB_STEMS:
+        if word.startswith(stem) and word[len(stem):] in _FRAME_VERB_ENDINGS:
+            return True
+    return False
+
+
+def _frame_neighbor(tokens: list[str], start: int, step: int) -> str:
+    """start에서 step 방향으로 가장 가까운 유의미 이웃(문법 필러는 건너뜀). 없으면 ""."""
+    i = start + step
+    while 0 <= i < len(tokens):
+        word = tokens[i]
+        if word not in _KEYWORD_STOPWORDS:
+            return word
+        i += step
+    return ""
+
+
+def _drop_request_frame(tokens: list[str]) -> list[str]:
+    """질문 **꼬리의 요청 절**만 잘라낸다 (v0.42.0).
+
+    관측 결함(2026-08-07): "…전용할 때 검토해야 할 규정 후보와 검토 순서"에서 요청 형식어가
+    그대로 검색어가 되어, 코퍼스 광역어 '검토'(258건)에 걸린 "규제의 재검토"류 무관 조문이
+    후보 상위를 점유했다.
+
+    규칙 = 질문 끝에서부터 앞으로 훑으며 요청 절 토큰을 제거하고, **내용어를 만나면 멈춘다.**
+      - 문법 필러(기존 stopword)는 건너뛴다("…알려달라"·"…하는지").
+      - 요청 프레임 명사(_FRAME_REQUEST_WORDS)와 프레임 용언 활용형은 제거한다.
+      - 명사 "검토"는 이웃(_frame_neighbor)이 더 좁은 _FRAME_SHAPE_WORDS일 때만 제거하고,
+        아니면 실질 조문어로 보아 거기서 스캔을 멈춘다.
+
+    꼬리로 한정하는 이유(2026-08-07 적대검토 적발): 프레임 명사는 실제 조문 제목이기도 하다
+    ("평가위원 후보 추천 기준"·"중장기 기술확보 목록"·"다른 법령과의 관계"). 위치와 무관하게
+    지우면 정답 조문을 잃으므로, 뒤에 내용어가 없는 = 요청 절 위치일 때만 제거한다.
+
+    판정은 조사 strip 직후의 원래 토큰 순서에서 한다 — stopword를 먼저 지우면 꼬리 구조가
+    무너진다(호출 순서 불변식).
+    """
+    drop_idx: set[int] = set()
+    for i in range(len(tokens) - 1, -1, -1):
+        word = tokens[i]
+        if word in _KEYWORD_STOPWORDS:
+            continue  # 문법 필러 — 요청 절 판정에 영향 없이 통과
+        if word in _FRAME_REQUEST_WORDS or _is_frame_request_verb(word):
+            drop_idx.add(i)
+            continue
+        if word in _FRAME_CONTEXT_NOUNS:
+            prev_w = _frame_neighbor(tokens, i, -1)
+            next_w = _frame_neighbor(tokens, i, +1)
+            if prev_w in _FRAME_SHAPE_WORDS or next_w in _FRAME_SHAPE_WORDS:
+                drop_idx.add(i)
+                continue
+        break  # 내용어 도달 — 여기부터 앞은 사용자의 실질 질문
+    return [w for i, w in enumerate(tokens) if i not in drop_idx]
+
+
 def _extract_keywords(question: str, max_count: int = 5) -> list[str]:
-    """질문에서 2자 이상 한글 단어 → 조사 strip → stopword 제외 → 최대 max_count개."""
+    """질문에서 2자 이상 한글 단어 → 조사 strip → 요청 프레임 제거 → stopword 제외 → 최대 max_count개.
+
+    v0.42.0: 요청 프레임 필터(_drop_request_frame)를 stopword 제외 *앞*에 둔다 — 꼬리 요청 절
+    판정이 원래 토큰 순서에 의존하기 때문. 전부 걸러져 빈 목록이 되면 호출부(suggest)가
+    기존 무키워드 degraded 경로로 낙하한다(fan-out 미시작).
+    """
     raw = re.findall(r"[가-힣]{2,}", question)
     stripped = [_strip_particle(w) for w in raw]
     # 조사 strip 후 길이 2 미만 제거
     valid = [w for w in stripped if len(w) >= 2]
-    deduped = list(dict.fromkeys(valid))
+    framed = _drop_request_frame(valid)  # v0.42.0
+    deduped = list(dict.fromkeys(framed))
     filtered = [w for w in deduped if w not in _KEYWORD_STOPWORDS]
     return filtered[:max_count]
 
