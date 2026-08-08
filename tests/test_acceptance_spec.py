@@ -60,6 +60,16 @@ def test_spec_structure_and_frozen_kinds(spec_path):
         assert "probe_prompt" in p and "expect_behavior" in p
 
 
+def test_current_version_spec_exists_v0460():
+    """★릴리스 커밋 누락 가드(v0.46.0 diff 적대검토 Codex 지적): 현재 패키지 버전의
+    acceptance spec 파일이 존재해야 한다 — 신규 spec이 untracked로 남아 릴리스 커밋에서
+    빠지면 wheel 격리 스모크·CI checkout에서 이 테스트가 실패해 사고를 드러낸다(작업
+    트리에서는 존재만 검사 — staged 여부는 release-gatekeeper의 git 검사가 담당)."""
+    from korean_rnd_regs_mcp import __version__
+    expected = _ACC_DIR / ("v" + __version__.replace(".", "_") + ".py")
+    assert expected.exists(), f"현재 버전 {__version__}의 spec {expected.name} 부재"
+
+
 def test_spec_footer_literals_match_server_constants_v0410():
     """★spec 리터럴 drift 가드(v0.41.0): 버전 spec이 footer·note 기대값을 리터럴로 들고 있으므로,
     서버 상수가 바뀌면 spec도 함께 바뀌어야 함(불일치 시 acceptance가 WARN로만 표류하는 것을

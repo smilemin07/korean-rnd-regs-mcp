@@ -307,3 +307,66 @@ def test_existing_source_footer_second_line_unchanged(fresh_cache):
     r2 = asyncio.run(get_manual_section("3-4"))
     lines2 = r2["manual_meta"]["standard_footer"].split("\n")
     assert lines2[1] == manual_mod.FOOTER_MANUAL_SOURCE_LINE
+
+
+# ── v0.46.0: 국토교통 R&D 맥락 사례집 라우팅 보강(프롬프트-only) ──────────────
+
+def test_case_routing_guidance_present_all_surfaces_v0460():
+    """v0.46.0 surface-consistency: 국토교통 맥락 라우팅 + 검색어 구성 지시 핵심 토큰이
+    3표면(_SERVER_INSTRUCTIONS·search_manual docstring·review_regulation 템플릿)에 실재.
+    핵심 = ① 부처명 토큰 금지(토큰 AND 매칭 0건 회피) ② 주제어 검색 ③ 범위 사실
+    (사례는 국가 R&D 전반 수집 — 국토교통부 전용 아님·publisher_note 원문 정합)."""
+    sm_doc = (
+        main_mod.search_manual.fn.__doc__
+        if hasattr(main_mod.search_manual, "fn")
+        else main_mod.search_manual.__doc__
+    )
+    surfaces = {
+        "SERVER_INSTRUCTIONS": main_mod._SERVER_INSTRUCTIONS,
+        "search_manual_docstring": sm_doc,
+        "review_prompt": main_mod.review_regulation_prompt("테스트 상황"),
+    }
+    for name, text in surfaces.items():
+        assert "부처명을 넣지" in text, f"{name}: 부처명 토큰 금지 지시 누락"
+        assert "주제어" in text, f"{name}: 주제어 검색 지시 누락"
+        assert "국가 R&D 전반에서 수집" in text, f"{name}: 범위 사실(전반 수집) 누락"
+        assert "부적정집행" in text, f"{name}: 사례집 지칭 누락"
+
+
+def test_case_scope_wording_matches_publisher_note_v0460():
+    """라우팅 문면의 범위 서술이 데이터 정본(meta.publisher_note)과 모순되지 않는지 —
+    v0.46.0 계획 단계에서 '국토교통 R&D 과제에서 수집' 초안이 원문과 반대되는 허위가
+    될 뻔한 함정의 잠금. publisher_note가 '국가 R&D 전반에서 수집'을 유지하는 동안만
+    현 문면이 유효하다(판 교체 시 이 테스트가 재검토를 강제)."""
+    d = _payload()
+    assert "국가 R&D 전반에서 수집" in d["meta"]["publisher_note"]
+
+
+def test_case_body_ministry_token_scarcity_premise_v0460():
+    """지시 문면의 사실 전제 잠금 — 사례집 본문에 부처명 표기가 희소('국토교통' 1건·
+    '국토부' 0건 실측)해 부처명 토큰 AND 검색이 0건이라는 전제. 새 판 교체로 부처명이
+    다수 등장하면 이 테스트가 깨져 문면 재검토를 강제한다(의도적 마찰)."""
+    d = _payload()
+    body = "".join(p["text"] for s in d["sections"] for p in s["pages"])
+    assert body.count("국토교통") + body.count("국토부") <= 5
+
+
+@pytest.mark.parametrize("ministry_query", [
+    "국토교통부 부적정집행",
+    "국토부 R&D 연구비 집행",        # 2026-08-08 실측 결손 질의 원문
+    "국토교통부 연구개발비 사용",     # 〃
+])
+def test_case_ministry_query_zero_v0460(fresh_cache, ministry_query):
+    """행동 전제 잠금(관측 표적 질의 매개변수화 — diff 적대검토 Codex 권고): '국토교통부'·
+    '국토부' 토큰이 든 질의는 case 0건(프롬프트-only — 데이터·검색 알고리즘 무변 확인).
+    빈도 임계 테스트와 달리 실제 결손 질의로 직접 잠근다. 주의: '국토교통'(부 없는 형태)
+    단독 토큰은 case-4-1 도식 제목에 1건 매칭 가능 — 문면이 '0건이 되기 쉽습니다'로
+    한정 서술하는 이유."""
+    r = asyncio.run(search_manual(ministry_query))
+    assert r["total_matched_by_source"]["case"] == 0, ministry_query
+
+
+def test_case_topical_query_reaches_v0460(fresh_cache):
+    """행동 전제 잠금: 주제어 질의는 case 도달(지시가 안내하는 우회 경로 실재)."""
+    r_topic = asyncio.run(search_manual("연구비 부적정집행"))
+    assert r_topic["total_matched_by_source"]["case"] >= 1

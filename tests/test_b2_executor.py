@@ -97,18 +97,21 @@ def test_contract_version_0_34_0():
     문면만 교체[지정 귀속 문구 'korean-rnd-regs-mcp에서 제공하는 정보에 따르면,' 신설]·additive
     아님[기존 v0.44.0 필드의 값 변경]·그 외 도메인 필드와 law_priority_note는 버전 식별자
     [contract_version(오류 응답 포함)·패키지 버전 표기] 제외 byte 불변·
-    입력 스키마 무변·재연결 불요. §5.36 참조).
+    입력 스키마 무변·재연결 불요. §5.36 참조)
+    → 0.34.0 유지(v0.46.0 국토교통 R&D 맥락 사례집 라우팅 보강 — 프롬프트-only[
+    _SERVER_INSTRUCTIONS·search_manual docstring·review_regulation 템플릿 3표면]·
+    응답 필드·shape·오류코드·검색/랭킹·입력 스키마 불변. §5.37·§6 유지 행 참조).
     직전 0.21.0: 출처·원문 확인 경로 정비(§5.22)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
     assert CONTRACT_VERSION == "0.34.0"
 
 
-def test_package_version_0_45_0():
-    """패키지 버전 0.45.0(규범성 안내 귀속 교정 — law_priority_note_note 문면 교체·
-    contract 0.34.0=입력 스키마 무변·재연결 불요).
-    직전 0.44.0(law_priority_note 표시 귀속 인접 지시 신설 — contract 0.33.0)."""
+def test_package_version_0_46_0():
+    """패키지 버전 0.46.0(국토교통 R&D 맥락 사례집 라우팅 보강 — 프롬프트-only·
+    contract 0.34.0 유지=입력 스키마 무변·재연결 불요).
+    직전 0.45.0(규범성 안내 귀속 교정 — contract 0.34.0)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.45.0"
+    assert __version__ == "0.46.0"
 
 
 def test_cache_maxsize_96_v0240():
