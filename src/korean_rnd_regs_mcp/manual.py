@@ -757,6 +757,21 @@ STRUCTURE_NOTICE_NOTE = (
     "표시하지 마십시오."
 )
 
+# v0.44.0: law_priority_note 표시 귀속 인접 지시 — v0.43.0 라이브 eval P3에서 호스트가
+# law_priority_note 내용을 정확히 인용하면서 "시스템 메타데이터에 명시된 안내입니다"라고
+# 필드의 존재 방식을 사용자에게 노출함(같은 응답의 완성형 블록 citation·standard_footer에는
+# 현상 없음). 인접 지시 필드(*_note)는 호스트가 소비하되 사용자 답변에 노출 사례 0(4회 관측·
+# v0.41.0 standard_footer_note 인과 A/B) — 같은 패턴으로 귀속 방식만 교정한다. 안내 내용의
+# 전달 자체는 유익했으므로 금지하지 않고, 안내문을 자료 원문·발간처의 문장으로 오귀속하는
+# 서술(P3 "매뉴얼 자체에서도 경고" 관측)도 함께 차단한다.
+LAW_PRIORITY_NOTE_NOTE = (
+    "위 law_priority_note는 인용 자료의 성격과 법령 우선 원칙에 관한 안내입니다. "
+    "답변 판단에 반영하고, 필요하면 그 내용을 답변에 소개하되 자료의 성격에 관한 사실로 "
+    "자연스럽게 서술하십시오. 이 안내문 자체를 자료 원문·발간처의 문장이나 별도 출처처럼 "
+    "인용하지 말고, '시스템 메타데이터'·'내부 필드'·'도구 응답 필드' 등 이 안내가 전달된 "
+    "방식이나 응답 구조도 사용자에게 언급하지 마십시오."
+)
+
 
 def build_structure_notice(section: dict, is_chunk: bool = False) -> str | None:
     """표·산식 구조 손실 완성형 안내 블록 (v0.34.0) — 답변에 그대로 옮길 수 있는 형태.
@@ -854,6 +869,9 @@ def manual_meta_block(
         **({"source_url": source_url} if source_url else {}),
         **({"renumbering_note": renumbering_note} if renumbering_note else {}),
         "law_priority_note": _law_priority_note(meta, subject, basis, edition),
+        # v0.44.0: 표시 귀속 인접 지시 — law_priority_note 바로 뒤 키(인접성 = v0.41.0 실증 조건).
+        # 혼합 블록은 dict(primary_block) 복사 + 기존 키 update라 위치·값이 그대로 보존된다.
+        "law_priority_note_note": LAW_PRIORITY_NOTE_NOTE,
         "notice": notice,
         # v0.38.0: footer 3번째 줄 per-source 문면(meta.footer_manual_line) — 키 부재 소스는 기본 문면(byte 불변)
         # v0.43.0: footer 2번째 줄(원문 확인처)도 per-source(meta.footer_source_line) — KAIA 발간

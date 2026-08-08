@@ -75,4 +75,8 @@ def test_spec_footer_literals_match_server_constants_v0410():
             checked += 1
         if hasattr(spec, "_NOTE"):
             assert spec._NOTE == _STD_FOOTER_NOTE, f"{path.stem}: _NOTE가 서버 상수와 불일치"
+        # v0.44.0: law_priority_note_note 리터럴 spec(_LPN_NOTE)도 동일 drift 가드
+        if hasattr(spec, "_LPN_NOTE"):
+            from korean_rnd_regs_mcp.manual import LAW_PRIORITY_NOTE_NOTE
+            assert spec._LPN_NOTE == LAW_PRIORITY_NOTE_NOTE, f"{path.stem}: _LPN_NOTE가 서버 상수와 불일치"
     assert checked >= 1, "footer 리터럴 spec이 최소 1개는 검사돼야 함"

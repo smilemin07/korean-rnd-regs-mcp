@@ -239,12 +239,21 @@ def test_golden_v0320_baseline_preserved(fresh_cache):
     )
 
     def norm(obj):
-        s = json.dumps(obj, ensure_ascii=False, sort_keys=True)
+        # law_priority_note_note(0.33.0 §5.35 additive 상수 — golden 세대에 부재)도
+        # 계약 선언된 의도적 변경이라 정규화한다.
+        def strip(o):
+            if isinstance(o, dict):
+                return {k: strip(v) for k, v in o.items() if k != "law_priority_note_note"}
+            if isinstance(o, list):
+                return [strip(x) for x in o]
+            return o
+        s = json.dumps(strip(obj), ensure_ascii=False, sort_keys=True)
         return s.replace('"contract_version": "0.23.0"', '"contract_version": "N"') \
                 .replace('"contract_version": "0.24.0"', '"contract_version": "N"') \
                 .replace('"contract_version": "0.25.0"', '"contract_version": "N"') \
                 .replace('"contract_version": "0.31.0"', '"contract_version": "N"') \
-                .replace('"contract_version": "0.32.0"', '"contract_version": "N"')
+                .replace('"contract_version": "0.32.0"', '"contract_version": "N"') \
+                .replace('"contract_version": "0.33.0"', '"contract_version": "N"')
 
     assert norm(asyncio.run(get_manual_section("3-13"))) == norm(golden["detail_3_13"])
     assert norm(asyncio.run(get_manual_section("b3-5-3"))) == norm(golden["detail_b3_5_3"])
@@ -270,7 +279,7 @@ def test_b2_all_ids_full_text_citation_footer(fresh_cache):
         assert meta["manual_basis_date"] is None, sid
         assert meta["standard_footer"].count("※") == 4, sid
         assert "법령 기준일 원문 미표기" in meta["notice"], sid
-        assert r["contract_version"] == "0.32.0", sid
+        assert r["contract_version"] == "0.33.0", sid
         assert r["format_note"].startswith("본 content는 「국가연구개발사업 기술료 제도 매뉴얼」"), sid
 
 

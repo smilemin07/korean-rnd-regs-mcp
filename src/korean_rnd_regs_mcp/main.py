@@ -34,6 +34,7 @@ from .manual import (
     MANUAL_FORMAT_NOTE_EVAL,
     ManualLoadError,
     SECTION_ID_RE,
+    LAW_PRIORITY_NOTE_NOTE,
     STRUCTURE_NOTICE_NOTE,
     build_citation,
     build_section_chunks,
@@ -3180,7 +3181,9 @@ async def search_manual(query: str) -> dict:
     발췌[매치 줄 ±1줄·인쇄쪽 앵커]·matched_in·citation[출처 표기용 완성형 인용 문자열 — 그대로
     옮겨 적으십시오]) + 소스별 계수(total_matched_by_source·returned_by_source·searched_sources) +
     manual_meta(규범성 — 해설 자료·법적 효력 없음·법령 우선·판번·기준일. 복수 소스 혼합 반환
-    시 병기 완성형). 일부 소스만 로드 실패하면 나머지로 검색하고 unavailable_sources·
+    시 병기 완성형. law_priority_note 바로 뒤의 law_priority_note_note는 그 안내의 표시 귀속
+    인접 지시이니 그대로 따르되, note 자체는 답변에 옮기지 마십시오 — v0.44.0).
+    일부 소스만 로드 실패하면 나머지로 검색하고 unavailable_sources·
     source_warnings로 알립니다(전체 실패 아님). 절 본문 전문은 get_manual_section(section_id)으로
     조회하십시오. 검색 0건은 "매뉴얼 미수록"일 뿐 규정의 부재를 뜻하지 않습니다 —
     법령·행정규칙은 기존 규정 도구로 별도 확인하십시오.
@@ -3376,13 +3379,26 @@ async def search_manual(query: str) -> dict:
             "(스캔은 줄 단위 텍스트 기준이며 이미지·도식 페이지는 검색되지 않습니다.)"
         )
     # 응답 16k 예산 가드 — 초과 시 뒤쪽 매치부터 제거(발췌 포함 매치가 커질 수 있는 방어선)
-    while matches and len(json.dumps(response, ensure_ascii=False)) > _SEARCH_RESPONSE_CHAR_BUDGET:
+    def _over_budget() -> bool:
+        return len(json.dumps(response, ensure_ascii=False)) > _SEARCH_RESPONSE_CHAR_BUDGET
+
+    def _yield_note_if_over() -> None:
+        # v0.44.0 예산 경합 우선순위: 상수 인접 지시(law_priority_note_note)를 매치 절단보다
+        # 먼저 양보 — 양보 상태는 v0.43.0 응답 표면과 byte 동일이라 검색 recall 무회귀.
+        if _over_budget():
+            meta = response.get("manual_meta")
+            if isinstance(meta, dict):
+                meta.pop("law_priority_note_note", None)
+
+    _yield_note_if_over()
+    while matches and _over_budget():
         matches.pop()
         response["returned"] = len(matches)
         response["truncated"] = True
         # 절단 후 실제 반환 소스 기준으로 소스별 계수·meta 재계산(D7 — 절단으로 소스 구성이 변할 수 있음)
         response["returned_by_source"] = {src: sum(1 for m in matches if m["source"] == src) for _r, src, _d in pools}
         response["manual_meta"] = _mixed_meta(matches, bool(matches))
+        _yield_note_if_over()
     if not matches:
         # 예산 절단으로 매치가 모두 빠진 경우까지 하단 안내를 0건 형태로 되돌린다(전달 내용 = 0).
         response["manual_meta"] = _mixed_meta(matches, False)
@@ -3391,6 +3407,10 @@ async def search_manual(query: str) -> dict:
                 "매치는 있었으나 응답 예산 초과로 전부 절단되었습니다(returned 0·truncated true) — "
                 "query를 더 구체적인 문구로 좁혀 재호출하십시오."
             )
+        # v0.44.0(diff 적대검토 Codex MAJOR 반영): 위 meta 재조립이 양보했던 상수를 되살리므로
+        # 마지막 조립(note 추가 포함) 이후 다시 양보 판정 — 매치 전멸 경로에서 신규 필드가
+        # 예산 초과를 유발하지 않게 한다(재현: 예산 2,200에서 2,386자 → 양보 시 2,128자).
+        _yield_note_if_over()
     return response
 
 
@@ -3409,9 +3429,28 @@ def _attach_structure_notice(resp: dict, sec: dict, is_chunk: bool) -> dict:
         return resp
     resp["structure_notice"] = notice
     resp["structure_notice_note"] = STRUCTURE_NOTICE_NOTE
+    if len(json.dumps(resp, ensure_ascii=False)) <= MANUAL_DETAIL_CHAR_BUDGET:
+        return resp
+    # v0.44.0 예산 경합 우선순위: 상수 인접 지시(law_priority_note_note)가 사용자 도달 필요
+    # 고지(structure_notice)를 밀어내지 않도록 먼저 양보한다 — 양보 상태는 v0.43.0 응답
+    # 표면과 byte 동일이므로 이후 판정도 v0.43.0과 동일하게 수렴(무회귀).
+    meta = resp.get("manual_meta")
+    yielded = isinstance(meta, dict) and "law_priority_note_note" in meta
+    if yielded:
+        del meta["law_priority_note_note"]
     if len(json.dumps(resp, ensure_ascii=False)) > MANUAL_DETAIL_CHAR_BUDGET:
         del resp["structure_notice"]
         del resp["structure_notice_note"]
+        # structure_notice가 어차피 탈락한 경우 인접 지시 양보는 불필요했던 것 — 예산이
+        # 허용되면 원위치(law_priority_note 직후·재구축으로 키 순서 유지) 복원
+        if yielded:
+            restored = {}
+            for k, v in meta.items():
+                restored[k] = v
+                if k == "law_priority_note":
+                    restored["law_priority_note_note"] = LAW_PRIORITY_NOTE_NOTE
+            if len(json.dumps({**resp, "manual_meta": restored}, ensure_ascii=False)) <= MANUAL_DETAIL_CHAR_BUDGET:
+                resp["manual_meta"] = restored
     return resp
 
 
@@ -3440,7 +3479,9 @@ async def get_manual_section(section_id: str, chunk: int | None = None) -> dict:
     나눠 조회하십시오. 각 청크는 인쇄쪽 범위(chunk_pages)를 명시합니다.
 
     비오류 응답에는 항상 manual_meta(규범성 — 해설 자료·법적 효력 없음·법령 우선·판번·기준일·답변 하단
-    표준 안내 완성형 standard_footer)와 citation(출처 표기용 완성형 인용 문자열 — 그대로 옮겨
+    표준 안내 완성형 standard_footer. law_priority_note 바로 뒤의 law_priority_note_note는 그
+    안내의 표시 귀속 인접 지시이니 그대로 따르되, note 자체는 답변에 옮기지 마십시오 — v0.44.0)와
+    citation(출처 표기용 완성형 인용 문자열 — 그대로 옮겨
     적으십시오. 청크 응답은 그 청크가 실제 담은 인쇄쪽으로 표기됩니다)이 동반됩니다(오류 응답에는 없음). 표 포함 절은
     PDF 추출 특성상 셀 텍스트 순서·제목 위치가 원본 배치와 다를 수 있으므로 수치·조건 인용 시
     인쇄쪽 원문 대조를 권장합니다. 구조 손실이 확인된 절의 본문 응답에는 structure_notice

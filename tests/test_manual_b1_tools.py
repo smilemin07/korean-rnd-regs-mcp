@@ -314,7 +314,8 @@ def test_preserved_unrelated_error_wording(fresh_cache, monkeypatch, tmp_path):
 def test_golden_v0340_baseline_preserved(fresh_cache):
     """보존 표면 기준선 실대조 — v0.34.0 코드(0468b13)로 생성한 golden 픽스처와 현재 구현의
     응답 직렬화를 비교(신구현끼리 비교가 아니라 실제 구버전 산출물 대조 — v0320 golden 전례).
-    contract_version(0.25.0→현행)만 계약 선언된 의도적 변경이라 정규화한다.
+    contract_version(0.25.0→현행)과 law_priority_note_note(0.33.0 §5.35 additive 상수 —
+    golden 세대에 부재)만 계약 선언된 의도적 변경이라 정규화한다.
     "기술료" 검색은 별권 1 무매치 질의라 matches·manual_meta가 byte 동일해야 한다."""
     golden = json.loads(
         (pathlib.Path(__file__).parent / "fixtures" / "v0340_golden_preserved.json")
@@ -322,10 +323,17 @@ def test_golden_v0340_baseline_preserved(fresh_cache):
     )
 
     def norm(obj):
-        s = json.dumps(obj, ensure_ascii=False, sort_keys=True)
+        def strip(o):
+            if isinstance(o, dict):
+                return {k: strip(v) for k, v in o.items() if k != "law_priority_note_note"}
+            if isinstance(o, list):
+                return [strip(x) for x in o]
+            return o
+        s = json.dumps(strip(obj), ensure_ascii=False, sort_keys=True)
         return s.replace('"contract_version": "0.25.0"', '"contract_version": "N"') \
                 .replace('"contract_version": "0.31.0"', '"contract_version": "N"') \
-                .replace('"contract_version": "0.32.0"', '"contract_version": "N"')
+                .replace('"contract_version": "0.32.0"', '"contract_version": "N"') \
+                .replace('"contract_version": "0.33.0"', '"contract_version": "N"')
 
     assert norm(asyncio.run(get_manual_section("3-13"))) == norm(golden["detail_3_13"])
     assert norm(asyncio.run(get_manual_section("b3-5-3"))) == norm(golden["detail_b3_5_3"])
@@ -352,7 +360,7 @@ def test_b1_all_ids_citation_footer(fresh_cache):
         meta = r["manual_meta"]
         assert meta["manual_basis_date"] is None, sid
         assert "법령 기준일 원문 미표기" in meta["notice"], sid
-        assert r["contract_version"] == "0.32.0", sid
+        assert r["contract_version"] == "0.33.0", sid
         assert r["format_note"].startswith("본 content는 「학생인건비통합관리 제도 매뉴얼」"), sid
         if sid == "b1-ref-3":
             # 포인터 응답 = 본문 미전달 → footer 2줄 규약(허위 인용 고지 차단)
