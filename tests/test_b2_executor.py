@@ -68,7 +68,7 @@ def test_cache_lock_never_wraps_network_or_parse():
     assert lock_blocks >= 8, f"_cache_lock 블록이 {lock_blocks}개뿐 — 캐시 touch 직렬화 누락 의심"
 
 
-def test_contract_version_0_33_0():
+def test_contract_version_0_34_0():
     """v0.31.0: 매뉴얼 본권 26.7판 현행화(§5.23) — 데이터 판 교체(41→43절·재번호 8건) +
     manual_meta.renumbering_note 조건부 additive(get_manual_section 대상 절 한정)
     → contract 0.23.0 → 0.24.0 minor bump(v0.33.0 별권 2 additive — 입력 스키마 무변·재연결 불요)
@@ -92,18 +92,23 @@ def test_contract_version_0_33_0():
     입력 스키마 무변·재연결 불요. §5.34 참조)
     → 0.32.0 → 0.33.0 minor bump(v0.44.0 law_priority_note 표시 귀속 인접 지시 —
     manual_meta에 law_priority_note_note additive[law_priority_note 직후 키]·기존 필드 byte 불변·
-    입력 스키마 무변·재연결 불요. §5.35 참조).
+    입력 스키마 무변·재연결 불요. §5.35 참조)
+    → 0.33.0 → 0.34.0 minor bump(v0.45.0 규범성 안내 귀속 교정 — LAW_PRIORITY_NOTE_NOTE
+    문면만 교체[지정 귀속 문구 'korean-rnd-regs-mcp에서 제공하는 정보에 따르면,' 신설]·additive
+    아님[기존 v0.44.0 필드의 값 변경]·그 외 도메인 필드와 law_priority_note는 버전 식별자
+    [contract_version(오류 응답 포함)·패키지 버전 표기] 제외 byte 불변·
+    입력 스키마 무변·재연결 불요. §5.36 참조).
     직전 0.21.0: 출처·원문 확인 경로 정비(§5.22)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.33.0"
+    assert CONTRACT_VERSION == "0.34.0"
 
 
-def test_package_version_0_44_0():
-    """패키지 버전 0.44.0(law_priority_note 표시 귀속 인접 지시 — manual_meta에
-    law_priority_note_note additive·contract 0.33.0=입력 스키마 무변·재연결 불요).
-    직전 0.43.0(「국가 R&D 연구비 부적정집행 사례집」(KAIA·25.5) 수록 — contract 0.32.0)."""
+def test_package_version_0_45_0():
+    """패키지 버전 0.45.0(규범성 안내 귀속 교정 — law_priority_note_note 문면 교체·
+    contract 0.34.0=입력 스키마 무변·재연결 불요).
+    직전 0.44.0(law_priority_note 표시 귀속 인접 지시 신설 — contract 0.33.0)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.44.0"
+    assert __version__ == "0.45.0"
 
 
 def test_cache_maxsize_96_v0240():

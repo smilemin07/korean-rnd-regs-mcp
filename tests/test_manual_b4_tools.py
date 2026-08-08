@@ -157,7 +157,7 @@ def test_b4_all_ids_serve(fresh_cache):
     for sid in B4_ALL_IDS:
         r = asyncio.run(get_manual_section(sid))
         assert r.get("errors") is None, sid
-        assert r["contract_version"] == "0.33.0", sid
+        assert r["contract_version"] == "0.34.0", sid
         assert 3 <= r["page_start"] <= r["page_end"] <= 50, sid
         if sid == "b4-ref-1":
             assert r["content_available"] is False, sid

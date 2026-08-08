@@ -18,7 +18,10 @@ law_priority_note_note를 추가합니다(contract 0.33.0·입력 스키마 무�
   - field_equals       : 응답의 특정 경로 값이 value와 같음("<missing>"=키 부재).       [WARN — 사람 판정 참고]
 """
 
-_LPN_NOTE = (
+# v0.45.0에서 문면 교체(귀속 교정) — 아래는 v0.44.0 배포 당시 문면의 이력 보존 사본.
+# 속성명을 _LPN_NOTE에서 바꿔 test_acceptance_spec.py의 현행 상수 drift 가드 대상에서
+# 제외한다(가드는 _LPN_NOTE 보유 spec을 현행 서버 상수와 대조 — 현행 spec은 v0_45_0.py).
+_LPN_NOTE_V0440 = (
     "위 law_priority_note는 인용 자료의 성격과 법령 우선 원칙에 관한 안내입니다. "
     "답변 판단에 반영하고, 필요하면 그 내용을 답변에 소개하되 자료의 성격에 관한 사실로 "
     "자연스럽게 서술하십시오. 이 안내문 자체를 자료 원문·발간처의 문장이나 별도 출처처럼 "
@@ -44,7 +47,7 @@ CHECKS = [
         "tool": "get_manual_section",
         "args": {"section_id": "case-1-1"},
         "asserts": [
-            {"kind": "field_equals", "path": "manual_meta.law_priority_note_note", "value": _LPN_NOTE},  # WARN
+            {"kind": "field_equals", "path": "manual_meta.law_priority_note_note", "value": _LPN_NOTE_V0440},  # WARN
             {"kind": "field_equals", "path": "content_format", "value": "plain_text_verbatim"},      # WARN
         ],
     },
@@ -53,7 +56,7 @@ CHECKS = [
         "tool": "search_manual",
         "args": {"query": "기술료"},
         "asserts": [
-            {"kind": "field_equals", "path": "manual_meta.law_priority_note_note", "value": _LPN_NOTE},  # WARN
+            {"kind": "field_equals", "path": "manual_meta.law_priority_note_note", "value": _LPN_NOTE_V0440},  # WARN
         ],
     },
     {
