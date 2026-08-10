@@ -136,3 +136,59 @@ def test_v013_sector_kt_entries_rank_alignment():
     assert by_id["sector_kt_decree"].hierarchy_rank == HierarchyRank.DECREE
     assert by_id["sector_kt_rule"].hierarchy_rank == HierarchyRank.RULE
     assert by_id["kt_rnd_operations"].hierarchy_rank == HierarchyRank.ADMIN_RULE
+
+
+def test_v0470_msit_screening_notices_present():
+    """v0.47.0 추가: 과기정통부 심사·검토 고시 2건 — 필드 전수 검증(LIVE 2026-08-10 프로브 값).
+
+    query[0] == 정식 제목 잠금은 계획 /disc 조건 ③(정식 제목 최우선 배치)의 회귀 방지."""
+    by_id = {rs.id: rs for rs in load_manifest()}
+    a = by_id["large_rnd_plan_review"]
+    assert a.title == "대형 연구개발 사업계획검토 운영에 관한 규정"
+    assert a.api_target == ApiTarget.ADMRUL
+    assert a.api_id_type.value == "admrul_id"
+    assert a.api_doc_id == "2100000276390"
+    assert a.effective_date == "2026-03-26"
+    assert a.ministry == "과학기술정보통신부"
+    assert a.unit_types == UnitTypes.ARTICLE
+    assert a.hierarchy_rank == HierarchyRank.ADMIN_RULE
+    assert a.retrieval == Retrieval.LIVE_API
+    assert a.tier == "Tier 2"
+    assert a.license_status == "public_data"
+    assert a.query[0] == "대형 연구개발 사업계획검토 운영에 관한 규정"
+    assert a.source_url and "law.go.kr" in a.source_url
+    assert any("별지" in note and "미지원" in note for note in a.known_limitations)
+    b = by_id["build_type_rnd_screening"]
+    assert b.title == "구축형 연구개발사업 심사 운용지침"
+    assert b.api_target == ApiTarget.ADMRUL
+    assert b.api_id_type.value == "admrul_id"
+    assert b.api_doc_id == "2100000278982"
+    assert b.effective_date == "2026-05-11"
+    assert b.ministry == "과학기술정보통신부"
+    assert b.unit_types == UnitTypes.ARTICLE
+    assert b.hierarchy_rank == HierarchyRank.ADMIN_RULE
+    assert b.retrieval == Retrieval.LIVE_API
+    assert b.tier == "Tier 2"
+    assert b.license_status == "public_data"
+    assert b.query[0] == "구축형 연구개발사업 심사 운용지침"
+    assert b.source_url and "law.go.kr" in b.source_url
+    assert any("서식" in note and "미지원" in note for note in b.known_limitations)
+
+
+def test_v0470_manifest_count_66():
+    """v0.47.0: 지원 규정 64 → 66 (과기정통부 심사·검토 고시 2건)."""
+    assert len(load_manifest()) == 66
+
+
+def test_v0470_build_type_screening_partial_application_note():
+    """v0.47.0: 구축형 심사 운용지침의 부칙 제2조 적용례가 known_limitations에 명시 — 전체 미시행 오인 방지.
+
+    핵심 적용 시점('각 목'·'2026년 11월')까지 잠가 문면 삭제·변경 회귀를 차단(diff 적대검토 Codex MINOR)."""
+    by_id = {rs.id: rs for rs in load_manifest()}
+    notes = " ".join(by_id["build_type_rnd_screening"].known_limitations)
+    assert "부칙 제2조" in notes
+    assert "제17조제2항제2호" in notes
+    assert "각 목" in notes
+    assert "2026년 11월" in notes
+    assert "2026-05-11부터 시행 중" in notes
+    assert "규정 전체의 시행일 변경이 아님" in notes

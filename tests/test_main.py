@@ -143,12 +143,12 @@ def test_review_prompt_instructs_keyword_array_to_suggest():
 
 
 def test_list_rule_sets_returns_live_api_items():
-    """v0.26.0: 국토교통 자율주행 실무 행정규칙 1건 추가 = 64건."""
+    """v0.47.0: 과기정통부 심사·검토 고시 2건 추가 = 66건."""
     result = asyncio.run(list_rule_sets())
     assert "rule_sets" in result
     assert isinstance(result["rule_sets"], list)
-    assert result["total"] == 64
-    assert len(result["rule_sets"]) == 64
+    assert result["total"] == 66
+    assert len(result["rule_sets"]) == 66
     ids = {rs["id"] for rs in result["rule_sets"]}
     expected = {
         # Tier 1 + 기존 Tier 2 (혁신법 family + 연구개발비 사용 기준)
@@ -194,6 +194,8 @@ def test_list_rule_sets_returns_live_api_items():
         "defense_rnd_guideline", "defense_tech_fee_notice",
         # v0.25.0 — 방위사업청 국방 R&D 실무 행정규칙 (확대 3차)
         "defense_future_challenge_guideline", "defense_facility_equipment", "defense_standard_agreement",
+        # v0.47.0 — 과기정통부 심사·검토 고시 2건
+        "large_rnd_plan_review", "build_type_rnd_screening",
     }
     assert ids == expected, f"id 불일치: 누락={expected - ids}, 추가={ids - expected}"
     # 모든 항목이 필수 field + v0.2.6 ministry 필드(additive) 노출
@@ -324,7 +326,7 @@ def test_server_instructions_fail_closed_and_scope_honesty():
 def test_server_instructions_stale_guard_v030():
     """v0.3.0: 범위 외 정직성 절이 미지원 규정의 변동 구체값 현행 단정 자제 + 43 카운트 동기화."""
     instr = mcp.instructions
-    assert "지원 64개 규정 밖이면" in instr               # 미지원 한정(in-scope 인용 비억제) + 카운트
+    assert "지원 66개 규정 밖이면" in instr               # 미지원 한정(in-scope 인용 비억제) + 카운트
     assert "변동 가능한 구체값을 현행 사실로 단정하지" in instr  # stale 식별자 단정 자제
     assert "1차 출처" in instr                            # 1차 출처 안내 보존
     # 미지원 한정 조건이 유지돼 in-scope 인용을 억제하지 않음(과억제 방지 회귀)
@@ -336,7 +338,7 @@ def test_review_prompt_mentions_health_family_and_count():
     body = review_regulation_prompt("테스트 상황")
     assert "보건의료 R&D family" in body                  # Tier 1 family 행
     assert "보건의료기술 진흥법" in body                  # family 규정명
-    assert "(64개 규정)" in body                          # 카운트 동기화
+    assert "(66개 규정)" in body                          # 카운트 동기화
     assert "health_tech_act" in body                      # cross-check 라우팅
 
 
@@ -358,7 +360,7 @@ def test_review_prompt_mentions_kdca_family_and_count():
     """v0.4.0: review 템플릿에 질병관리청 R&D family 행 + cross-check 라우팅 + 43 카운트."""
     body = review_regulation_prompt("테스트 상황")
     assert "질병관리청 R&D 행정규칙" in body              # Tier 2 family 행
-    assert "(64개 규정)" in body                          # 카운트 동기화
+    assert "(66개 규정)" in body                          # 카운트 동기화
     assert "kdca_rnd_management" in body                   # cross-check 라우팅
 
 
@@ -585,7 +587,7 @@ def test_server_instructions_external_fallback_guard_v041():
     assert "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오" in instr
     # append-only 회귀: 기존 도구 호출 유도·범위 외 정직성 가드 보존
     assert "일반 학습지식으로 답하지 말고" in instr
-    assert "지원 64개 규정 밖이면" in instr
+    assert "지원 66개 규정 밖이면" in instr
 
 
 def test_get_provision_detail_docstring_external_fallback_v041():
@@ -607,7 +609,7 @@ def test_server_instructions_false_negative_guard_v050():
     assert "응답에 없는 고시·예규 번호는 현행으로 단정하지 마십시오" in instr
     assert "지원 범위 내 규정의 조문·별표 본문은" in instr
     assert "일반 학습지식으로 답하지 말고" in instr
-    assert "지원 64개 규정 밖이면" in instr
+    assert "지원 66개 규정 밖이면" in instr
 
 
 def test_get_provision_detail_docstring_mentions_version_fields_v050():
@@ -652,7 +654,7 @@ def test_review_prompt_mentions_lab_safety_family_and_count_v0220():
     body = review_regulation_prompt("테스트 상황")
     assert "연구실 안전 family" in body                    # Tier 1 family 행
     assert "연구실 안전환경 조성에 관한 법률" in body      # family 규정명
-    assert "(64개 규정)" in body                           # 카운트 동기화
+    assert "(66개 규정)" in body                           # 카운트 동기화
     assert "lab_safety_act" in body                        # cross-check 라우팅
 
 
@@ -828,3 +830,16 @@ def test_innovation_decree_fallback_current_v0360():
     assert rs.api_target == "law"
     assert rs.api_doc_id == "288335"
     assert rs.effective_date == "2026-07-28"
+
+
+def test_v0470_template_and_instructions_scope_66():
+    """v0.47.0: instructions·review 템플릿의 지원 규정 66 갱신 + 신규 고시 2제목 표면 잠금."""
+    instr = mcp.instructions
+    assert "지원 66개 규정 밖이면" in instr
+    from korean_rnd_regs_mcp.main import _REVIEW_PROMPT_TEMPLATE
+    assert "== MCP 적용 범위 (66개 규정) ==" in _REVIEW_PROMPT_TEMPLATE
+    assert "대형 연구개발 사업계획검토 운영에 관한 규정" in _REVIEW_PROMPT_TEMPLATE
+    assert "구축형 연구개발사업 심사 운용지침" in _REVIEW_PROMPT_TEMPLATE
+    # 이전 카운트 문면 잔존 금지(3표면 일괄 갱신 검증)
+    assert "64개 규정" not in _REVIEW_PROMPT_TEMPLATE
+    assert "지원 64개 규정" not in instr

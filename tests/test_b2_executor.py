@@ -106,12 +106,12 @@ def test_contract_version_0_34_0():
     assert CONTRACT_VERSION == "0.34.0"
 
 
-def test_package_version_0_46_0():
-    """패키지 버전 0.46.0(국토교통 R&D 맥락 사례집 라우팅 보강 — 프롬프트-only·
+def test_package_version_0_47_0():
+    """패키지 버전 0.47.0(과기정통부 심사·검토 고시 2종 수록 — 데이터-only 64→66·
     contract 0.34.0 유지=입력 스키마 무변·재연결 불요).
-    직전 0.45.0(규범성 안내 귀속 교정 — contract 0.34.0)."""
+    직전 0.46.0(국토교통 R&D 맥락 사례집 라우팅 보강 — 프롬프트-only)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.46.0"
+    assert __version__ == "0.47.0"
 
 
 def test_cache_maxsize_96_v0240():

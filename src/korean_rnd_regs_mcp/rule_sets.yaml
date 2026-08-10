@@ -573,6 +573,47 @@ rule_sets:
       - "본 행정규칙은 평면 schema — LIVE 검증(2026-06-13): 조문 29·별표 1·별지 5·별첨 2(별지·별첨은 BP·검색 미지원)."
       - "과기정통부 소관 과학기술분야 R&D의 기획·선정·협약·평가·관리 절차"
 
+  - id: large_rnd_plan_review
+    title: 대형 연구개발 사업계획검토 운영에 관한 규정
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000276390"
+    unit_types: article  # LIVE(2026-08-10 프로브): 평면 schema·조문 15(결번 0·가지조문 0)·별표류 2건 전부 별표구분='별지'(698자·2,231자)→BP 미노출·최대 단일 조문 1,283자
+    query:
+      - 대형 연구개발 사업계획검토 운영에 관한 규정
+      - 대형 연구개발 사업계획검토
+      - 사업계획검토
+    license_status: public_data
+    effective_date: "2026-03-26"
+    source_url: https://www.law.go.kr/행정규칙/대형연구개발사업계획검토운영에관한규정
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "대형 연구개발사업의 사업계획검토 운영 절차 규정(과기정통부고시 제2026-15호·2026-03-26 제정·시행). 평면 schema — 조문 15. 부속 별지 2건(사업계획서의 제출·사업계획검토의 점검항목)은 별표구분='별지'라 BP(별표) 조회 미지원."
+
+  - id: build_type_rnd_screening
+    title: 구축형 연구개발사업 심사 운용지침
+    tier: "Tier 2"
+    hierarchy_rank: 4
+    retrieval: live_api
+    api_target: admrul
+    api_id_type: admrul_id
+    api_doc_id: "2100000278982"
+    unit_types: article  # LIVE(2026-08-10 프로브): 평면 schema·조문 42(결번 0·가지조문 0·장절 표제 8개 정상 스킵)·별표류 1건 별표구분='서식'(41,603자)→BP 미노출·최대 단일 조문 1,857자
+    query:
+      - 구축형 연구개발사업 심사 운용지침
+      - 구축형 연구개발사업 심사
+      - 구축형 심사
+    license_status: public_data
+    effective_date: "2026-05-11"
+    source_url: https://www.law.go.kr/행정규칙/구축형연구개발사업심사운용지침
+    ministry: 과학기술정보통신부
+    known_limitations:
+      - "구축형 연구개발사업의 심사 운용지침(과기정통부고시 제2026-41호·2026-05-11 제정·시행). 평면 schema — 조문 42. 부속 서식 1건(구축형 연구개발사업 심사 요구서·대용량)은 별표구분='서식'이라 BP(별표) 조회 미지원."
+      - "규정 전체는 2026-05-11부터 시행 중 — 부칙 제2조 적용례에 따라 제17조제2항제2호 각 목만 2026년 11월 이후 사업추진심사를 요구하는 사업부터 적용(일부 조항의 적용 시점이며 규정 전체의 시행일 변경이 아님)."
+
   - id: ict_rnd_management
     title: 정보통신·방송 연구개발 관리규정
     tier: "Tier 2"
