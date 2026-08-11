@@ -1055,7 +1055,7 @@ def test_live_api_error_message_no_url_no_key(monkeypatch):
     def mock_get(*args, **kwargs):
         raise FakeConnError()
 
-    monkeypatch.setattr(requests_mod, "get", mock_get)
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", mock_get)
 
     try:
         _request_with_retry("https://test.invalid", {"OC": _FAKE_KEY}, max_retries=1)
@@ -1079,7 +1079,7 @@ def test_live_api_handles_sslerror_without_url_leak(monkeypatch):
         def __str__(self):
             return f"SSL handshake failed at https://test.invalid/lawSearch.do?OC={_FAKE_KEY}"
 
-    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: (_ for _ in ()).throw(FakeSSLError()))
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", lambda *a, **kw: (_ for _ in ()).throw(FakeSSLError()))
 
     with pytest.raises(LawApiError) as exc_info:
         _request_with_retry("https://test.invalid", {"OC": _FAKE_KEY}, max_retries=1)
@@ -1101,7 +1101,7 @@ def test_request_with_retry_log_no_key_prefix(monkeypatch, caplog):
             return f"Connection failed: /lawSearch.do?OC={_FAKE_KEY}"
 
     monkeypatch.setattr(
-        requests_mod, "get",
+        "korean_rnd_regs_mcp.live_api._http_get",
         lambda *a, **kw: (_ for _ in ()).throw(FakeConnError()),
     )
     with caplog.at_level(logging.DEBUG, logger="rnd-regs-mcp.live_api"):
@@ -1161,7 +1161,7 @@ def test_get_law_detail_excludes_wrapper_elements(monkeypatch):
         text = fake_xml
         headers = {"Content-Type": "application/xml"}
 
-    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", lambda *a, **kw: FakeResponse())
 
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
     result = client.get_law_detail("283849")
@@ -1203,7 +1203,7 @@ def test_get_admin_rule_detail_flat_schema_fallback(monkeypatch):
         text = fake_xml
         headers = {"Content-Type": "application/xml"}
 
-    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", lambda *a, **kw: FakeResponse())
 
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
     result = client.get_admin_rule_detail("2100000196149")
@@ -1260,7 +1260,7 @@ def test_get_admin_rule_detail_excludes_wrapper_elements(monkeypatch):
         text = fake_xml
         headers = {"Content-Type": "application/xml"}
 
-    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", lambda *a, **kw: FakeResponse())
 
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
     result = client.get_admin_rule_detail("2100000278740")
@@ -2153,7 +2153,7 @@ def test_law_detail_captures_branch_article_v0140(monkeypatch):
         text = fake_xml
         headers = {"Content-Type": "application/xml"}
 
-    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", lambda *a, **kw: FakeResponse())
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
     result = client.get_law_detail("9999")
     arts = result["articles"]
@@ -2394,7 +2394,7 @@ def test_law_detail_captures_reference_field_v0150(monkeypatch):
         text = fake_xml
         headers = {"Content-Type": "application/xml"}
 
-    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", lambda *a, **kw: FakeResponse())
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
     arts = client.get_law_detail("9999")["articles"]
     assert arts[0]["조문참고자료"] == "[본조신설 2026.6.30]"
@@ -2739,7 +2739,7 @@ def test_get_old_and_new_parses_two_columns_v0180(monkeypatch):
         text = fake_xml
         headers = {"Content-Type": "application/xml"}
 
-    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", lambda *a, **kw: FakeResponse())
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
     result = client.get_old_and_new("281987")
     assert result["available"] is True
@@ -2768,7 +2768,7 @@ def test_get_old_and_new_absent_flag_v0180(monkeypatch):
         text = fake_xml
         headers = {"Content-Type": "application/xml"}
 
-    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", lambda *a, **kw: FakeResponse())
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
     result = client.get_old_and_new("282915")
     assert result == {"available": False}
@@ -2796,7 +2796,7 @@ def test_get_old_and_new_empty_body_single_retry_v0180(monkeypatch):
         calls["n"] += 1
         return FakeResponse("" if calls["n"] == 1 else fake_xml)
 
-    monkeypatch.setattr(requests_mod, "get", _fake_get)
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", _fake_get)
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
     result = client.get_old_and_new("281987")
     assert result == {"available": False}
@@ -3006,7 +3006,7 @@ def test_law_detail_annex_title_unescaped_and_branch_captured(monkeypatch):
         text = fake_xml
         headers = {"Content-Type": "application/xml"}
 
-    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", lambda *a, **kw: FakeResponse())
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
     result = client.get_law_detail("9999")
     ann1, ann2 = result["annexes"]
@@ -3063,7 +3063,7 @@ def test_admrul_detail_annex_fields_captured_and_title_unescaped(monkeypatch):
         text = fake_xml
         headers = {"Content-Type": "application/xml"}
 
-    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", lambda *a, **kw: FakeResponse())
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
     result = client.get_admin_rule_detail("5555")
     assert result["articles"] == []                        # 조문 0 + 별표만 → not_found 아님
@@ -3358,7 +3358,7 @@ def test_request_passes_tuple_timeout_to_requests_get(monkeypatch):
         captured["timeout"] = timeout
         return _FakeResp()
 
-    monkeypatch.setattr(requests_mod, "get", mock_get)
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", mock_get)
     _request_with_retry("https://test.invalid", {"OC": "x"})
     assert captured["timeout"] == (8.0, 12.0)
 
@@ -3592,7 +3592,7 @@ def test_get_admin_rule_detail_parses_issuance_and_kind_v050(monkeypatch):
         text = fake_xml
         headers = {"Content-Type": "application/xml"}
 
-    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", lambda *a, **kw: FakeResponse())
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
     result = client.get_admin_rule_detail("2100000279440")
     assert result["발령번호"] == "179"
@@ -3619,7 +3619,7 @@ def test_get_admin_rule_detail_missing_meta_omits_safely_v050(monkeypatch):
         text = fake_xml
         headers = {"Content-Type": "application/xml"}
 
-    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", lambda *a, **kw: FakeResponse())
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
     result = client.get_admin_rule_detail("123")
     assert result["발령번호"] == ""
@@ -4011,7 +4011,7 @@ def test_admin_rule_detail_parses_amendment_fields_v0190(monkeypatch):
         text = fake_xml
         headers = {"Content-Type": "application/xml"}
 
-    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", lambda *a, **kw: FakeResponse())
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
     detail = client.get_admin_rule_detail("2100000278230")
     assert detail["개정문내용"].startswith("제5조제4항제3호")
@@ -4038,7 +4038,7 @@ def test_admin_rule_detail_amendment_absent_v0190(monkeypatch):
         text = fake_xml
         headers = {"Content-Type": "application/xml"}
 
-    monkeypatch.setattr(requests_mod, "get", lambda *a, **kw: FakeResponse())
+    monkeypatch.setattr("korean_rnd_regs_mcp.live_api._http_get", lambda *a, **kw: FakeResponse())
     client = LawApiClient(env_override={"LAW_API_KEY": "fake"})
     detail = client.get_admin_rule_detail("2100000278740")
     assert detail["개정문내용"] == ""

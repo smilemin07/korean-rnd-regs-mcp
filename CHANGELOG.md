@@ -3,6 +3,19 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.48.0] - 2026-08-11
+
+**fan-out 안정화 — LIVE HTTP 연결 재사용(B3 연결풀·contract 0.34.0 유지)** — 규정 검색·조회의 모든 국가법령정보 OpenAPI 호출이 종전에는 매 호출 새 TCP+TLS 연결을 열었으나, 이제 작업 스레드별 keep-alive 연결을 재사용합니다(실측 호출당 약 105ms 절감·2026-08-11). 지원 규정이 66개로 늘어난 fan-out 검색의 cold 응답 시간과 연결 부하를 낮추는 transport 내부 변경으로, 응답 필드·오류 코드·입력 스키마·규정 데이터는 전부 무변입니다. 패키지 **0.47.0 → 0.48.0**, `contract_version` **0.34.0 유지**(§5.39). **입력 스키마 무변 → 웹 커넥터 재연결 불요.**
+
+### Changed
+
+- **LIVE HTTP 연결 재사용(B3)**: 모든 LIVE 호출의 단일 관문(`_request_with_retry`)이 bare `requests.get` 대신 스레드-로컬 keep-alive `Session`을 재사용합니다. bare 호출과의 요청 동일성 보존 설계 — 매 호출 직전·직후 쿠키 비움(사용자 간 상태 이월 차단), `trust_env`·adapter retry·pool sizing은 requests 기본값 그대로, timeout·재시도·backoff·오류 문면(키 마스킹 포함) 글자 단위 유지.
+- **전송 오류 격리**: 연결 오류(RequestException) 발생 시 해당 스레드의 Session을 폐기하고 다음 시도는 새 연결로 수행 — 서버측 idle 종료로 생기는 stale keep-alive 연결을 기존 재시도 경로 안에서 흡수합니다. Session 생성이 불가능한 이론적 경계에서는 bare 호출로 폴백합니다.
+
+### Note
+
+- transport-only 릴리스입니다. 도구 응답의 의미(필드·값·오류 코드)는 패키지 버전 표기를 제외하고 변경되지 않습니다.
+
 ## [0.47.0] - 2026-08-10
 
 **과기정통부 심사·검토 고시 2종 수록 — 지원 규정 64 → 66(contract 0.34.0 유지)** — 2026년 제정된 과학기술정보통신부 고시 2종을 등록합니다. 데이터-only 확대로 코드 실행 경로 변경이 없고(파서·검색·랭킹·응답 조립 무변), 두 규정 모두 기존 평면 schema 파서가 그대로 처리함을 LIVE 실측(2026-08-10)으로 확인했습니다. 패키지 **0.46.0 → 0.47.0**, `contract_version` **0.34.0 유지**(§5.38). **입력 스키마 무변 → 웹 커넥터 재연결 불요** — 갱신된 지원 범위 안내(instructions)는 새 대화(새 세션 초기화)부터 자동 반영됩니다.

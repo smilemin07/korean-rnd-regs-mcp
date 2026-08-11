@@ -115,6 +115,67 @@ def get_credentials(env_override: Optional[dict] = None) -> dict:
 
 # === HTTP request with retry + content-type defense ===
 
+# v0.48.0 (B3): thread-local keep-alive Session — LIVE HTTP 연결 재사용.
+# 종전에는 매 호출 bare requests.get이 새 TCP+TLS 연결을 열었다(requests.get은 내부적으로
+# 호출마다 임시 Session 생성·폐기). law.go.kr은 Connection: Keep-Alive를 지원하고(실측
+# 2026-08-11), fan-out 전용 executor(main._FANOUT_EXECUTOR) 스레드는 장수하므로 스레드당
+# Session 1개로 연결을 재사용한다(실측 호출당 약 105ms 절감).
+# 안전 불변식(계획 /disc 3-AI 수렴 — 위반 시 bare 의미론이 깨진다):
+# - lazy 생성: import·부팅·health 경로에서 Session·소켓을 만들지 않는다(outage 비의존).
+# - 쿠키는 매 최상위 호출 직전·직후 비운다 — bare requests.get[호출마다 빈 쿠키 시작]과
+#   요청 동일성 유지. 리다이렉트 체인 내부 쿠키는 허용되고, 호출 간(사용자 oc 간) 이월만
+#   차단된다.
+# - Session 속성에 키·params·headers를 저장하지 않는다(멀티테넌트) — 매 호출 인자로만 전달.
+# - trust_env·adapter retry·pool sizing은 requests 기본값 그대로 둔다(의미론 변경 금지).
+# - RequestException 시 해당 스레드 Session을 폐기(_discard_thread_session)해 stale
+#   keep-alive·오염된 연결 풀을 다음 attempt에서 새 연결로 격리한다.
+_thread_http = threading.local()
+
+
+def _http_get(url: str, params: dict, timeout: tuple[float, float]) -> requests.Response:
+    """HTTP GET 단일 seam — thread-local Session 재사용. 단위테스트는 이 함수를 patch한다.
+
+    쿠키 격리는 fail-closed(diff 적대검토 Codex MINOR 반영): clear()가 실패하면 그 Session을
+    폐기하고 빈 쿠키의 새 Session으로 진행한다 — "사용자(oc) 간 상태 이월 차단" 불변식이
+    clear 실패 시에도 유지된다(새 Session은 항상 빈 jar로 시작).
+    """
+    sess = getattr(_thread_http, "session", None)
+    if sess is not None:
+        try:
+            sess.cookies.clear()
+        except Exception:
+            # 격리 보장 불가 → fail-closed: 폐기하고 아래에서 새 Session(빈 jar) 생성
+            _discard_thread_session()
+            sess = None
+    if sess is None:
+        try:
+            sess = requests.Session()
+        except Exception:
+            # Session 생성 실패(이론 경계) — 이번 attempt만 bare 호출로 폴백
+            return requests.get(url, params=params, timeout=timeout)
+        _thread_http.session = sess
+    try:
+        return sess.get(url, params=params, timeout=timeout)
+    finally:
+        try:
+            sess.cookies.clear()
+        except Exception:
+            # 사후 비움 실패도 fail-closed — 다음 호출이 빈 jar의 새 Session으로 시작하게 폐기
+            _discard_thread_session()
+
+
+def _discard_thread_session() -> None:
+    """현재 스레드의 Session 폐기 — 전송 오류 후 stale keep-alive·풀 오염 격리용(never-raise)."""
+    sess = getattr(_thread_http, "session", None)
+    if sess is None:
+        return
+    _thread_http.session = None
+    try:
+        sess.close()
+    except Exception:
+        pass
+
+
 def _request_with_retry(
     url: str,
     params: dict,
@@ -125,7 +186,7 @@ def _request_with_retry(
     backoff = 1.0
     for attempt in range(max_retries):
         try:
-            response = requests.get(url, params=params, timeout=timeout)
+            response = _http_get(url, params, timeout)
             # 429 / 5xx → backoff retry
             if response.status_code == 429 or 500 <= response.status_code < 600:
                 if attempt < max_retries - 1:
@@ -159,6 +220,9 @@ def _request_with_retry(
             # InvalidURL 등도 catch — 누수 시 호출 URL(OC=<key>)가 trace에 노출되는 것을 차단.
             # type 이름만 logger·재시도 message에 사용하여 e 본문 누출 방지.
             last_err = e
+            # (v0.48.0 B3) 전송 오류가 난 Session은 폐기 — stale keep-alive 연결·오염 풀이
+            # 다음 attempt(또는 다음 호출)로 이어지지 않게 새 연결로 격리한다.
+            _discard_thread_session()
             err_type = type(e).__name__
             if attempt < max_retries - 1:
                 logger.warning("%s (attempt %d/%d), backoff %.1fs", err_type, attempt + 1, max_retries, backoff)

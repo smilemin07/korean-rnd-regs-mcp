@@ -45,7 +45,8 @@ def test_cache_lock_never_wraps_network_or_parse():
     XML 파싱(_parse_xml)·requests.* 가 들어가면 최악 ~82s 점유로 전체 캐시 경로가 막힌다.
     각 lock 블록 본문에 금지 토큰이 없는지 들여쓰기 기반으로 정적 검사."""
     lines = Path(live_api.__file__).read_text(encoding="utf-8").splitlines()
-    forbidden = ("_request_with_retry(", "_parse_xml(", "requests.get(", "requests.post(")
+    forbidden = ("_request_with_retry(", "_parse_xml(", "requests.get(", "requests.post(",
+                 "_http_get(", "sess.get(")  # v0.48.0 B3: 새 seam도 lock 밖 강제
     lock_blocks = 0
     for i, line in enumerate(lines):
         if line.strip().startswith("with self._cache_lock:"):
@@ -106,12 +107,12 @@ def test_contract_version_0_34_0():
     assert CONTRACT_VERSION == "0.34.0"
 
 
-def test_package_version_0_47_0():
-    """패키지 버전 0.47.0(과기정통부 심사·검토 고시 2종 수록 — 데이터-only 64→66·
-    contract 0.34.0 유지=입력 스키마 무변·재연결 불요).
-    직전 0.46.0(국토교통 R&D 맥락 사례집 라우팅 보강 — 프롬프트-only)."""
+def test_package_version_0_48_0():
+    """패키지 버전 0.48.0(fan-out 안정화 — LIVE HTTP 연결 재사용 B3·transport-only·
+    contract 0.34.0 유지=응답·입력 스키마·데이터 무변·재연결 불요).
+    직전 0.47.0(과기정통부 심사·검토 고시 2종 수록 — 데이터-only 64→66)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.47.0"
+    assert __version__ == "0.48.0"
 
 
 def test_cache_maxsize_96_v0240():
