@@ -237,6 +237,8 @@ def test_sanitize_error_message_redacts_per_user_key(mock_client, monkeypatch):
     """HTTP 모드: per-user OC key가 에러 메시지에 포함되어도 redact."""
     per_user_key = "USER_SECRET_OC_KEY_99"
     from korean_rnd_regs_mcp.main import _request_api_key
+    # contextvar 설정 시 _get_client가 per-user 클라이언트를 찾으므로 mock을 주입(네트워크 없음)
+    monkeypatch.setitem(main_module._client_by_key, per_user_key, mock_client)
     token = _request_api_key.set(per_user_key)
     try:
         mock_client.get_law_detail.side_effect = LawApiError(
