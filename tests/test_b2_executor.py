@@ -107,12 +107,13 @@ def test_contract_version_0_34_0():
     assert CONTRACT_VERSION == "0.34.0"
 
 
-def test_package_version_0_48_0():
-    """패키지 버전 0.48.0(fan-out 안정화 — LIVE HTTP 연결 재사용 B3·transport-only·
-    contract 0.34.0 유지=응답·입력 스키마·데이터 무변·재연결 불요).
-    직전 0.47.0(과기정통부 심사·검토 고시 2종 수록 — 데이터-only 64→66)."""
+def test_package_version_0_49_0():
+    """패키지 버전 0.49.0(rnd_info_processing manifest 현행화 — 데이터-only 2값·
+    contract 0.34.0 유지=응답·입력 스키마·코드 경로 무변·재연결 불요·배포는
+    2026-08-20 시행 도래 후 재프로브 PASS 전제).
+    직전 0.48.0(fan-out 안정화 — LIVE HTTP 연결 재사용 B3·transport-only)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.48.0"
+    assert __version__ == "0.49.0"
 
 
 def test_cache_maxsize_96_v0240():

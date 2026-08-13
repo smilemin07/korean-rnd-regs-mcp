@@ -1,2 +1,2 @@
 """korean-rnd-regs-mcp — MCP server for Korean national R&D regulation review."""
-__version__ = "0.48.0"
+__version__ = "0.49.0"

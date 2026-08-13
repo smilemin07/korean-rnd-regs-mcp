@@ -180,6 +180,25 @@ def test_v0470_manifest_count_66():
     assert len(load_manifest()) == 66
 
 
+def test_v0490_rnd_info_processing_currentized():
+    """v0.49.0: rnd_info_processing 등록 스냅샷 현행화 — 2026-08-20 시행 개정본(제2026-47호).
+
+    fallback ID 오타·회귀 방지 잠금(LIVE 재프로브 2026-08-13: 신판 2100000283100·시행
+    20260820 유지·조문 25·별표 2[0000/0002] 구조 동일). 구판 = 2100000195842(제2020-102호·
+    2021-01-01 시행). 배포는 2026-08-20 시행 도래 후 재프로브 PASS 전제(§5.40)."""
+    by_id = {rs.id: rs for rs in load_manifest()}
+    rs = by_id["rnd_info_processing"]
+    assert rs.api_doc_id == "2100000283100"
+    assert rs.effective_date == "2026-08-20"
+    assert rs.title == "국가연구개발정보처리기준"
+    assert rs.ministry == "과학기술정보통신부"
+    assert rs.api_target == ApiTarget.ADMRUL
+    # diff 적대검토(Codex) 반영 — BP 검색·상세가 본 릴리스 핵심 경로라 정체 필드 추가 잠금
+    assert rs.api_id_type.value == "admrul_id"
+    assert rs.unit_types == UnitTypes.BOTH
+    assert rs.retrieval == Retrieval.LIVE_API
+
+
 def test_v0470_build_type_screening_partial_application_note():
     """v0.47.0: 구축형 심사 운용지침의 부칙 제2조 적용례가 known_limitations에 명시 — 전체 미시행 오인 방지.
 
