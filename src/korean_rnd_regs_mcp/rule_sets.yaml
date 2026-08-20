@@ -16,13 +16,13 @@ rule_sets:
     retrieval: live_api
     api_target: law
     api_id_type: MST
-    api_doc_id: "283849"  # 2026-06-11 시행 개정 발효 (2026-06-12 /regs-audit — 합본 상세응답 시행일자는 20260911 미래분이므로 검색 행 기준)
+    api_doc_id: "283413"  # 2026-08-20 시행 일부개정(법률 제21347호·2026-02-19 공포) — 2026-08-20 LIVE 재프로브. ★구 283849는 구판이 아니라 2026-09-11 시행 예정 합본(lawService 본문이 미시행 개정분·현행과 제2·17·18·32조 상이)이라 fallback 오염 차단 목적 교체(C12). 2026-09-11 시행 도래 시 재감사 필요
     unit_types: article
     query:
       - 국가연구개발혁신법
       - 혁신법
     license_status: public_data
-    effective_date: "2026-06-11"
+    effective_date: "2026-08-20"
     source_url: https://www.law.go.kr/법령/국가연구개발혁신법
 
   - id: innovation_decree
@@ -32,16 +32,16 @@ rule_sets:
     retrieval: live_api
     api_target: law
     api_id_type: MST
-    api_doc_id: "288335"  # 2026-07-28 시행 일부개정(제35조의2 신설) — 2026-08-05 LIVE 재프로브·검색 행/상세 시행일자 일치
+    api_doc_id: "288773"  # 2026-08-20 시행 일부개정(대통령령 제36580호·2026-08-18 공포) — 2026-08-20 LIVE 재프로브. 조문 71·별표5의2(연구보안 전담기관 행정처분 세부기준·BP000502) 신설·별표2(17,403자)·별표7(18,528자) oversized 유지
     unit_types: both  # v0.2: 별표 1~7 검색·상세 지원 (get_law_detail 별표 파싱). 대용량 별표는 size-tiered 포인터
     query:
       - 국가연구개발혁신법 시행령
       - 혁신법 시행령
     license_status: public_data
-    effective_date: "2026-07-28"  # 2026-08-05 LIVE 재프로브: MST 285767→288335 변경·별표 1~7 구성 불변(별표2·7 oversized 유지)
+    effective_date: "2026-08-20"  # 2026-08-20 LIVE 재프로브: MST 288335→288773 변경·별표5의2 신설 외 별표 1~7 유지(별표2·7 oversized 유지)
     source_url: https://www.law.go.kr/법령/국가연구개발혁신법시행령
     known_limitations:
-      - "별표 1~7(연구개발비 지원기준·사용용도·등록범위·참여제한·제재부가금 등) 검색·상세 조회 지원(v0.2). 소형 별표는 본문 전문 제공, 대용량 별표(별표2·7)는 분량상 본문 미수록(content_format=oversized_pointer) — 전문은 공식 링크·search_provision로 확인"
+      - "별표 1~7·별표5의2(연구개발비 지원기준·사용용도·등록범위·연구보안 행정처분·참여제한·제재부가금 등) 검색·상세 조회 지원(v0.2). 소형 별표는 본문 전문 제공, 대용량 별표(별표2·7)는 분량상 본문 미수록(content_format=oversized_pointer) — 전문은 공식 링크·search_provision로 확인"
 
   - id: innovation_rule
     title: 국가연구개발혁신법 시행규칙
@@ -50,13 +50,13 @@ rule_sets:
     retrieval: live_api
     api_target: law
     api_id_type: MST
-    api_doc_id: "286879"  # 2026-06-11 시행 개정 발효 (2026-06-12 /regs-audit)
-    unit_types: article  # 본문 조문만 — LIVE: 별표 0·서식 10종(서식은 BP 미지원)
+    api_doc_id: "289003"  # 2026-08-20 시행 개정(제00173호·공포 당일 시행) — 2026-08-20 LIVE 재프로브
+    unit_types: article  # 본문 조문만 — LIVE: 별표 0·서식 12종(서식은 BP 미지원)
     query:
       - 국가연구개발혁신법 시행규칙
       - 혁신법 시행규칙
     license_status: public_data
-    effective_date: "2026-06-11"
+    effective_date: "2026-08-20"
     source_url: https://www.law.go.kr/법령/국가연구개발혁신법시행규칙
 
   # === Tier 2: 핵심 행정규칙 ===
@@ -193,13 +193,13 @@ rule_sets:
     retrieval: live_api
     api_target: law
     api_id_type: MST
-    api_doc_id: "264735"
+    api_doc_id: "288777"  # 2026-08-20 시행 일부개정(대통령령 제36580호·2026-08-18 공포) — 2026-08-20 LIVE 재프로브(구 264735는 2024-08-07 구판)
     unit_types: article
     query:
       - 국토교통과학기술 육성법 시행령
       - 국토교통과학기술육성법 시행령
     license_status: public_data
-    effective_date: "2024-08-07"
+    effective_date: "2026-08-20"
     source_url: https://www.law.go.kr/법령/국토교통과학기술육성법시행령
     known_limitations:
       - "별표 없음(LIVE 실측 0건) — 본문 조문만 검토 대상"

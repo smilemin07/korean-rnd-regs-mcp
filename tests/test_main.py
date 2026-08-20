@@ -280,7 +280,7 @@ def test_tool_docstrings_include_usage_timing_stanza():
 def test_contract_version_is_0_16_0():
     """v0.20.0: 대용량 별표 청크 조회(annex_chunk) → contract 0.15.0→0.16.0(직전 v0.19.0=0.15.0 admrul redline 확장)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.35.0"
+    assert CONTRACT_VERSION == "0.36.0"
 
 
 # === v0.2.11: MCP Registry 등록 마커 + server.json ===
@@ -814,22 +814,50 @@ def test_kt_autonomous_registered_v0260():
     assert "자율주행 사업단" in body
 
 
-# === v0.36.0: 혁신법 시행령 fallback 현행화 (배포 후 관측 반영 정비) ===
+# === v0.36.0(→v0.51.0 값 현행화): 혁신법 시행령 fallback 정적 잠금 ===
 def test_innovation_decree_fallback_current_v0360():
-    """v0.36.0: innovation_decree fallback 정적 잠금(2026-08-05 전수 감사 CHANGED 반영).
+    """innovation_decree fallback 정적 잠금(v0.36.0 신설·v0.51.0 값 현행화).
 
-    LIVE 재프로브(law-api-prober 2026-08-05): lawSearch 정확일치 행 = MST 288335
-    (시행 2026-07-28 일부개정·조문 68→69 제35조의2 신설·별표 1~7 구성 불변) 1건뿐
-    (구 285767 행 소멸). fallback은 검색 실패 시 최후 경로인데 LIVE acceptance의
-    field_equals는 WARN 클래스라 CI가 값 회귀를 직접 보증하지 않는 공백이 있었음
-    (diff 적대검토 MAJOR — 전례 test_sme_tech_family_current_docids_v0131).
+    LIVE 재프로브(law-api-prober 2026-08-20): lawSearch 정확일치 행 = MST 288773
+    (시행 2026-08-20 일부개정 대통령령 제36580호·조문 71·별표5의2 신설·별표2·7
+    oversized 유지) 1건뿐(구 288335 행 소멸). fallback은 검색 실패 시 최후 경로인데
+    LIVE acceptance의 field_equals는 WARN 클래스라 CI가 값 회귀를 직접 보증하지 않는
+    공백이 있었음(diff 적대검토 MAJOR — 전례 test_sme_tech_family_current_docids_v0131).
     """
     from korean_rnd_regs_mcp.manifest import load_manifest
     items = {rs.id: rs for rs in load_manifest()}
     rs = items["innovation_decree"]
     assert rs.api_target == "law"
-    assert rs.api_doc_id == "288335"
-    assert rs.effective_date == "2026-07-28"
+    assert rs.api_doc_id == "288773"
+    assert rs.effective_date == "2026-08-20"
+
+
+# === v0.51.0: manifest 4건 현행화 정적 잠금 (2026-08-20 시행분·전수 감사 CHANGED 4건) ===
+def test_manifest_4_rules_current_v0510():
+    """v0.51.0: 2026-08-20 시행 도래로 CHANGED된 4건의 api_doc_id·effective_date 전수 잠금.
+
+    LIVE 재프로브(law-api-prober 2026-08-20·66규정 전수 감사 = 일치 62/CHANGED 4/실패 0):
+    - innovation_act 283849 → 283413 (★구 283849는 구판이 아니라 2026-09-11 시행 예정 합본 —
+      lawService 본문이 미시행 개정분[현행과 제2·17·18·32조 상이]이라 fallback 오염 경로였음.
+      2026-09-11 시행 도래 시 재감사 필요)
+    - innovation_decree 288335 → 288773 (조문 71·별표5의2 BP000502 신설)
+    - innovation_rule 286879 → 289003 (공포 당일 시행·서식 12종)
+    - sector_kt_decree 264735 → 288777 (대통령령 제36580호 일괄)
+    신 MST 4건 전건 lawService 상세 시행일자 = 20260820 ≤ 오늘(감사 검사 통과) 실측.
+    """
+    from korean_rnd_regs_mcp.manifest import load_manifest
+    items = {rs.id: rs for rs in load_manifest()}
+    expected = {
+        "innovation_act": "283413",
+        "innovation_decree": "288773",
+        "innovation_rule": "289003",
+        "sector_kt_decree": "288777",
+    }
+    for rid, doc_id in expected.items():
+        rs = items[rid]
+        assert rs.api_target == "law", rid
+        assert rs.api_doc_id == doc_id, rid
+        assert rs.effective_date == "2026-08-20", rid
 
 
 def test_v0470_template_and_instructions_scope_66():

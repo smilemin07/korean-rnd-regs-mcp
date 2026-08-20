@@ -105,18 +105,21 @@ def test_contract_version_0_34_0():
     → 0.34.0 → 0.35.0 minor bump(v0.50.0 규정 탐색·조회 실패 복구 안내 정비 —
     upcoming_revision 문면 후반 교체 + 규정 상세 not_found 문면 복구 지시[계약 명시 필드
     문면 값 변경·v0.30.0 0.21.0 선례] + 용어 드리프트 힌트 2표면·입력 스키마 무변·
-    재연결 불요. §5.41 참조)."""
+    재연결 불요. §5.41 참조)
+    → 0.35.0 → 0.36.0 minor bump(v0.51.0 상세 조회 미시행 시행일 고지 —
+    get_provision_detail 성공 응답[law 한정]에 fetched_detail_effective_date_notice
+    조건부 additive·입력 스키마 무변·재연결 불요. §5.42 참조)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.35.0"
+    assert CONTRACT_VERSION == "0.36.0"
 
 
-def test_package_version_0_50_0():
-    """패키지 버전 0.50.0(규정 탐색·조회 실패 복구 안내 정비 §5.41 — 문면 2건 +
-    프롬프트 2표면·contract 0.35.0 minor bump[계약 명시 필드 문면 값 변경]·
+def test_package_version_0_51_0():
+    """패키지 버전 0.51.0(manifest 4건 현행화[2026-08-20 시행분] + 상세 조회 미시행
+    시행일 고지 §5.42 — contract 0.36.0 minor bump[조건부 additive 필드 1종]·
     입력 스키마 무변·재연결 불요).
-    직전 0.49.0(rnd_info_processing manifest 현행화 — 데이터-only 2값)."""
+    직전 0.50.0(규정 탐색·조회 실패 복구 안내 정비 §5.41)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.50.0"
+    assert __version__ == "0.51.0"
 
 
 def test_cache_maxsize_96_v0240():

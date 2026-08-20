@@ -964,6 +964,45 @@ def _resolve_status_fields(rs, resolved: ResolvedDocId | None) -> dict:
     return fields
 
 
+def _detail_effective_notice(pid, detail: dict, today: str | None = None) -> dict:
+    """(v0.51.0 §5.42) 조회된 상세 자료(lawService)의 시행일자가 미래일 때의 완성형 고지 — law 한정.
+
+    C12 창(분리시행 합본 MST가 lawSearch 현행 행으로 등재되지만 lawService 본문은 미래
+    분리시행분 — 2026-06-12~08-19 혁신법 283849로 69일 실측)에서는 검색 행 기반 방어
+    (resolve·현행성 감사)가 전부 통과한 채 미시행 본문이 서빙될 수 있다. 그 창을 검출하는
+    유일한 런타임 신호가 fetch된 상세 응답 자체의 시행일자이므로, 미래이면 완성형 문장
+    1개를 부착한다(추가 네트워크 0 — 이미 파싱된 값 비교뿐).
+
+    비보증(§5.42 명시): 이 고지는 문서 단위 시행일 신호다 — 발화해도 요청한 특정 조문·별표가
+    미시행이라는 단정이 아니고(조문별 분리시행), 부재해도 현행성 보증이 아니다(검색 발췌
+    경로·조항별 적용례는 미검출). admrul은 동형 현상 실측 표본이 없어 제외(확대는 실측 후
+    별도 의도). 날짜 파싱 실패·형식 이상(8자리 아님·달력 무효 포함)은 미래로 단정하지 않고
+    생략(never-raise·과경고 방지 — diff 적대검토 Codex 조건 5 반영: 달력 유효성까지 검사).
+    """
+    if pid.doc_type != "law":
+        return {}
+    try:
+        raw = (detail.get("시행일자") or "").strip().replace("-", "")
+        if today is None:
+            today = LawApiClient._today_kst()
+        if not LawApiClient._is_future_date(raw, today):
+            return {}
+        try:
+            time.strptime(raw, "%Y%m%d")  # 달력 유효성(예: 20261340 월 13 배제)
+        except ValueError:
+            return {}
+        formatted = f"{raw[:4]}-{raw[4:6]}-{raw[6:]}"
+        return {
+            "fetched_detail_effective_date_notice": (
+                f"조회된 국가법령정보 상세 자료의 시행일자가 {formatted}로 오늘보다 미래입니다. "
+                f"이 응답에는 아직 시행되지 않은 개정 내용이 포함되었을 수 있으니, 인용·적용 전에 "
+                f"국가법령정보센터(law.go.kr) 원문에서 현재 시행 여부를 확인하십시오."
+            )
+        }
+    except Exception:  # pragma: no cover - 방어선(고지 실패가 본문 응답을 막지 않게)
+        return {}
+
+
 def _build_match(rs, unit_id: str, unit_type: str, title: str, snippet: str,
                  resolved: ResolvedDocId | None = None) -> dict:
     """단일 검색 결과 dict 생성. snippet은 호출자가 _make_snippet으로 미리 생성."""
@@ -1359,9 +1398,13 @@ def _dependent_article_hints(title: str) -> list[str]:
 _ANNEX_DETAIL_CHAR_BUDGET = 16000
 # 전문 verbatim 판정 시 호출부가 사후 추가하는 필드용 헤드룸을 예산에서 차감(보수적).
 # 사후주입: revision_notice(~100자) + v0.5.0 admrul version 메타(issuance_number·regulation_kind·version_label ~80자)
-# + v0.37.0 resolve 상태 고지(upcoming_revision ~160자·resolve_fallback_notice ~170자 — 발화 시)
-# → 최악 합 ~530자 < 600 헤드룸(B2: 최종 직렬화 ≤ _ANNEX_DETAIL_CHAR_BUDGET 보장. 300→600 상향은
-# 안전 방향 — 경계의 대형 본문이 포인터로 강등될 뿐 예산 초과는 없음).
+# + v0.37.0 resolve 상태 고지(upcoming_revision ~207자·resolve_fallback_notice ~170자 — 발화 시)
+# + v0.51.0 상세 시행일 고지(fetched_detail_effective_date_notice ~180자 — law 한정 발화 시).
+# 전 필드 단순 합은 600을 넘지만 동시 발화 가능한 조합만 따지면 한도 내: law 경로는 version 메타
+# 미발화(worst = revision+upcoming+detail_notice), admrul 경로는 detail_notice 미발화(worst = 기존
+# ~530자 불변), fallback 경로는 revision·upcoming 미발화. 조합별 상한 증명 = test_tools.py
+# test_post_injection_combos_bounded_within_headroom_v0510 (B2: 최종 직렬화 ≤ _ANNEX_DETAIL_CHAR_BUDGET
+# 보장. 300→600 상향은 안전 방향 — 경계의 대형 본문이 포인터로 강등될 뿐 예산 초과는 없음).
 _ANNEX_DETAIL_HEADROOM = 600
 # v0.7.0: 문서 레벨 articles 출력 목록 상한 — 예산(16k)상 수록 가능한 항목 수(최소 항목 ~45자 → ~350개)를
 # 크게 상회하는 방어적 cap. 현행 60규정 최대 117조문이라 평시 미도달. 출력 목록 크기를 600으로 cap해
@@ -2562,6 +2605,9 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
     _revision = _revision_notice(rs, resolved)
     # v0.37.0: resolve 상태 고지(개정 예정·fallback 발동) 1회 계산 — 3 반환점에 균일 주입(미발화 시 {}).
     _resolve_status = _resolve_status_fields(rs, resolved)
+    # v0.51.0: 상세 시행일 고지(law 한정·발화 시) — 동일 dict 합류로 문서·JO·BP·강등 재조립
+    # 5주입점을 그대로 상속(신규 주입 지점 0). 헤드룸 조합 증명은 test_tools.py v0510 참조.
+    _resolve_status.update(_detail_effective_notice(pid, detail))
     # v0.5.0: admrul 발령번호·종류 version 메타 1회 계산 — 3 반환점(문서·조문·별표)에 균일 주입.
     # law·오류 경로는 {} (helper의 doc_type 가드) → update no-op. effective_date는 별도 필드 유지.
     _version_meta = _admrul_version_meta(pid, detail)

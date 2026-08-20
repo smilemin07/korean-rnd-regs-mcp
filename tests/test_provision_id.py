@@ -40,7 +40,10 @@ def test_contract_version_pinned():
     # 0.35.0 = 규정 탐색·조회 실패 복구 안내 정비(v0.50.0) — 계약 명시 필드 upcoming_revision 문면
     #          후반 교체 + 규정 상세 not_found 문면 복구 지시(§5.41·문면 값 변경 = v0.30.0의
     #          0.21.0 footer 문면 bump 선례) → minor bump.
-    assert CONTRACT_VERSION == "0.35.0"
+    # 0.36.0 = 상세 조회 미시행 시행일 고지(v0.51.0) — get_provision_detail 성공 응답(law 한정)에
+    #          fetched_detail_effective_date_notice 조건부 additive(§5.42·lawService 상세 시행일자가
+    #          미래일 때만 발화·비보증 3항 명시) → minor bump.
+    assert CONTRACT_VERSION == "0.36.0"
 
 
 # === unit_label (v0.1.8 — overflow_candidates label용) ===
