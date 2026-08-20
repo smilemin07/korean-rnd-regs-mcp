@@ -37,7 +37,10 @@ def test_contract_version_pinned():
     # 0.15.0 = admrul redline 확장(v0.19.0) — 행정규칙 문서레벨에도 amendment_text·amendment_kind additive(§5.16·<제개정구분명> 정규화) → minor bump.
     # 0.25.0 = 구조 안내 완성형 승격(v0.34.0) — get_manual_section 본문 응답에 structure_notice·
     #          structure_notice_note additive(§5.26·구조 손실 확인 절 한정·예산 백스톱) → minor bump.
-    assert CONTRACT_VERSION == "0.34.0"
+    # 0.35.0 = 규정 탐색·조회 실패 복구 안내 정비(v0.50.0) — 계약 명시 필드 upcoming_revision 문면
+    #          후반 교체 + 규정 상세 not_found 문면 복구 지시(§5.41·문면 값 변경 = v0.30.0의
+    #          0.21.0 footer 문면 bump 선례) → minor bump.
+    assert CONTRACT_VERSION == "0.35.0"
 
 
 # === unit_label (v0.1.8 — overflow_candidates label용) ===

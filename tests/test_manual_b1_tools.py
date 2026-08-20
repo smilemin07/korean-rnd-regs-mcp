@@ -333,7 +333,7 @@ def test_golden_v0340_baseline_preserved(fresh_cache):
         return s.replace('"contract_version": "0.25.0"', '"contract_version": "N"') \
                 .replace('"contract_version": "0.31.0"', '"contract_version": "N"') \
                 .replace('"contract_version": "0.32.0"', '"contract_version": "N"') \
-                .replace('"contract_version": "0.34.0"', '"contract_version": "N"')
+                .replace('"contract_version": "0.35.0"', '"contract_version": "N"')
 
     assert norm(asyncio.run(get_manual_section("3-13"))) == norm(golden["detail_3_13"])
     assert norm(asyncio.run(get_manual_section("b3-5-3"))) == norm(golden["detail_b3_5_3"])
@@ -360,7 +360,7 @@ def test_b1_all_ids_citation_footer(fresh_cache):
         meta = r["manual_meta"]
         assert meta["manual_basis_date"] is None, sid
         assert "법령 기준일 원문 미표기" in meta["notice"], sid
-        assert r["contract_version"] == "0.34.0", sid
+        assert r["contract_version"] == "0.35.0", sid
         assert r["format_note"].startswith("본 content는 「학생인건비통합관리 제도 매뉴얼」"), sid
         if sid == "b1-ref-3":
             # 포인터 응답 = 본문 미전달 → footer 2줄 규약(허위 인용 고지 차단)

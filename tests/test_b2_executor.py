@@ -101,19 +101,22 @@ def test_contract_version_0_34_0():
     입력 스키마 무변·재연결 불요. §5.36 참조)
     → 0.34.0 유지(v0.46.0 국토교통 R&D 맥락 사례집 라우팅 보강 — 프롬프트-only[
     _SERVER_INSTRUCTIONS·search_manual docstring·review_regulation 템플릿 3표면]·
-    응답 필드·shape·오류코드·검색/랭킹·입력 스키마 불변. §5.37·§6 유지 행 참조).
-    직전 0.21.0: 출처·원문 확인 경로 정비(§5.22)."""
+    응답 필드·shape·오류코드·검색/랭킹·입력 스키마 불변. §5.37·§6 유지 행 참조)
+    → 0.34.0 → 0.35.0 minor bump(v0.50.0 규정 탐색·조회 실패 복구 안내 정비 —
+    upcoming_revision 문면 후반 교체 + 규정 상세 not_found 문면 복구 지시[계약 명시 필드
+    문면 값 변경·v0.30.0 0.21.0 선례] + 용어 드리프트 힌트 2표면·입력 스키마 무변·
+    재연결 불요. §5.41 참조)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.34.0"
+    assert CONTRACT_VERSION == "0.35.0"
 
 
-def test_package_version_0_49_0():
-    """패키지 버전 0.49.0(rnd_info_processing manifest 현행화 — 데이터-only 2값·
-    contract 0.34.0 유지=응답·입력 스키마·코드 경로 무변·재연결 불요·배포는
-    2026-08-20 시행 도래 후 재프로브 PASS 전제).
-    직전 0.48.0(fan-out 안정화 — LIVE HTTP 연결 재사용 B3·transport-only)."""
+def test_package_version_0_50_0():
+    """패키지 버전 0.50.0(규정 탐색·조회 실패 복구 안내 정비 §5.41 — 문면 2건 +
+    프롬프트 2표면·contract 0.35.0 minor bump[계약 명시 필드 문면 값 변경]·
+    입력 스키마 무변·재연결 불요).
+    직전 0.49.0(rnd_info_processing manifest 현행화 — 데이터-only 2값)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.49.0"
+    assert __version__ == "0.50.0"
 
 
 def test_cache_maxsize_96_v0240():

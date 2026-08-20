@@ -84,6 +84,11 @@ _SERVER_INSTRUCTIONS = (
     "먼저 suggest_review_sources 또는 search_provision을 호출하고, 인용할 근거는 get_provision_detail로 "
     "원문을 확인하십시오. 단순 인사·순수 번역·문장 다듬기·코딩 질문·해외 제도만의 설명 등 "
     "본 서버 범위 밖 질문에는 호출하지 마십시오. "
+    "법령 개정으로 조문 본문의 용어가 바뀌어, 실무·하위 규정에 남아 있는 구 용어로는 search_provision 검색이 "
+    "해당 조문에 도달하지 못할 수 있습니다(예: 제재처분에 대한 '이의신청'은 2026년 2월 개정으로 "
+    "국가연구개발혁신법 제33조에서 '재검토 요청'으로 바뀜 — 하위 규정·실무 자료에는 구 용어가 남아 있음). "
+    "구 용어 검색이 기대한 조문에 도달하지 못하면 현행 조문 용어로 재검색하되, 구 용어와 현행 용어를 "
+    "한 query에 함께 넣지 마십시오(모든 토큰이 한 조문에 동시에 존재해야 매칭되는 토큰 AND 방식이라 0건이 되기 쉽습니다). "
     "현재 대화에 규정 도구가 보이지 않거나 호출에 실패하여 질문의 근거를 확인할 수 없으면, "
     "일반 학습지식으로 규정의 수치·요건·결론을 단정하지 말고 도구 미가용 사실을 밝힌 뒤 "
     "새 대화에서 다시 시도하거나 stdio 클라이언트(Claude Desktop·Claude Code 등)에서 재조회하도록 안내하십시오. "
@@ -942,10 +947,13 @@ def _resolve_status_fields(rs, resolved: ResolvedDocId | None) -> dict:
     if resolved is None:
         return fields
     if resolved.pending_effective_date:
+        # v0.50.0: 후반부 교체 — 시행 전 새 판본 본문은 본 도구로 조회 불가라는 한계와
+        # 확인 경로(law.go.kr)·시행일 이후 재조회를 안내(append 아닌 교체 — 응답 예산 잠식 억제).
         fields["upcoming_revision"] = (
             f"개정 예정: {resolved.pending_effective_date} 시행 예정인 새 판본"
             f"(문서 ID {resolved.pending_doc_id})이 공포되어 있습니다. 본 응답은 현행 시행본 기준이며, "
-            f"시행일 도래 후에는 새 판본 기준으로 재확인이 필요합니다."
+            f"시행 전 새 판본 본문은 본 도구로 조회할 수 없으니 국가법령정보센터(law.go.kr)에서 확인하고 "
+            f"시행일부터 본 도구로 다시 조회하십시오."
         )
     if resolved.resolve_failed:
         fields["resolve_fallback_notice"] = (
@@ -1902,6 +1910,12 @@ async def search_provision(query: str) -> dict:
     매칭 (v0.1.6): query를 공백으로 토큰 분해하여 모든 토큰(2자 이상)이 한 조문/별표의
     제목 또는 본문에 존재하면 매칭(토큰 AND). 단일 토큰 query는 종전과 동일한 부분문자열 매칭.
     원문이 "협약의 변경/협약을 변경"으로 써서 "협약 변경"이 안 잡히던 띄어쓰기 불일치를 해소.
+
+    v0.50.0(용어 드리프트): 법령 개정으로 조문 본문 용어가 바뀐 경우 구 용어 검색은 해당 조문에
+    도달하지 못합니다(예: 제재처분 '이의신청'은 2026년 2월 개정으로 혁신법 제33조에서
+    '재검토 요청'으로 바뀜 — 하위 규정·실무 자료에는 구 용어가 남아 있음). 구 용어 검색이
+    기대한 조문에 도달하지 못하면 현행 조문 용어로 재검색하고, 구 용어와 현행 용어를 한 query에
+    함께 넣지 마십시오(토큰 AND라 0건이 되기 쉽습니다).
     """
     _e = _http_no_key_error()
     if _e is not None:
@@ -2513,7 +2527,13 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 "code": "not_found",
                 # v0.34.0: doc_id는 형식 제약 없는 사용자 입력(비어있지 않음만 검증) — 사용자가
                 # 실수로 자신의 OC 키를 doc_id 자리에 붙여넣은 경우의 self-echo를 마스킹
-                "message": _sanitize_error_message(f"manifest에 {pid.doc_type}:{pid.doc_id} 항목 없음"),
+                # v0.50.0: 내부 용어 'manifest' 제거 + 재검색 복구 지시(구 ID not_found 회복
+                # 경로가 호스트 행동으로 실증됨 — 문면 자체에 복구 행동을 싣는다)
+                "message": _sanitize_error_message(
+                    f"지원 규정 목록에 {pid.doc_type}:{pid.doc_id} 항목 없음 — 규정 개정으로 "
+                    f"문서 ID가 바뀐 구 ID이거나 미지원 규정일 수 있으니, 질문 핵심 용어로 "
+                    f"search_provision을 재호출해 현행 provision_id를 확인하십시오"
+                ),
             }],
             "contract_version": CONTRACT_VERSION,
             "disclaimer": _DISCLAIMER,

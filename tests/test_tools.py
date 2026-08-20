@@ -560,7 +560,7 @@ def test_suggest_client_keywords_no_degraded_note(mock_client):
 def test_suggest_degraded_note_contract_version_unchanged(mock_client):
     """suggest 응답에 현행 contract_version(0.10.0) 포함."""
     result = asyncio.run(suggest_review_sources("특별평가"))
-    assert result["contract_version"] == "0.34.0"
+    assert result["contract_version"] == "0.35.0"
 
 
 def test_suggest_fallback_and_truncated_notes_space_joined(mock_client):
@@ -885,7 +885,7 @@ def test_suggest_review_sources_client_fallback_then_cap(mock_client):
 def test_list_rule_sets_includes_contract_version(mock_client):
     result = asyncio.run(list_rule_sets())
     assert "contract_version" in result
-    assert result["contract_version"] == "0.34.0"
+    assert result["contract_version"] == "0.35.0"
 
 
 # === _build_article_content  ===
@@ -3827,7 +3827,7 @@ def test_get_provision_detail_small_article_unchanged_v060(mock_client):
     assert result["content_format"] == "plain_text_verbatim"
     assert result["article_structure"] is not None
     assert "content_available" not in result
-    assert result["contract_version"] == "0.34.0"
+    assert result["contract_version"] == "0.35.0"
 
 
 def test_article_demotes_to_oversized_when_injection_exceeds_budget_v060(mock_client):
@@ -4852,9 +4852,12 @@ def test_resolve_status_fields_notice_text_lock_v0370():
         pending_doc_id="2100000283100", pending_effective_date="2026-08-20",
     )
     f = _resolve_status_fields(rs, pending)
+    # v0.50.0: 후반부 교체 문면 잠금 — 시행 전 본 도구 조회 불가 한계 + law.go.kr 확인 +
+    # 시행일 이후 재조회 안내(§5.41)
     assert f["upcoming_revision"] == (
         "개정 예정: 2026-08-20 시행 예정인 새 판본(문서 ID 2100000283100)이 공포되어 있습니다. "
-        "본 응답은 현행 시행본 기준이며, 시행일 도래 후에는 새 판본 기준으로 재확인이 필요합니다."
+        "본 응답은 현행 시행본 기준이며, 시행 전 새 판본 본문은 본 도구로 조회할 수 없으니 "
+        "국가법령정보센터(law.go.kr)에서 확인하고 시행일부터 본 도구로 다시 조회하십시오."
     )
     assert "resolve_fallback_notice" not in f
     failed = ResolvedDocId(
@@ -5676,3 +5679,41 @@ def test_suggest_client_zero_hit_fallback_uses_new_rules_v0420(mock_client):
     assert "특별평가" in result["extracted_keywords"]
     for noise in ("후보", "순서", "목록", "추천", "규정"):
         assert noise not in result["extracted_keywords"]
+
+
+# ── v0.50.0 규정 탐색·조회 실패 복구 안내 정비 (§5.41) ──────────────────────
+
+
+def test_v0500_not_found_recovery_message(mock_client):
+    """규정 상세 not_found 문면 잠금 — 내부 용어 'manifest' 제거 + 재검색 복구 지시.
+
+    구 ID not_found 후 재검색 회복 경로는 v0.49.0 배포 후 eval P3에서 호스트 행동으로
+    실증됨 — 그 복구 행동을 오류 문면 자체에 싣는다(완성형 안내가 소비된다는 A/B 실증 축).
+    """
+    result = asyncio.run(get_provision_detail("admrul:0000000000000:JO0001"))
+    errs = result.get("errors") or []
+    assert errs and errs[0]["code"] == "not_found"
+    msg = errs[0]["message"]
+    # 전체 문자열 equality 하드 잠금(diff 적대검토 Codex — 부분 토큰 검사는 문면 표류를
+    # 못 잡는다·acceptance의 전체 equality는 WARN일 뿐이라 pytest가 하드 잠금을 전담)
+    assert msg == (
+        "지원 규정 목록에 admrul:0000000000000 항목 없음 — 규정 개정으로 "
+        "문서 ID가 바뀐 구 ID이거나 미지원 규정일 수 있으니, 질문 핵심 용어로 "
+        "search_provision을 재호출해 현행 provision_id를 확인하십시오"
+    )
+    assert "manifest" not in msg                        # 내부 용어 제거 확인(이중 안전망)
+
+
+def test_v0500_term_drift_hint_surfaces():
+    """v0.50.0 surface-consistency: 용어 드리프트 재검색 힌트가 2표면(instructions·
+    search_provision docstring)에 실렸는지 잠금. 핵심 토큰 = 구 용어·현행 용어·재검색·
+    한 query 금지(토큰 AND).
+    """
+    surfaces = {
+        "SERVER_INSTRUCTIONS": main_module._SERVER_INSTRUCTIONS,
+        "search_provision docstring": search_provision.__doc__ or "",
+    }
+    for surface_name, text in surfaces.items():
+        for tok in ("이의신청", "재검토 요청", "재검색", "토큰 AND"):
+            assert tok in text, f"{surface_name}에 v0.50.0 용어 드리프트 토큰 '{tok}' 누락 — 2표면 동기화 필요"
+        assert "함께 넣지 마십시오" in text, f"{surface_name}에 동시 투입 금지 지시 누락"
