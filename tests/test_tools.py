@@ -4,6 +4,7 @@ LawApiClient를 mock하여 네트워크 없이 도구 동작·키 누설 차단�
 GitHub Actions에서 별도 통합 테스트 (@pytest.mark.network) 도입 예정.
 """
 import asyncio
+import sys
 import json
 import types
 from unittest.mock import MagicMock
@@ -3567,8 +3568,65 @@ def test_run_http_disables_uvicorn_access_log(monkeypatch):
     async def _fake_run_http_async(**kwargs):
         captured.update(kwargs)
     monkeypatch.setattr(main_module.mcp, "run_http_async", _fake_run_http_async)
-    asyncio.run(main_module._run_http("0.0.0.0", 18080))
+    asyncio.run(main_module._run_http("127.0.0.1", 18080))
     assert captured.get("uvicorn_config") == {"access_log": False}
+    # v0.52.0: _run_http가 받은 host/port를 그대로 전달(내부 하드코딩 회귀 가드 — diff 적대검토 NIT)
+    assert captured.get("host") == "127.0.0.1" and captured.get("port") == 18080
+
+
+# === v0.52.0: --http 바인딩 주소 FASTMCP_HOST 존중(HTTP 수신 인터페이스 노출면 축소) ===
+def test_resolve_http_bind_host_unset_keeps_compat_default_v0520():
+    """미설정이면 호환 기본값 0.0.0.0(제3자 bridge -p 배포 보존·fastmcp 자체 기본 127.0.0.1과 의도적으로 다름)."""
+    assert main_module._DEFAULT_HTTP_BIND_HOST == "0.0.0.0"
+    assert main_module._resolve_http_bind_host({}) == "0.0.0.0"
+    assert main_module._resolve_http_bind_host({"PORT": "8080"}) == "0.0.0.0"
+
+
+def test_resolve_http_bind_host_honors_fastmcp_host_v0520():
+    """FASTMCP_HOST가 설정되면 그 값을 strip해 그대로 사용(NAS 운영 = 127.0.0.1)."""
+    assert main_module._resolve_http_bind_host({"FASTMCP_HOST": "127.0.0.1"}) == "127.0.0.1"
+    assert main_module._resolve_http_bind_host({"FASTMCP_HOST": " 127.0.0.1 "}) == "127.0.0.1"
+    assert main_module._resolve_http_bind_host({"FASTMCP_HOST": "::1"}) == "::1"
+    # 형식 검증은 의도적으로 없음 — 오설정은 uvicorn이 fail-fast(redteam 3/3·과설계 경계)
+    assert main_module._resolve_http_bind_host({"FASTMCP_HOST": "127.0.0.1:8080"}) == "127.0.0.1:8080"
+
+
+def test_resolve_http_bind_host_blank_falls_back_v0520():
+    """빈값·공백은 미설정 취급 → 0.0.0.0(실측: ' '는 uvicorn SystemExit(1) = 재시작 루프 outage 벡터)."""
+    assert main_module._resolve_http_bind_host({"FASTMCP_HOST": ""}) == "0.0.0.0"
+    assert main_module._resolve_http_bind_host({"FASTMCP_HOST": "   "}) == "0.0.0.0"
+    assert main_module._resolve_http_bind_host({"FASTMCP_HOST": "\t\n"}) == "0.0.0.0"
+
+
+def test_resolve_http_bind_host_reads_process_env_by_default_v0520(monkeypatch):
+    """env 인자 생략 시 os.environ을 읽는다(main() 경로와 동일 소스)."""
+    monkeypatch.setenv("FASTMCP_HOST", "127.0.0.1")
+    assert main_module._resolve_http_bind_host() == "127.0.0.1"
+    monkeypatch.delenv("FASTMCP_HOST")
+    assert main_module._resolve_http_bind_host() == "0.0.0.0"
+
+
+def test_main_http_wires_resolved_bind_host_v0520(monkeypatch):
+    """★배선 잠금: main(--http)이 _run_http에 _resolve_http_bind_host() 결과와 PORT를 넘긴다
+    (순수 함수만 맞고 main 배선이 빠지는 선언-구현 불일치 차단 — v0.46~v0.51 6연속 학습)."""
+    captured = {}
+
+    async def _fake_run_http(host, port):
+        captured["host"], captured["port"] = host, port
+
+    monkeypatch.setattr(main_module, "_run_http", _fake_run_http)
+    monkeypatch.setattr(sys, "argv", ["korean-rnd-regs-mcp", "--http"])
+
+    monkeypatch.setenv("FASTMCP_HOST", "127.0.0.1")
+    monkeypatch.setenv("PORT", "18080")
+    main_module.main()
+    assert captured == {"host": "127.0.0.1", "port": 18080}
+
+    monkeypatch.delenv("FASTMCP_HOST")
+    monkeypatch.delenv("PORT")
+    captured.clear()
+    main_module.main()
+    assert captured == {"host": "0.0.0.0", "port": 8080}
 
 
 # === v0.5.0: 행정규칙(admrul) version 메타데이터 내재화 ===

@@ -9,6 +9,7 @@ import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Mapping
 from typing import Annotated
 from urllib.parse import urljoin, parse_qs
 
@@ -3827,6 +3828,20 @@ class _OCKeyMiddleware:
             await self.app(scope, receive, send)
 
 
+# v0.52.0: --http 바인딩 주소. fastmcp 3.4.2 표준 env FASTMCP_HOST를 존중(기존에는 "0.0.0.0" 명시 전달로 덮어씀 —
+# 출처는 폐기된 Fly.dev 배포 커밋 8e07859). 미설정·빈값·공백은 호환 기본값 0.0.0.0(제3자 bridge -p 포트매핑 배포 보존).
+# fastmcp 자체 기본값(127.0.0.1)과 다르므로 argparse help·CHANGELOG에 명시. 빈값/공백 폴백은 outage 회피용 최소 가드 —
+# 실측: uvicorn은 ''를 0.0.0.0으로, ' '·'127.0.0.1:8080'은 SystemExit(1)로 처리(restart 정책과 만나면 재시작 루프).
+# 그 이상의 형식 검증은 의도적으로 하지 않음(오설정은 fail-fast가 정답 — redteam 3/3).
+_DEFAULT_HTTP_BIND_HOST = "0.0.0.0"
+
+
+def _resolve_http_bind_host(env: Mapping[str, str] | None = None) -> str:
+    """--http 바인딩 host 결정: FASTMCP_HOST(strip) → 빈값이면 _DEFAULT_HTTP_BIND_HOST."""
+    source = os.environ if env is None else env
+    return (source.get("FASTMCP_HOST") or "").strip() or _DEFAULT_HTTP_BIND_HOST
+
+
 async def _run_http(host: str, port: int) -> None:
     logger.info("korean-rnd-regs-mcp HTTP server starting on %s:%d", host, port)
     from starlette.middleware import Middleware
@@ -3853,13 +3868,15 @@ def main() -> None:
     parser.add_argument(
         "--http",
         action="store_true",
-        help="HTTP (streamable-http) 모드로 실행. PORT 환경변수 또는 기본 8080 포트 사용.",
+        help="HTTP (streamable-http) 모드로 실행. PORT 환경변수 또는 기본 8080 포트 사용. "
+             "바인딩 주소는 FASTMCP_HOST 환경변수(미설정·빈값·공백 시 호환을 위해 0.0.0.0 — 같은 호스트의 터널·리버스 프록시 뒤에서는 "
+             "FASTMCP_HOST=127.0.0.1로 loopback 한정 권장).",
     )
     args = parser.parse_args()
 
     if args.http:
         port = int(os.environ.get("PORT", "8080"))
-        asyncio.run(_run_http("0.0.0.0", port))
+        asyncio.run(_run_http(_resolve_http_bind_host(), port))
     else:
         asyncio.run(_run_stdio())
 
