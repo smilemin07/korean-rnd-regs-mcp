@@ -14,7 +14,7 @@ _resolve_http_bind_host — FASTMCP_HOST strip·빈값/공백은 호환 기본 0
      NAS LAN IP 192.168.0.14:18080이 406이 아니라 연결 거부/타임아웃(406이면 BLOCK) · netstat에
      127.0.0.1:18080 LISTEN만(0.0.0.0:18080 없음).
      ★Tailscale IP(100.90.114.76) 경유 호출은 판정 지표가 아님 — Synology Tailscale은
-     --tun=userspace로 동작해 tailnet 요청을 127.0.0.1로 프록시하므로 loopback 바인딩 후에도 406이
+     --tun=userspace-networking로 동작해 tailnet 요청을 127.0.0.1로 프록시하므로 loopback 바인딩 후에도 406이
      정상이다(2026-08-22 실측·사전 게이트의 전제 오류로 교체). tailnet 도달은 별도 잔여 노출로 기록.
   ③ 스왑 후 — 0.0.0.0:8080 LISTEN 소멸 + 127.0.0.1:8080 단독 · 외부 URL 정상 · 무키 406 유지.
   바인딩 결정 로직 자체는 pytest(test_tools.py *_v0520 5종 — main() 배선 잠금 포함)가 잠급니다.
