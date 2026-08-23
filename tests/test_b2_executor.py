@@ -113,13 +113,11 @@ def test_contract_version_0_34_0():
     assert CONTRACT_VERSION == "0.36.0"
 
 
-def test_package_version_0_53_0():
-    """패키지 버전 0.53.0(HTTP 클라이언트 의존성 조합 고정 — Dockerfile에 requests==2.34.2·urllib3==2.7.0 핀.
-    런타임 코드 0줄·contract 0.36.0 유지·입력 스키마 무변·재연결 불요. 코드리뷰 후속 로드맵 단계 4 /
-    「법령 시행 단계 정합 시리즈」 P1).
-    직전 0.52.0(HTTP 수신 인터페이스 노출면 축소 — FASTMCP_HOST 존중)."""
+def test_package_version_0_53_1():
+    """패키지 버전 0.53.1(NAS 라이브 이미지 의존성 lock — Dockerfile 기반 digest 고정 + requirements.lock 71종 2단 설치 + pip check.
+    애플리케이션 런타임 코드·API 계약 변경 없음 · contract 0.36.0 유지 · 재연결 불요). 배포 전 버전 일치 가드."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.53.0"
+    assert __version__ == "0.53.1"
 
 
 def test_cache_maxsize_96_v0240():

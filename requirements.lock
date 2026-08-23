@@ -1,0 +1,81 @@
+# requirements.lock — NAS 라이브 이미지 의존성 박제 (v0.53.1 · 「NAS 라이브 이미지 의존성 lock」)
+#
+# 출처: NAS 라이브 컨테이너 c6cfb3e8c12b (이미지 7ea3d1762177 = korean-rnd-regs-mcp:0.53.0) 의 `pip freeze` 원문
+#       (앱 자신 `korean-rnd-regs-mcp @ file:///app` 1행만 제외) · 채취 2026-08-23 KST
+#       Python 3.13.13 · OpenSSL 3.5.6 · pip 26.0.1 · 기반 python:3.13-slim@sha256:b04b5d72…(Dockerfile FROM 참조)
+# 원칙: 재해석(pip-compile 등) 금지 — 이 파일은 "오늘 검증된 라이브와 같은 조합"의 복제본이다. 값을 바꾸려면
+#       새 기반/조합으로 후보 이미지를 만들어 전체 배포 게이트(후보 pip freeze 전수 대조·pip check·스모크)를
+#       다시 통과시킨 뒤 tests/test_dockerfile_pins.py 의 기대값과 함께 갱신한다.
+# 범위: 이 파일은 NAS Docker 이미지(Dockerfile)에서만 사용된다. PyPI·uvx·플러그인 소비자의 의존성 해석은
+#       pyproject.toml 범위를 따른다(고정되지 않음). 빌드 격리 환경의 빌드 백엔드(hatchling)도 고정 범위 밖이다.
+aiofile==3.12.3
+annotated-types==0.8.0
+anyio==4.14.2
+attrs==26.1.0
+Authlib==1.7.2
+beartype==0.22.9
+cachetools==5.5.2
+caio==0.12.2
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.5.1
+click==8.4.2
+cryptography==50.0.0
+cyclopts==4.23.1
+dnspython==2.8.0
+docstring_parser==0.18.0
+email-validator==2.3.0
+exceptiongroup==1.3.1
+fastmcp==3.4.2
+fastmcp-slim==3.4.2
+griffelib==2.2.0
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+httpx-sse==0.4.3
+idna==3.19
+jaraco.classes==3.4.0
+jaraco.context==6.1.2
+jaraco.functools==4.6.0
+jeepney==0.9.0
+joserfc==1.7.4
+jsonref==1.1.0
+jsonschema==4.26.0
+jsonschema-path==0.5.0
+jsonschema-specifications==2025.9.1
+keyring==25.7.0
+markdown-it-py==4.2.0
+mcp==1.29.0
+mdurl==0.1.2
+more-itertools==11.1.0
+openapi-pydantic==0.5.1
+opentelemetry-api==1.44.0
+packaging==26.3
+pathable==0.6.0
+platformdirs==4.11.3
+py-key-value-aio==0.4.5
+pycparser==3.0
+pydantic==2.13.4
+pydantic-settings==2.15.0
+pydantic_core==2.46.4
+Pygments==2.21.0
+PyJWT==2.13.0
+pyperclip==1.11.0
+python-dotenv==1.2.3
+python-multipart==0.0.30
+PyYAML==6.0.3
+referencing==0.37.0
+requests==2.34.2
+rich==15.0.0
+rich-rst==2.1.0
+rpds-py==2026.6.3
+SecretStorage==3.5.0
+sse-starlette==3.4.8
+starlette==1.6.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+uncalled-for==0.4.0
+urllib3==2.7.0
+uvicorn==0.48.0
+watchfiles==1.2.0
+websockets==17.0.1

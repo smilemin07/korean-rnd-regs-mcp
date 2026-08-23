@@ -3,6 +3,17 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.53.1] - 2026-08-24
+
+**NAS 라이브 이미지 의존성 lock(contract 0.36.0 유지)** — 자체 호스팅용 Docker 이미지의 빌드 절차를 "제3자 의존성 71종을 `requirements.lock`(2026-08-23 NAS 라이브 컨테이너 `pip freeze` 실측값을 그대로 박제)에서 정확 버전으로 설치 → 앱만 `--no-deps`로 설치 → `pip check`"의 2단 설치로 바꾸고, 기반 이미지 `python:3.13-slim`을 digest(Python 3.13.13·OpenSSL 3.5.6·pip 26.0.1)로 고정합니다. **도구 구현·도구 스키마·업무 응답·API 계약 변경 없음**(`src/`는 `__version__` 1줄만 변경 — initialize `serverInfo.version`·health `version`이 0.53.1로 보이는 것이 유일한 관찰 가능 차이. 도구 응답·입력 스키마·검색/랭킹·규정 데이터·매뉴얼 트랙·transport·외부 URL 전부 불변). 패키지 **0.53.0 → 0.53.1**(패치 — 빌드·패키징 층만 변경), `contract_version` **0.36.0 유지**. **웹 커넥터 재연결 불요.** 「법령 시행 단계 정합 시리즈」 lock 선행 릴리스(2026-08-23 3-AI 3/3 — P2·P3 재빌드에서 드리프트로 게이트가 멈추는 꼬리 위험을 데드라인(2026-09-11) 전에 제거).
+
+### Changed
+
+- **`requirements.lock` 신설(저장소 루트·배포 wheel에는 포함되지 않음)** — NAS 라이브 이미지(v0.53.0)의 `pip freeze` 71행 복제본. 재해석(pip-compile 등) 없이 박제했으며, v0.53.0까지 `Dockerfile`에 직접 박혀 있던 핀 6종(`fastmcp==3.4.2`·`uvicorn==0.48.0`·`python-multipart==0.0.30`·`requests==2.34.2`·`urllib3==2.7.0`·`cyclopts==4.23.1`)은 lock 안에 같은 버전으로 흡수됐습니다.
+- **`Dockerfile`** — `FROM python:3.13-slim@sha256:b04b5d72…`(digest 고정) / `COPY requirements.lock` → `pip install -r requirements.lock` / 소스 복사 → `pip install --no-deps .` + `pip check`(선언 의존성 불일치를 이미지 빌드 단계에서 실패 처리). 개별 핀 토큰은 Dockerfile에서 제거(핀은 lock에만 — 핀 증식 금지 규율). lock을 소스보다 먼저 복사해 소스만 바뀌는 릴리스에서는 의존성 레이어를 재사용합니다.
+- **가드 테스트 `tests/test_dockerfile_pins.py` 재작성**(3 → 7) — lock 전 행 정확 핀·중복 0·행 수 71 / 핀 6종 ⊂ lock / pyproject 직접 의존성 6종 전부 lock에 존재·범위 만족 / FROM digest 정확 일치 / 설치기 호출 정확 3개(lock 설치·앱 `--no-deps`·`pip check`)·허용 외 옵션·pip3/python -m pip/uv 등 다른 설치기·`;`/`||`/heredoc/exec-form 전부 금지·개별 핀 토큰 0·명령 순서 / 파서·가드 부정 테스트.
+- 적용 범위(정직 표기): 이 lock은 **버전 집합**을 고정합니다(wheel 바이트·해시까지 고정하지는 않음 — 해시 고정은 후속 후보). lock과 digest는 **NAS 라이브 Docker 이미지만** 고정합니다. PyPI·uvx·플러그인 소비자의 의존성 해석은 종전대로 `pyproject.toml` 범위를 따르며, PEP 517 빌드 격리 환경의 빌드 백엔드(hatchling)는 고정 범위 밖입니다(빌드 시 PyPI 아웃바운드가 필요하며 런타임 이미지에는 남지 않음). 기반 digest는 시리즈(P4) 종료까지의 기준선이며 중대 CVE·보안 릴리스 시 독립 패치로 갱신합니다(`Dockerfile` 주석의 갱신 규율).
+
 ## [0.53.0] - 2026-08-23
 
 **HTTP 클라이언트 의존성 조합 고정(contract 0.36.0 유지)** — 자체 호스팅용 Docker 이미지가 사용하는 HTTP 클라이언트 라이브러리 두 종(`requests`·`urllib3`)의 버전을 라이브 실측값으로 고정합니다. 서버 코드·도구 응답·입력 스키마·규정 데이터·매뉴얼 트랙은 전부 무변입니다. 패키지 **0.52.0 → 0.53.0**, `contract_version` **0.36.0 유지**. **웹 커넥터 재연결 불요·외부 URL 불변.** 「법령 시행 단계 정합 시리즈」(2026-08-23 계획 확정) P1 / 코드리뷰 후속 로드맵(2026-08-13) 단계 4.
