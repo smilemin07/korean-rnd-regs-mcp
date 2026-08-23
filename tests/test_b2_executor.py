@@ -113,13 +113,13 @@ def test_contract_version_0_34_0():
     assert CONTRACT_VERSION == "0.36.0"
 
 
-def test_package_version_0_52_0():
-    """패키지 버전 0.52.0(HTTP 수신 인터페이스 노출면 축소 — --http 바인딩 주소가 fastmcp 표준 env
-    FASTMCP_HOST를 따름·빈값/공백은 호환 기본 0.0.0.0 — contract 0.36.0 유지[transport 부팅 인자만]·
-    입력 스키마 무변·재연결 불요).
-    직전 0.51.0(manifest 4건 현행화 + 상세 조회 미시행 시행일 고지 §5.42)."""
+def test_package_version_0_53_0():
+    """패키지 버전 0.53.0(HTTP 클라이언트 의존성 조합 고정 — Dockerfile에 requests==2.34.2·urllib3==2.7.0 핀.
+    런타임 코드 0줄·contract 0.36.0 유지·입력 스키마 무변·재연결 불요. 코드리뷰 후속 로드맵 단계 4 /
+    「법령 시행 단계 정합 시리즈」 P1).
+    직전 0.52.0(HTTP 수신 인터페이스 노출면 축소 — FASTMCP_HOST 존중)."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.52.0"
+    assert __version__ == "0.53.0"
 
 
 def test_cache_maxsize_96_v0240():
