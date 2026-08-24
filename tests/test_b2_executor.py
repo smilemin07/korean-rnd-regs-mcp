@@ -113,11 +113,13 @@ def test_contract_version_0_34_0():
     assert CONTRACT_VERSION == "0.36.0"
 
 
-def test_package_version_0_53_1():
-    """패키지 버전 0.53.1(NAS 라이브 이미지 의존성 lock — Dockerfile 기반 digest 고정 + requirements.lock 71종 2단 설치 + pip check.
-    애플리케이션 런타임 코드·API 계약 변경 없음 · contract 0.36.0 유지 · 재연결 불요). 배포 전 버전 일치 가드."""
+def test_package_version_0_54_0():
+    """패키지 버전 0.54.0(법령 시행 단계 차이 고지 — 상세 조회 경로 한정 + 감사 도구 수록.
+    manifest optional 필드 stage_notice 4규정 · get_provision_detail warnings 첫 원소로만 노출
+    (검색·list_rule_sets·suggest 미부착) · 입력 스키마 무변 · contract 0.36.0 유지 · 재연결 불요).
+    배포 전 버전 일치 가드."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.53.1"
+    assert __version__ == "0.54.0"
 
 
 def test_cache_maxsize_96_v0240():

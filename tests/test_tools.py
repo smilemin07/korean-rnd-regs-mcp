@@ -5901,3 +5901,195 @@ def test_post_injection_combos_bounded_within_headroom_v0510():
     for name, combo in (("C1", c1), ("C2", c2), ("C3", c3), ("C4", c4)):
         size = len(json.dumps(combo, ensure_ascii=False))
         assert size <= _ANNEX_DETAIL_HEADROOM, f"{name} 조합 {size}자 > 헤드룸 {_ANNEX_DETAIL_HEADROOM}"
+
+
+# === v0.54.0: 법령 시행 단계 차이 고지(stage_notice) — 상세 경로 한정 가드 ===
+_V0540_IDS = {"innovation_act", "innovation_decree", "sme_tech_act", "industry_tech_act"}
+_V0540_TAIL = ("이 문장은 감사일 현재 확인된 차이만 알리며, 열거되지 않은 부분이나 "
+               "이후 판본의 정합성을 보증하지 않습니다.")
+_V0540_TEXTS = {
+    "innovation_act": (
+        "주의(현행 시행분 누락·2026-08-23 감사): 이 서버가 제공하는 법률 제21347호 본문에는 법률 제21421호에 따라 "
+        "2026-06-11 시행된 제2조제5호의2·제2조제10호, 제17조제1항, 제18조제2항 및 제32조제1항제5호의 개정 내용이 "
+        "반영되어 있지 않습니다. 해당 부분은 국가법령정보센터에서 기준일을 지정해 확인하십시오. " + _V0540_TAIL),
+    "innovation_decree": (
+        "주의(미시행분 선반영·2026-08-23 감사): 이 서버가 제공하는 대통령령 제36580호 본문에는 대통령령 제36525호에 "
+        "따른 제35조의2·제36조·제37조의 2026-09-11 시행 예정 내용과 제16조제2항·제17조제1항·제4항·제5항·제31조·"
+        "제41조제2항 각 호·제41조제3항·제5항의 2027-01-01 시행 예정 내용이 선반영되어 있습니다. 기준일별 본문은 "
+        "국가법령정보센터에서 확인하십시오. " + _V0540_TAIL),
+    "sme_tech_act": (
+        "주의(현행 시행분 누락·2026-08-23 감사): 이 서버가 제공하는 법률 제21289호 본문에는 법률 제21704호에 따라 "
+        "2026-05-26 시행된 제2조제6호부터 제12호까지의 신설, 제27조의2제3항 삭제, 제27조의3(사업화 금융지원) 신설, "
+        "종전 제27조의3을 제27조의4로 이동·개정, 제27조의5 및 제28조의2 신설이 반영되어 있지 않습니다. 해당 부분은 "
+        "국가법령정보센터에서 기준일을 지정해 확인하십시오. " + _V0540_TAIL),
+    "industry_tech_act": (
+        "주의(인용 법률명 불일치·2026-08-23 감사): 이 서버가 제공하는 본문의 제5조제3항에는 종전 명칭 "
+        "「지방자치분권 및 지역균형발전에 관한 특별법」이 남아 있습니다. 2026-06-02 시행된 법률 제21738호에 따른 "
+        "현행 명칭은 「지방자치분권 및 균형성장에 관한 특별법」입니다. " + _V0540_TAIL),
+}
+
+
+def _rs_with_notice(rule_id="innovation_act"):
+    from korean_rnd_regs_mcp.manifest import load_manifest
+    return next(rs for rs in load_manifest() if rs.id == rule_id)
+
+
+def test_stage_notice_attached_to_exactly_four_rule_sets_v0540():
+    """감사에서 실질 차이가 확인된 4규정만 1회 부착 — audited_doc_id는 현재 서빙 manifest ID와 일치."""
+    from korean_rnd_regs_mcp.manifest import load_manifest
+    all_rs = load_manifest()
+    with_notice = {rs.id for rs in all_rs if rs.stage_notice}
+    assert with_notice == _V0540_IDS
+    for rs in all_rs:
+        if rs.stage_notice:
+            assert rs.stage_notice.audited_doc_id == rs.api_doc_id, rs.id
+            assert rs.stage_notice.text.endswith(_V0540_TAIL), rs.id
+
+
+def test_stage_notice_text_verbatim_v0540():
+    """문면 전체 문자열 잠금 — 임의 수정은 회귀가 아니라 '의도된 갱신 신호'로 본 테스트가 먼저 실패한다."""
+    from korean_rnd_regs_mcp.manifest import load_manifest
+    actual = {rs.id: rs.stage_notice.text for rs in load_manifest() if rs.stage_notice}
+    assert actual == _V0540_TEXTS
+
+
+def test_stage_notice_absent_from_other_rule_sets_v0540():
+    """나머지 62규정의 known_limitations 어디에도 고지 문면이 새지 않는다(문면 중복 부착 차단)."""
+    from korean_rnd_regs_mcp.manifest import load_manifest
+    all_rs = load_manifest()
+    others = [rs for rs in all_rs if rs.id not in _V0540_IDS]
+    assert len(others) == len(all_rs) - len(_V0540_IDS)   # 2026-08-25 현재 62(전체 66 - 대상 4)
+    blob = json.dumps([rs.known_limitations for rs in others], ensure_ascii=False)
+    for text in _V0540_TEXTS.values():
+        assert text not in blob
+        assert text[:40] not in blob
+
+
+def test_search_response_carries_no_stage_notice_v0540(mock_client, monkeypatch):
+    """★검색 응답에는 미부착 — 16k 예산을 잠식해 뒤쪽 매치가 절단되면 returned가 줄기 때문(설계 핵심)."""
+    _restrict_manifest(monkeypatch, set(_V0540_IDS))   # 대상 4규정 전건 — 2규정만 보면 SME·산기 누설을 놓친다
+    resp = asyncio.run(search_provision(query="간접비"))
+    blob = json.dumps(resp, ensure_ascii=False)
+    assert resp["returned"] > 0
+    for text in _V0540_TEXTS.values():
+        assert text[:40] not in blob
+    assert "주의(현행 시행분 누락" not in blob and "주의(미시행분 선반영" not in blob
+    assert "주의(인용 법률명 불일치" not in blob
+    assert "주의(시행 단계 정합 미확인" not in blob   # 판본 불일치 시의 일반 경고도 검색에 새면 안 됨
+
+
+def test_list_rule_sets_and_suggest_hide_stage_notice_v0540(mock_client, monkeypatch):
+    """list_rule_sets(명시 화이트리스트)·suggest_review_sources에도 미노출 — 상세 경로 한정."""
+    listed = json.dumps(asyncio.run(list_rule_sets()), ensure_ascii=False)
+    _restrict_manifest(monkeypatch, {"innovation_act", "innovation_decree"})
+    suggested = json.dumps(asyncio.run(suggest_review_sources(question="간접비 계상 기준")), ensure_ascii=False)
+    for text in _V0540_TEXTS.values():
+        assert text[:40] not in listed and text[:40] not in suggested
+
+
+def test_stage_notice_line_absent_when_field_unset_v0540():
+    """stage_notice 미설정(62규정·기존 테스트 더블 포함)은 종전 거동과 완전 동일 — None·원본 리스트 보존."""
+    plain = _fake_rs()
+    assert main_module._stage_notice_line(plain, "283413") is None
+    assert main_module._detail_warnings(plain, None) == ["기존 제약"]
+    assert main_module._detail_warnings(plain, None) is not plain.known_limitations
+
+
+def test_detail_warnings_puts_notice_first_and_does_not_accumulate_v0540():
+    """고지는 warnings[0](뒤에 동적 경고가 append되므로 '말미'는 성립 안 함)·반복 호출로 누적되지 않음."""
+    rs = _rs_with_notice("innovation_decree")
+    line = main_module._stage_notice_line(rs, rs.api_doc_id)
+    before = list(rs.known_limitations)
+    outs = [main_module._detail_warnings(rs, line) for _ in range(3)]
+    for out in outs:
+        assert out[0] == _V0540_TEXTS["innovation_decree"]
+        assert out[1:] == before          # 기존 제약 순서 보존
+        assert len(out) == len(before) + 1
+    assert list(rs.known_limitations) == before   # 원본 manifest 객체 불변
+
+
+def test_stage_notice_mismatch_falls_back_to_generic_warning_v0540():
+    """★판본 결합 — 실제 조회 판본이 감사 판본과 다르면 구체 문면 대신 '이 판본은 미감사' 경고."""
+    rs = _rs_with_notice("innovation_act")
+    matched = main_module._stage_notice_line(rs, "283413")
+    assert matched == _V0540_TEXTS["innovation_act"]
+    other = main_module._stage_notice_line(rs, "283849")
+    assert other is not None and other != matched
+    assert "283413" in other and "283849" in other
+    assert "제17조제1항" not in other                     # 감사 문면 본문이 새지 않음
+    assert main_module._stage_notice_line(rs, None).startswith("주의(시행 단계 정합 미확인)")
+
+
+def test_stage_notice_survives_all_three_article_tiers_v0540():
+    """3단 강등(전문·구조생략·oversized) 전건에서 warnings[0] 유지 — tail/base 공통 경로 검증."""
+    rs = _rs_with_notice("sme_tech_act")
+    line = main_module._stage_notice_line(rs, rs.api_doc_id)
+    small = {"조문번호": "2", "조문제목": "정의", "조문내용": "제2조(정의) 짧은 본문", "structured": {"paragraphs": []}}
+    mid = {"조문번호": "2", "조문제목": "정의", "조문내용": "가" * 14000,
+           "structured": {"paragraphs": [{"number": "①", "text": "나" * 3000}]}}
+    big = {"조문번호": "2", "조문제목": "정의", "조문내용": "다" * 20000, "structured": {"paragraphs": []}}
+    tiers = {
+        "full": main_module._build_article_detail("law:281987:JO0002", "JO0002", rs, small, "20260701", stage_notice_line=line),
+        "no_struct": main_module._build_article_detail("law:281987:JO0002", "JO0002", rs, mid, "20260701", stage_notice_line=line),
+        "oversized": main_module._build_article_detail("law:281987:JO0002", "JO0002", rs, big, "20260701", stage_notice_line=line),
+        "forced": main_module._build_article_detail("law:281987:JO0002", "JO0002", rs, small, "20260701",
+                                                    force_oversized=True, stage_notice_line=line),
+    }
+    assert tiers["full"]["content_format"] == "plain_text_verbatim" and tiers["full"].get("structure_omitted") is None
+    assert tiers["no_struct"].get("structure_omitted") is True
+    assert tiers["oversized"]["content_format"] == "oversized_pointer"
+    for name, resp in tiers.items():
+        assert resp["warnings"][0] == _V0540_TEXTS["sme_tech_act"], name
+        assert len(json.dumps(resp, ensure_ascii=False)) <= main_module._ANNEX_DETAIL_CHAR_BUDGET, name
+
+
+def test_stage_notice_attached_to_detail_paths_via_tool_v0540(mock_client, monkeypatch):
+    """도구 경로 e2e — 문서레벨·조문·별표 상세에는 부착, 미감사 규정 상세에는 미부착."""
+    doc = asyncio.run(get_provision_detail("law:283413"))
+    art = asyncio.run(get_provision_detail("law:283413:JO0015"))
+    for resp in (doc, art):
+        assert "errors" not in resp
+        assert resp["warnings"][0] == _V0540_TEXTS["innovation_act"]
+    annex = asyncio.run(get_provision_detail("admrul:2100000278740:BP0001"))
+    assert "errors" not in annex
+    assert not any(t[:40] in json.dumps(annex, ensure_ascii=False) for t in _V0540_TEXTS.values())
+
+
+def test_stage_notice_rejects_blank_values_v0540():
+    """★fail-fast — 공백-only 값은 manifest 로드 단계에서 거부(런타임의 조용한 무발화 차단)."""
+    import pydantic
+    from korean_rnd_regs_mcp.manifest import StageNotice
+    StageNotice(audited_doc_id="283413", text="문면")           # 정상값은 통과
+    for bad in ({"audited_doc_id": " ", "text": "문면"},
+                {"audited_doc_id": "283413", "text": "   "}):
+        with pytest.raises(pydantic.ValidationError):
+            StageNotice(**bad)
+
+
+def test_stage_notice_survives_all_annex_branches_v0540():
+    """별표 4분기(전문·삭제 스텁·첨부전용·oversized 포인터 + 청크)에서도 warnings[0] 유지."""
+    rs = _rs_with_notice("innovation_decree")
+    line = main_module._stage_notice_line(rs, rs.api_doc_id)
+    text = _V0540_TEXTS["innovation_decree"]
+    small = {"별표번호": "1", "별표제목": "지원기준", "별표내용": "중소기업 75% 이하", "별표서식파일링크": ""}
+    stub = {"별표번호": "3", "별표제목": "삭제", "별표내용": "삭제 <2026. 8. 18.>", "별표서식파일링크": ""}
+    ext = {"별표번호": "9", "별표제목": "서식", "별표내용": "", "별표서식파일링크": "https://www.law.go.kr/x.hwp"}
+    big = {"별표번호": "2", "별표제목": "사용용도", "별표내용": "구분\t금액\n" * 4000, "별표서식파일링크": ""}
+    cases = {
+        "verbatim": main_module._build_annex_detail("law:288773:BP0001", "BP0001", rs, small, "20260820", stage_notice_line=line),
+        "deleted": main_module._build_annex_detail("law:288773:BP0003", "BP0003", rs, stub, "20260820", stage_notice_line=line),
+        "external": main_module._build_annex_detail("law:288773:BP0009", "BP0009", rs, ext, "20260820", stage_notice_line=line),
+        "oversized": main_module._build_annex_detail("law:288773:BP0002", "BP0002", rs, big, "20260820", stage_notice_line=line),
+        "chunk": main_module._build_annex_detail("law:288773:BP0002", "BP0002", rs, big, "20260820",
+                                                  annex_chunk=1, stage_notice_line=line),
+        "forced": main_module._build_annex_detail("law:288773:BP0002", "BP0002", rs, big, "20260820",
+                                                  force_oversized=True, annex_chunk=1, stage_notice_line=line),
+    }
+    assert cases["oversized"]["content_format"] == "oversized_pointer"
+    assert cases["chunk"]["content_format"] == "plain_text_verbatim"
+    assert cases["external"]["content_format"] == "external_file_only"
+    assert cases["deleted"].get("annex_status") == "deleted_stub"
+    for name, resp in cases.items():
+        assert resp["warnings"][0] == text, name                     # 고지는 항상 선두
+        assert resp["warnings"][1] == rs.known_limitations[0], name  # 기존 제약이 그 뒤
+        assert len(json.dumps(resp, ensure_ascii=False)) <= main_module._ANNEX_DETAIL_CHAR_BUDGET, name

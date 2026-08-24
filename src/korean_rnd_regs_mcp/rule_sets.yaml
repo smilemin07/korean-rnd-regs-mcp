@@ -1,9 +1,9 @@
 # korean-rnd-regs-mcp — rule_sets manifest
 #
-# schema: src/korean_rnd_regs_mcp/manifest.py (Pydantic RuleSet model, 13 fields)
+# schema: src/korean_rnd_regs_mcp/manifest.py (Pydantic RuleSet model — 현행 필드 목록은 그 정의가 canonical)
 # 단계: (schema 정의) + (MVP 4개 항목 입력)
 #
-# 본 58개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.23.0: 국방 R&D family 3건 확대 — 방위사업청 국방 R&D 트랙 1차)
+# 본 66개 항목은 LIVE 검증으로 MST/ID 확인 완료. (v0.23.0: 국방 R&D family 3건 확대 — 방위사업청 국방 R&D 트랙 1차)
 # 추가 항목 (타 부처 R&D 규정, 기관별 매뉴얼 등)은 차기 확장 후보.
 
 rule_sets:
@@ -24,6 +24,12 @@ rule_sets:
     license_status: public_data
     effective_date: "2026-08-20"
     source_url: https://www.law.go.kr/법령/국가연구개발혁신법
+    # v0.54.0: law↔eflaw 전수 감사(2026-08-23)에서 확인된 시행 단계 차이 고지. audited_doc_id와
+    #          실제 조회 판본이 정확히 일치할 때만 아래 text가 상세 응답 warnings 선두에 실린다
+    #          (불일치 시 일반 경고로 대체 — main._stage_notice_line). 차이가 해소되면 이 블록을 제거할 것.
+    stage_notice:
+      audited_doc_id: "283413"
+      text: "주의(현행 시행분 누락·2026-08-23 감사): 이 서버가 제공하는 법률 제21347호 본문에는 법률 제21421호에 따라 2026-06-11 시행된 제2조제5호의2·제2조제10호, 제17조제1항, 제18조제2항 및 제32조제1항제5호의 개정 내용이 반영되어 있지 않습니다. 해당 부분은 국가법령정보센터에서 기준일을 지정해 확인하십시오. 이 문장은 감사일 현재 확인된 차이만 알리며, 열거되지 않은 부분이나 이후 판본의 정합성을 보증하지 않습니다."
 
   - id: innovation_decree
     title: 국가연구개발혁신법 시행령
@@ -40,6 +46,12 @@ rule_sets:
     license_status: public_data
     effective_date: "2026-08-20"  # 2026-08-20 LIVE 재프로브: MST 288335→288773 변경·별표5의2 신설 외 별표 1~7 유지(별표2·7 oversized 유지)
     source_url: https://www.law.go.kr/법령/국가연구개발혁신법시행령
+    # v0.54.0: law↔eflaw 전수 감사(2026-08-23)에서 확인된 시행 단계 차이 고지. audited_doc_id와
+    #          실제 조회 판본이 정확히 일치할 때만 아래 text가 상세 응답 warnings 선두에 실린다
+    #          (불일치 시 일반 경고로 대체 — main._stage_notice_line). 차이가 해소되면 이 블록을 제거할 것.
+    stage_notice:
+      audited_doc_id: "288773"
+      text: "주의(미시행분 선반영·2026-08-23 감사): 이 서버가 제공하는 대통령령 제36580호 본문에는 대통령령 제36525호에 따른 제35조의2·제36조·제37조의 2026-09-11 시행 예정 내용과 제16조제2항·제17조제1항·제4항·제5항·제31조·제41조제2항 각 호·제41조제3항·제5항의 2027-01-01 시행 예정 내용이 선반영되어 있습니다. 기준일별 본문은 국가법령정보센터에서 확인하십시오. 이 문장은 감사일 현재 확인된 차이만 알리며, 열거되지 않은 부분이나 이후 판본의 정합성을 보증하지 않습니다."
     known_limitations:
       - "별표 1~7·별표5의2(연구개발비 지원기준·사용용도·등록범위·연구보안 행정처분·참여제한·제재부가금 등) 검색·상세 조회 지원(v0.2). 소형 별표는 본문 전문 제공, 대용량 별표(별표2·7)는 분량상 본문 미수록(content_format=oversized_pointer) — 전문은 공식 링크·search_provision로 확인"
 
@@ -282,8 +294,14 @@ rule_sets:
     license_status: public_data
     effective_date: "2026-06-03"
     source_url: https://www.law.go.kr/법령/산업기술혁신촉진법
+    # v0.54.0: law↔eflaw 전수 감사(2026-08-23)에서 확인된 시행 단계 차이 고지. audited_doc_id와
+    #          실제 조회 판본이 정확히 일치할 때만 아래 text가 상세 응답 warnings 선두에 실린다
+    #          (불일치 시 일반 경고로 대체 — main._stage_notice_line). 차이가 해소되면 이 블록을 제거할 것.
+    stage_notice:
+      audited_doc_id: "280041"
+      text: "주의(인용 법률명 불일치·2026-08-23 감사): 이 서버가 제공하는 본문의 제5조제3항에는 종전 명칭 「지방자치분권 및 지역균형발전에 관한 특별법」이 남아 있습니다. 2026-06-02 시행된 법률 제21738호에 따른 현행 명칭은 「지방자치분권 및 균형성장에 관한 특별법」입니다. 이 문장은 감사일 현재 확인된 차이만 알리며, 열거되지 않은 부분이나 이후 판본의 정합성을 보증하지 않습니다."
     known_limitations:
-      - "LIVE 검증(2026-06-12): 조문 49·별표 없음."
+      - "LIVE 검증(2026-06-12): 조문 72·별표 없음."
 
   - id: industry_tech_decree
     title: 산업기술혁신 촉진법 시행령
@@ -408,8 +426,14 @@ rule_sets:
     license_status: public_data
     effective_date: "2026-07-01"
     source_url: https://www.law.go.kr/법령/중소기업기술혁신촉진법
+    # v0.54.0: law↔eflaw 전수 감사(2026-08-23)에서 확인된 시행 단계 차이 고지. audited_doc_id와
+    #          실제 조회 판본이 정확히 일치할 때만 아래 text가 상세 응답 warnings 선두에 실린다
+    #          (불일치 시 일반 경고로 대체 — main._stage_notice_line). 차이가 해소되면 이 블록을 제거할 것.
+    stage_notice:
+      audited_doc_id: "281987"
+      text: "주의(현행 시행분 누락·2026-08-23 감사): 이 서버가 제공하는 법률 제21289호 본문에는 법률 제21704호에 따라 2026-05-26 시행된 제2조제6호부터 제12호까지의 신설, 제27조의2제3항 삭제, 제27조의3(사업화 금융지원) 신설, 종전 제27조의3을 제27조의4로 이동·개정, 제27조의5 및 제28조의2 신설이 반영되어 있지 않습니다. 해당 부분은 국가법령정보센터에서 기준일을 지정해 확인하십시오. 이 문장은 감사일 현재 확인된 차이만 알리며, 열거되지 않은 부분이나 이후 판본의 정합성을 보증하지 않습니다."
     known_limitations:
-      - "LIVE 검증(2026-07-06): 조문 33·별표 없음."
+      - "LIVE 검증(2026-07-06): 조문 49·별표 없음."
 
   - id: sme_tech_decree
     title: 중소기업 기술혁신 촉진법 시행령

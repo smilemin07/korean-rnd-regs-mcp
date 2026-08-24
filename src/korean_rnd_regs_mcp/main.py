@@ -1004,6 +1004,56 @@ def _detail_effective_notice(pid, detail: dict, today: str | None = None) -> dic
         return {}
 
 
+_STAGE_NOTICE_MISMATCH_TEMPLATE = (
+    "주의(시행 단계 정합 미확인): 이 응답의 본문은 서버가 시행 단계 차이를 감사한 판본"
+    "(문서 ID {audited})이 아닌 다른 판본{served_part}입니다. 감사 당시 확인된 차이가 "
+    "이 판본에도 남아 있는지 확인되지 않았으니, 시행일 기준 본문은 국가법령정보센터"
+    "(law.go.kr)에서 기준일을 지정해 확인하십시오."
+)
+
+
+def _stage_notice_line(rs, served_doc_id: str | None) -> str | None:
+    """(v0.54.0) 시행 단계 차이 고지 1줄 — 감사 판본과 실제 조회 판본을 결합해 판정. 네트워크 0.
+
+    왜 판본 결합인가: 상세 조회는 매 호출 resolve로 그 시점의 최신 doc_id를 쓰고(실패 시 manifest
+    api_doc_id 폴백), resolve 결과는 per-user client 캐시에 TTL로 남는다. 시행예정일이 도래해 서빙
+    판본이 바뀌면 같은 날에도 사용자별로 서로 다른 판본이 서빙되므로, 문면을 한 시점에 한 번 교체하는
+    방식으로는 모든 응답을 정확하게 만들 수 없다. 그래서 감사 판본과 정확히 일치할 때만 구체 문면을
+    노출하고, 불일치하면 "이 판본은 감사되지 않았다"는 일반 경고로 대체한다(과소·과대 고지 동시 방지).
+
+    never-raise: 고지 조립 실패가 본문 응답을 막지 않도록 어떤 예외도 삼키고 None을 반환한다.
+    """
+    try:
+        notice = getattr(rs, "stage_notice", None)
+        if notice is None:
+            return None
+        audited = (getattr(notice, "audited_doc_id", "") or "").strip()
+        text = (getattr(notice, "text", "") or "").strip()
+        if not audited or not text:
+            return None
+        served = (served_doc_id or "").strip()
+        if served and served == audited:
+            return text
+        return _STAGE_NOTICE_MISMATCH_TEMPLATE.format(
+            audited=audited,
+            served_part=f"(문서 ID {served})" if served else "",
+        )
+    except Exception:  # pragma: no cover - 방어선(고지 실패가 본문 응답을 막지 않게)
+        return None
+
+
+def _detail_warnings(rs, stage_notice_line: str | None) -> list[str]:
+    """(v0.54.0) 상세 응답 warnings 조립 — 시행 단계 고지를 **첫 원소**로, 기존 제약을 뒤에.
+
+    첫 원소인 이유: 호출부가 이후 동적 경고(별표 첨부·청크 등)를 append하므로 "말미" 위치는
+    성립하지 않는다. 원본 rs.known_limitations는 새 리스트 생성으로 불변 유지(반복 호출 누적 방지).
+    """
+    base = list(rs.known_limitations)
+    if stage_notice_line:
+        return [stage_notice_line, *base]
+    return base
+
+
 def _build_match(rs, unit_id: str, unit_type: str, title: str, snippet: str,
                  resolved: ResolvedDocId | None = None) -> dict:
     """단일 검색 결과 dict 생성. snippet은 호출자가 _make_snippet으로 미리 생성."""
@@ -1568,7 +1618,7 @@ def _annex_locate_result(content: str, query: str, chunks: list[str]) -> dict:
     return result
 
 
-def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date: str, force_oversized: bool = False, annex_chunk: int | None = None, annex_locate: str | None = None) -> dict:
+def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date: str, force_oversized: bool = False, annex_chunk: int | None = None, annex_locate: str | None = None, stage_notice_line: str | None = None) -> dict:
     """별표 단위 상세 응답 (v0.2, size-tiered + verbatim 정확성 가드).
 
     force_oversized=True면 전문 분기를 건너뛰고 oversized_pointer로 강등(v0.5.0 — 호출부가 사후주입(version 메타·
@@ -1610,7 +1660,7 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
         "effective_date": eff_date,
         "contract_version": CONTRACT_VERSION,
         "disclaimer": _DISCLAIMER,
-        "warnings": list(rs.known_limitations),
+        "warnings": _detail_warnings(rs, stage_notice_line),
     }
     # v0.2.1 (B): 제목의 의존 조문 참조를 미검증 단서로 노출 — 호스트가 적용값 확정을 위해 동반 조회.
     hints = _dependent_article_hints(title)
@@ -1783,7 +1833,7 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
     return base
 
 
-def _build_article_detail(provision_id: str, unit_id: str, rs, art: dict, eff_date: str, force_oversized: bool = False) -> dict:
+def _build_article_detail(provision_id: str, unit_id: str, rs, art: dict, eff_date: str, force_oversized: bool = False, stage_notice_line: str | None = None) -> dict:
     """조문(JO) 단위 상세 응답 (v0.6.0, size-tiered — 별표 _build_annex_detail와 동일 사상).
 
     force_oversized=True면 전문 분기를 건너뛰고 oversized_pointer로 강등(호출부가 사후주입(version 메타·
@@ -1817,7 +1867,7 @@ def _build_article_detail(provision_id: str, unit_id: str, rs, art: dict, eff_da
         "effective_date": eff_date,
         "contract_version": CONTRACT_VERSION,
         "disclaimer": _DISCLAIMER,
-        "warnings": list(rs.known_limitations),
+        "warnings": _detail_warnings(rs, stage_notice_line),
     }
     if not force_oversized:
         # 1) 전문 + structure (종전 조문 응답과 동일 필드·순서)
@@ -2612,6 +2662,10 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
     # v0.5.0: admrul 발령번호·종류 version 메타 1회 계산 — 3 반환점(문서·조문·별표)에 균일 주입.
     # law·오류 경로는 {} (helper의 doc_type 가드) → update no-op. effective_date는 별도 필드 유지.
     _version_meta = _admrul_version_meta(pid, detail)
+    # v0.54.0: 시행 단계 차이 고지 1줄 — 실제 조회 판본(doc_id)과 감사 판본을 결합해 1회 계산하고
+    # 상세 3반환점(문서·조문·별표)의 warnings 선두에 부착. 검색(_build_match)에는 부착하지 않는다
+    # (16k 예산 잠식으로 뒤쪽 매치가 절단돼 returned가 감소 — 로컬 LIVE 실측 최대 -3건).
+    stage_notice_line = _stage_notice_line(rs, doc_id)
 
     # document-level (unit_id 없음)
     if pid.unit_id is None:
@@ -2624,7 +2678,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
             "articles_count": len(articles),
             "contract_version": CONTRACT_VERSION,
             "disclaimer": _DISCLAIMER,
-            "warnings": list(rs.known_limitations),
+            "warnings": _detail_warnings(rs, stage_notice_line),
         }
         result.update(_version_meta)  # v0.5.0: admrul issuance_number·regulation_kind·version_label
         result["annexes_count"] = len(annexes)  # 별표단위 전건 집계(별표·별지·서식 포함) — 하위호환 유지
@@ -2787,7 +2841,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 continue
             if _article_branch_no(art) != target_branch:  # v0.14.0: 가지 엄격 매칭(제7조 ↔ 제7조의2 구분)
                 continue
-            resp = _build_article_detail(provision_id, pid.unit_id, rs, art, eff_date)
+            resp = _build_article_detail(provision_id, pid.unit_id, rs, art, eff_date, stage_notice_line=stage_notice_line)
             resp.update(_version_meta)  # v0.5.0: admrul version 식별자(조문+번호 동반 질의 시 외부행 차단)
             if _revision:
                 resp["revision_notice"] = _revision
@@ -2799,7 +2853,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 resp.get("content_format") == "plain_text_verbatim"
                 and len(json.dumps(resp, ensure_ascii=False)) > _ANNEX_DETAIL_CHAR_BUDGET
             ):
-                resp = _build_article_detail(provision_id, pid.unit_id, rs, art, eff_date, force_oversized=True)
+                resp = _build_article_detail(provision_id, pid.unit_id, rs, art, eff_date, force_oversized=True, stage_notice_line=stage_notice_line)
                 resp.update(_version_meta)
                 if _revision:
                     resp["revision_notice"] = _revision
@@ -2846,7 +2900,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 continue
             if _annex_branch_no(ann) != target_branch:
                 continue
-            resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date, annex_chunk=annex_chunk, annex_locate=annex_locate)
+            resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date, annex_chunk=annex_chunk, annex_locate=annex_locate, stage_notice_line=stage_notice_line)
             if "errors" in resp:
                 return resp  # v0.20.0: annex_chunk 범위 밖 — 오류 dict에 version 메타 오염 방지
             resp.update(_version_meta)  # v0.5.0: oversized 별표도 version은 도구에서(프롬프트4 외부행 차단)
@@ -2862,7 +2916,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 and "annex_status" not in resp
                 and len(json.dumps(resp, ensure_ascii=False)) > _ANNEX_DETAIL_CHAR_BUDGET
             ):
-                resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date, force_oversized=True, annex_chunk=annex_chunk, annex_locate=annex_locate)
+                resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date, force_oversized=True, annex_chunk=annex_chunk, annex_locate=annex_locate, stage_notice_line=stage_notice_line)
                 resp.update(_version_meta)
                 if _revision:
                     resp["revision_notice"] = _revision

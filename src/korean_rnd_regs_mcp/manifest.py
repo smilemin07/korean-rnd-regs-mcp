@@ -2,6 +2,7 @@
 
 본 모듈은 `rule_sets.yaml`을 읽어 검증된 RuleSet 객체 list로 반환한다.
 schema는 에 정의된 13개 필드 + `api_doc_id`(실제 ID 값) 1개 = 총 14개.
+(이후 v0.2.6 `ministry`·v0.54.0 `stage_notice` 등 optional 필드가 추가됨 — 현행 필드 목록은 RuleSet 정의가 canonical.)
 
 (`api_doc_id`는 plan에 명시되지 않았지만 LawApiClient 호출에 필수 — 누락 시 API call 불가.
 plan은 type만 정의했고 value는 implicit으로 가정한 듯하여 본 schema에서 명시 추가.)
@@ -17,7 +18,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class HierarchyRank(int, Enum):
@@ -55,8 +56,44 @@ class UnitTypes(str, Enum):
     BOTH = "both"        # 둘 다 (시행령 등에서 흔함)
 
 
+class StageNotice(BaseModel):
+    """v0.54.0: 법령 시행 단계 차이 고지 — 감사 시점 판본(`audited_doc_id`)에 결합된 정적 문면.
+
+    왜 판본에 결합하는가: 상세 조회는 매 호출 resolve로 그 시점의 최신 doc_id를 가져오고(fallback 시
+    manifest `api_doc_id`), resolve 캐시는 per-user client에 TTL로 보관된다. 시행예정일이 도래해 서빙
+    판본이 바뀌면 사용자별 캐시 상태에 따라 같은 날에도 서로 다른 판본이 서빙되므로, 문면을 한 번
+    교체하는 방식으로는 모든 응답을 정확하게 만들 수 없다. 실제 조회 판본과 감사 판본이 일치할 때만
+    구체 문면을 노출하고, 불일치하면 일반 경고로 대체한다(main._stage_notice_line).
+
+    문면 원문은 API 계약이 아니다 — 감사 결과에 따라 갱신·제거될 수 있는 데이터다(docs/api_contract.md §6).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    audited_doc_id: str = Field(
+        ...,
+        description="이 문면이 근거한 감사 시점의 문서 ID(law=법령일련번호 MST / admrul=행정규칙일련번호). 실제 조회 doc_id와 정확 일치할 때만 문면이 노출된다.",
+        min_length=1,
+    )
+    text: str = Field(
+        ...,
+        description="상세 조회 응답 warnings 선두에 실릴 완성형 고지 문장(감사일·판본·어긋난 조문·확인 경로·비보증 범위 포함).",
+        min_length=1,
+    )
+
+    @field_validator("audited_doc_id", "text")
+    @classmethod
+    def _reject_blank(cls, v: str) -> str:
+        """공백-only 값 fail-fast. min_length=1은 " "를 통과시키는데, 런타임 helper는 strip 후 빈 값이면
+        고지를 생략하므로 '설정했는데 조용히 사라지는' 상태가 된다(구현 diff 적대검토 Codex MINOR 재현).
+        데이터 오류는 조용한 무발화가 아니라 manifest 로드 실패로 드러나야 한다."""
+        if not v.strip():
+            raise ValueError("stage_notice 값은 공백만으로 구성될 수 없습니다")
+        return v
+
+
 class RuleSet(BaseModel):
-    """rule_sets.yaml 한 항목의 schema (총 15 fields — v0.2.6 ministry 추가).
+    """rule_sets.yaml 한 항목의 schema (총 16 fields — v0.2.6 ministry·v0.54.0 stage_notice 추가).
 
     docs/api_contract.md §2와 참조.
     """
@@ -130,6 +167,14 @@ class RuleSet(BaseModel):
             "소관부처명 (OpenAPI 검색 행의 개편 후 부처명, 예: '산업통상부'). "
             "동명 규정이 복수 부처에 존재할 때 resolve_latest_doc_id가 자부처 행만 채택하도록 하는 필터값. "
             "None이면 필터 미적용(기존 거동). v0.2.6 추가."
+        ),
+    )
+    stage_notice: Optional[StageNotice] = Field(
+        default=None,
+        description=(
+            "v0.54.0: 법령 시행 단계 차이 고지(선택). 값이 있으면 get_provision_detail 상세 응답의 "
+            "warnings 선두에 부착된다(검색 응답에는 미부착 — 응답 예산 보호). 미설정이면 종전 거동과 완전 동일. "
+            "설정 대상은 law↔eflaw 전수 감사에서 실질 차이가 확인된 규정뿐이며, 차이가 해소되면 제거한다."
         ),
     )
 

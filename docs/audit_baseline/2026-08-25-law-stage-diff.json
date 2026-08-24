@@ -1,0 +1,2854 @@
+{
+ "meta": {
+  "today": "20260825",
+  "run_at_kst": "2026-08-25 01:13:05",
+  "mode": "LIVE",
+  "live_calls": 106,
+  "cache_dir": null,
+  "targets": 35
+ },
+ "records": [
+  {
+   "id": "innovation_act",
+   "title": "국가연구개발혁신법",
+   "manifest_mst": "283413",
+   "manifest_effective_date": "2026-08-20",
+   "verdict": "DIFF",
+   "flags": [
+    "PENDING",
+    "MISSING_PREDICTED"
+   ],
+   "errors": [],
+   "served_mst": "283413",
+   "resolver": {
+    "effective_date": "2026-08-20",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "283413",
+     "20260820"
+    ]
+   ],
+   "future_rows": [
+    [
+     "283849",
+     "20260911"
+    ]
+   ],
+   "served_stages": [
+    "20260820"
+   ],
+   "served_promulgation_date": "20260219",
+   "missing_predicted": [
+    [
+     "283849",
+     "20260611",
+     "20260310"
+    ]
+   ],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260820",
+   "law_basic": {
+    "법령ID": "013774",
+    "법령명_한글": "국가연구개발혁신법",
+    "시행일자": "20260820",
+    "공포일자": "20260219",
+    "공포번호": "21347",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "013774",
+    "법령명_한글": "국가연구개발혁신법",
+    "시행일자": "20260820",
+    "공포일자": "20260219",
+    "공포번호": "21347",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [
+      {
+       "key": "제2조",
+       "law_excerpt": "에서 사용하는 용어의 뜻은 다음과 같다. <개정 2022.1.6> 1. \"국가연구개발사업\"이란 중앙행정기관이 법령에 근거하여 ",
+       "eflaw_excerpt": "에서 사용하는 용어의 뜻은 다음과 같다. <개정 2022.1.6, 2026.3.10> 1. \"국가연구개발사업\"이란 중앙행정기관이 법령에 근거하여 ",
+       "title_changed": false,
+       "ws_only": false,
+       "delta_chars": 210
+      },
+      {
+       "key": "제17조",
+       "law_excerpt": "제17조(연구개발성과의 활용) ① 연구개발성과를 소유한 연구개발기관(이하 \"연구개발성과소유기관\"이라 한다)은 연구개발성과가 널리 활용될 수 있도록 연",
+       "eflaw_excerpt": "제17조(연구개발성과의 활용) ① 연구개발성과소유기관은 연구개발성과가 널리 활용될 수 있도록 연구개발성과의 ",
+       "title_changed": false,
+       "ws_only": false,
+       "delta_chars": 45
+      },
+      {
+       "key": "제18조",
+       "law_excerpt": "당 국가연구개발사업의 연구개발비를 지원한 중앙행정기관의 장에게 기술료의 일부 또는 연구개발성과로 인한 수익의 일부를 납부하여야",
+       "eflaw_excerpt": "당 국가연구개발사업의 연구개발비를 지원한 중앙행정기관의 장에게 정부납부기술료를 납부하여야 한다. <개정 2026.3.10> ③ 제1항",
+       "title_changed": false,
+       "ws_only": false,
+       "delta_chars": 44
+      },
+      {
+       "key": "제32조",
+       "law_excerpt": "범위에서 제재부가금을 부과할 수 있다. <개정 2026.2.19> 1. 제12조제2항에 따른 평가 결과 연구개발과제의 수행과정",
+       "eflaw_excerpt": "범위에서 제재부가금을 부과할 수 있다. <개정 2026.2.19, 2026.3.10> 1. 제12조제2항에 따른 평가 결과 연구개발과제의 수행과정",
+       "title_changed": false,
+       "ws_only": false,
+       "delta_chars": 31
+      }
+     ],
+     "law_count": 42,
+     "eflaw_count": 42
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 0,
+     "eflaw_count": 0
+    },
+    "is_match": false,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "innovation_decree",
+   "title": "국가연구개발혁신법 시행령",
+   "manifest_mst": "288773",
+   "manifest_effective_date": "2026-08-20",
+   "verdict": "DIFF",
+   "flags": [
+    "PENDING",
+    "PREMATURE_PREDICTED"
+   ],
+   "errors": [],
+   "served_mst": "288773",
+   "resolver": {
+    "effective_date": "2026-08-20",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "288773",
+     "20260820"
+    ]
+   ],
+   "future_rows": [
+    [
+     "288335",
+     "20260911"
+    ],
+    [
+     "288335",
+     "20270101"
+    ]
+   ],
+   "served_stages": [
+    "20260820"
+   ],
+   "served_promulgation_date": "20260818",
+   "missing_predicted": [],
+   "premature_predicted": [
+    [
+     "288335",
+     "20260911",
+     "20260728"
+    ],
+    [
+     "288335",
+     "20270101",
+     "20260728"
+    ]
+   ],
+   "current_count": 1,
+   "efyd": "20260820",
+   "law_basic": {
+    "법령ID": "013933",
+    "법령명_한글": "국가연구개발혁신법 시행령",
+    "시행일자": "20260820",
+    "공포일자": "20260818",
+    "공포번호": "36580",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "013933",
+    "법령명_한글": "국가연구개발혁신법 시행령",
+    "시행일자": "20260820",
+    "공포일자": "20260818",
+    "공포번호": "36580",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [
+      "제35조의2"
+     ],
+     "only_in_eflaw": [],
+     "changed": [
+      {
+       "key": "제16조",
+       "law_excerpt": "라 한다) 이후의 연구개발과제 수행계획 ② 중앙행정기관의 장은 과학기술정보통신부장관이 연구분야의 특성을 고려하여 정하는 기준에 따라 단계평가 또는 법 제12조제2항 본문에 따른 최종평가(이하 \"최",
+       "eflaw_excerpt": "라 한다) 이후의 연구개발과제 수행계획 ② 중앙행정기관의 장은 단계평가 또는 법 제12조제2항 본문에 따른최종평가(이하 \"최종",
+       "title_changed": false,
+       "ws_only": false,
+       "delta_chars": 182
+      },
+      {
+       "key": "제17조",
+       "law_excerpt": "해당 연구개발과제를 중단할 수 있다. <개정 2021.12.31, 2026.7.28> 1. 연구개발과제의 수행과정이 통상적인 연구개발과제의 수행과",
+       "eflaw_excerpt": "해당 연구개발과제를 중단할 수 있다. <개정 2021.12.31> 1. 극히 불량 등급인 경우 2. 「과학기술기본법 시행령」 ",
+       "title_changed": false,
+       "ws_only": false,
+       "delta_chars": 298
+      },
+      {
+       "key": "제31조",
+       "law_excerpt": "제31조(특별평가의 실시 등) ① 법 제15조제1항제6호에서 \"대통령령으로 정하는 경우\"란 연구개발과제의 수행과정이 통상적인 연구개발과제의 수행과정에 비추어 부적절한 것으로 판단되는 경우를 말한다. <신설 2026.7.28> ② 중앙행정기관의 장은 법",
+       "eflaw_excerpt": "제31조(특별평가의 실시 등) ① 중앙행정기관의 장은 법 제15조제1항에 따라 특별평가를 실시하",
+       "title_changed": false,
+       "ws_only": false,
+       "delta_chars": 154
+      },
+      {
+       "key": "제36조",
+       "law_excerpt": "성과의 공동활용을 위한 지원) 중앙행정기관의 장은 법 제17조제5항에 따라 연구개발성과의 이전ㆍ확산ㆍ사업화를 위한 기술거래ㆍ양도",
+       "eflaw_excerpt": "성과의 공동활용을 위한 지원) 중앙행정기관의 장은 법 제17조제4항에 따라 연구개발성과의 이전ㆍ확산ㆍ사업화를 위한 기술거래ㆍ양도",
+       "title_changed": false,
+       "ws_only": false,
+       "delta_chars": 17
+      },
+      {
+       "key": "제37조",
+       "law_excerpt": "용 촉진을 위한 추적조사) ① 중앙행정기관의 장은 법 제17조제6항에 따른 추적조사를 위하여 연구개발기관의 장으로 하여금 연구개",
+       "eflaw_excerpt": "용 촉진을 위한 추적조사) ① 중앙행정기관의 장은 법 제17조제5항에 따른 추적조사를 위하여 연구개발기관의 장으로 하여금 연구개",
+       "title_changed": false,
+       "ws_only": false,
+       "delta_chars": 34
+      },
+      {
+       "key": "제41조",
+       "law_excerpt": " 한다. <개정 2024.12.31, 2026.7.28> 1. 법 제18조제5항제1호의 용도: 정부지분기술료의 100분의 70 ",
+       "eflaw_excerpt": " 한다. <개정 2024.12.31, 2026.7.28> 1. 연구개발과제에 참여한 연구자에 대한 보상금: 정부지분기술료의 100분의 60",
+       "title_changed": false,
+       "ws_only": false,
+       "delta_chars": 279
+      }
+     ],
+     "law_count": 71,
+     "eflaw_count": 70
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 8,
+     "eflaw_count": 8
+    },
+    "is_match": false,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "innovation_rule",
+   "title": "국가연구개발혁신법 시행규칙",
+   "manifest_mst": "289003",
+   "manifest_effective_date": "2026-08-20",
+   "verdict": "FORMAT_ONLY",
+   "flags": [],
+   "errors": [],
+   "served_mst": "289003",
+   "resolver": {
+    "effective_date": "2026-08-20",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "289003",
+     "20260820"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260820"
+   ],
+   "served_promulgation_date": "20260820",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260820",
+   "law_basic": {
+    "법령ID": "013980",
+    "법령명_한글": "국가연구개발혁신법 시행규칙",
+    "시행일자": "20260820",
+    "공포일자": "20260820",
+    "공포번호": "00173",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "013980",
+    "법령명_한글": "국가연구개발혁신법 시행규칙",
+    "시행일자": "20260820",
+    "공포일자": "20260820",
+    "공포번호": "00173",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 4,
+     "eflaw_count": 4
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [
+      {
+       "key": "서식 0002의00",
+       "law_excerpt": " 중앙행정기관의 권한ㆍ의무, 전문기관의 권한ㆍ의무, 연구개발기관과 연구자의 권리ㆍ의무 등을 규정함을 목적으로 한다. 제2조(용",
+       "eflaw_excerpt": " 중앙행정기관의 권한ㆍ의무, 전문기관의 권한ㆍ의무, 연구개발기관 과 연구자의 권리ㆍ의무 등을 규정함을 목적으로 한다. 제2조(용",
+       "title_changed": false,
+       "ws_only": true,
+       "delta_chars": 16
+      }
+     ],
+     "law_count": 12,
+     "eflaw_count": 12
+    },
+    "is_match": false,
+    "is_format_only": true
+   }
+  },
+  {
+   "id": "sector_kt_act",
+   "title": "국토교통과학기술 육성법",
+   "manifest_mst": "268733",
+   "manifest_effective_date": "2026-02-01",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "268733",
+   "resolver": {
+    "effective_date": "2026-02-01",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "268733",
+     "20260201"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260201"
+   ],
+   "served_promulgation_date": "20250131",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260201",
+   "law_basic": {
+    "법령ID": "012440",
+    "법령명_한글": "국토교통과학기술 육성법",
+    "시행일자": "20260201",
+    "공포일자": "20250131",
+    "공포번호": "20727",
+    "제개정구분": "타법개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "012440",
+    "법령명_한글": "국토교통과학기술 육성법",
+    "시행일자": "20260201",
+    "공포일자": "20250131",
+    "공포번호": "20727",
+    "제개정구분": "타법개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 19,
+     "eflaw_count": 19
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 0,
+     "eflaw_count": 0
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "sector_kt_decree",
+   "title": "국토교통과학기술 육성법 시행령",
+   "manifest_mst": "288777",
+   "manifest_effective_date": "2026-08-20",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "288777",
+   "resolver": {
+    "effective_date": "2026-08-20",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "288777",
+     "20260820"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260820"
+   ],
+   "served_promulgation_date": "20260818",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260820",
+   "law_basic": {
+    "법령ID": "012593",
+    "법령명_한글": "국토교통과학기술 육성법 시행령",
+    "시행일자": "20260820",
+    "공포일자": "20260818",
+    "공포번호": "36580",
+    "제개정구분": "타법개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "012593",
+    "법령명_한글": "국토교통과학기술 육성법 시행령",
+    "시행일자": "20260820",
+    "공포일자": "20260818",
+    "공포번호": "36580",
+    "제개정구분": "타법개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 13,
+     "eflaw_count": 13
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 0,
+     "eflaw_count": 0
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "sector_kt_rule",
+   "title": "국토교통과학기술 육성법 시행규칙",
+   "manifest_mst": "203848",
+   "manifest_effective_date": "2018-06-08",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "203848",
+   "resolver": {
+    "effective_date": "2018-06-08",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "203848",
+     "20180608"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20180608"
+   ],
+   "served_promulgation_date": "20180608",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20180608",
+   "law_basic": {
+    "법령ID": "012604",
+    "법령명_한글": "국토교통과학기술 육성법 시행규칙",
+    "시행일자": "20180608",
+    "공포일자": "20180608",
+    "공포번호": "00520",
+    "제개정구분": "타법개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "012604",
+    "법령명_한글": "국토교통과학기술 육성법 시행규칙",
+    "시행일자": "20180608",
+    "공포일자": "20180608",
+    "공포번호": "00520",
+    "제개정구분": "타법개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 7,
+     "eflaw_count": 7
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 0,
+     "eflaw_count": 0
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "industry_tech_act",
+   "title": "산업기술혁신 촉진법",
+   "manifest_mst": "280041",
+   "manifest_effective_date": "2026-06-03",
+   "verdict": "DIFF",
+   "flags": [
+    "PENDING",
+    "MISSING_PREDICTED"
+   ],
+   "errors": [],
+   "served_mst": "280041",
+   "resolver": {
+    "effective_date": "2026-06-03",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "280041",
+     "20260603"
+    ]
+   ],
+   "future_rows": [
+    [
+     "284363",
+     "20260918"
+    ]
+   ],
+   "served_stages": [
+    "20260603"
+   ],
+   "served_promulgation_date": "20251202",
+   "missing_predicted": [
+    [
+     "286565",
+     "20260602",
+     "20260602"
+    ]
+   ],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260603",
+   "law_basic": {
+    "법령ID": "001461",
+    "법령명_한글": "산업기술혁신 촉진법",
+    "시행일자": "20260603",
+    "공포일자": "20251202",
+    "공포번호": "21154",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "001461",
+    "법령명_한글": "산업기술혁신 촉진법",
+    "시행일자": "20260603",
+    "공포일자": "20251202",
+    "공포번호": "21154",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [
+      {
+       "key": "제5조",
+       "law_excerpt": "전법」 제4조에 따른 중ㆍ장기 산업발전전망, 「지방자치분권 및 지역균형발전에 관한 특별법」 제6조에 따른 지방시대 종합계획과 같은",
+       "eflaw_excerpt": "전법」 제4조에 따른 중ㆍ장기 산업발전전망, 「지방자치분권 및 균형성장에 관한 특별법」 제6조에 따른 지방시대 종합계획과 같은",
+       "title_changed": false,
+       "ws_only": false,
+       "delta_chars": 16
+      }
+     ],
+     "law_count": 72,
+     "eflaw_count": 72
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 0,
+     "eflaw_count": 0
+    },
+    "is_match": false,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "industry_tech_decree",
+   "title": "산업기술혁신 촉진법 시행령",
+   "manifest_mst": "285891",
+   "manifest_effective_date": "2026-06-03",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "285891",
+   "resolver": {
+    "effective_date": "2026-06-03",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "285891",
+     "20260603"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260603"
+   ],
+   "served_promulgation_date": "20260519",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260603",
+   "law_basic": {
+    "법령ID": "003778",
+    "법령명_한글": "산업기술혁신 촉진법 시행령",
+    "시행일자": "20260603",
+    "공포일자": "20260519",
+    "공포번호": "36338",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "003778",
+    "법령명_한글": "산업기술혁신 촉진법 시행령",
+    "시행일자": "20260603",
+    "공포일자": "20260519",
+    "공포번호": "36338",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 84,
+     "eflaw_count": 84
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 4,
+     "eflaw_count": 4
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "industry_tech_rule",
+   "title": "산업기술혁신 촉진법 시행규칙",
+   "manifest_mst": "286385",
+   "manifest_effective_date": "2026-06-03",
+   "verdict": "FORMAT_ONLY",
+   "flags": [],
+   "errors": [],
+   "served_mst": "286385",
+   "resolver": {
+    "effective_date": "2026-06-03",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "286385",
+     "20260603"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260603"
+   ],
+   "served_promulgation_date": "20260527",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260603",
+   "law_basic": {
+    "법령ID": "007359",
+    "법령명_한글": "산업기술혁신 촉진법 시행규칙",
+    "시행일자": "20260603",
+    "공포일자": "20260527",
+    "공포번호": "00012",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "007359",
+    "법령명_한글": "산업기술혁신 촉진법 시행규칙",
+    "시행일자": "20260603",
+    "공포일자": "20260527",
+    "공포번호": "00012",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 24,
+     "eflaw_count": 24
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [
+      {
+       "key": "별표 0003의00",
+       "law_excerpt": "[■ 산업기술혁신 촉진법 시행규칙 [별표 3] <개정 2026. ",
+       "eflaw_excerpt": "■ 산업기술혁신 촉진법 시행규칙 [별표 3] <개정 2026. ",
+       "title_changed": false,
+       "ws_only": true,
+       "delta_chars": 1
+      }
+     ],
+     "law_count": 20,
+     "eflaw_count": 20
+    },
+    "is_match": false,
+    "is_format_only": true
+   }
+  },
+  {
+   "id": "sme_tech_act",
+   "title": "중소기업 기술혁신 촉진법",
+   "manifest_mst": "281987",
+   "manifest_effective_date": "2026-07-01",
+   "verdict": "DIFF",
+   "flags": [
+    "MISSING_PREDICTED"
+   ],
+   "errors": [],
+   "served_mst": "281987",
+   "resolver": {
+    "effective_date": "2026-07-01",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "281987",
+     "20260701"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260701"
+   ],
+   "served_promulgation_date": "20251230",
+   "missing_predicted": [
+    [
+     "286263",
+     "20260526",
+     "20260526"
+    ]
+   ],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260701",
+   "law_basic": {
+    "법령ID": "009145",
+    "법령명_한글": "중소기업 기술혁신 촉진법",
+    "시행일자": "20260701",
+    "공포일자": "20251230",
+    "공포번호": "21289",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "009145",
+    "법령명_한글": "중소기업 기술혁신 촉진법",
+    "시행일자": "20260701",
+    "공포일자": "20251230",
+    "공포번호": "21289",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [
+      "제27조의4",
+      "제27조의5",
+      "제28조의2"
+     ],
+     "changed": [
+      {
+       "key": "제2조",
+       "law_excerpt": "26, 2021.4.20, 2021.12.28, 2022.1.4> 1. \"중소기업\"이란 「중소기업기본법」 제2조에 따른 중소기",
+       "eflaw_excerpt": "26, 2021.4.20, 2021.12.28, 2022.1.4, 2026.5.26> 1. \"중소기업\"이란 「중소기업기본법」 제2조에 따른 중소기",
+       "title_changed": false,
+       "ws_only": false,
+       "delta_chars": 1128
+      },
+      {
+       "key": "제27조의2",
+       "law_excerpt": "사업을 수행하게 할 수 있다. <개정 2025.12.30> ③ 기술보증기금은 제1항 각 호의 사업 수행과 관련하여 기술평가, 기술거래의 중",
+       "eflaw_excerpt": "사업을 수행하게 할 수 있다. <개정 2025.12.30> ③ 삭제 <2026.5.26> ④ 제1항 각 호의 사업 추진에 필요한 ",
+       "title_changed": false,
+       "ws_only": false,
+       "delta_chars": 116
+      },
+      {
+       "key": "제27조의3",
+       "law_excerpt": "제27조의3(계정의 설치 및 재원) ① 중소벤처기업부장관은 중소기업의 기술혁신을 ",
+       "eflaw_excerpt": "제27조의3(사업화 금융지원) ① 중소벤처기업부장관은 공공연구기관 및 기술혁신사업",
+       "title_changed": true,
+       "ws_only": false,
+       "delta_chars": 563
+      }
+     ],
+     "law_count": 49,
+     "eflaw_count": 52
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 0,
+     "eflaw_count": 0
+    },
+    "is_match": false,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "sme_tech_decree",
+   "title": "중소기업 기술혁신 촉진법 시행령",
+   "manifest_mst": "287505",
+   "manifest_effective_date": "2026-07-01",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "287505",
+   "resolver": {
+    "effective_date": "2026-07-01",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "287505",
+     "20260701"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260701"
+   ],
+   "served_promulgation_date": "20260630",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260701",
+   "law_basic": {
+    "법령ID": "009255",
+    "법령명_한글": "중소기업 기술혁신 촉진법 시행령",
+    "시행일자": "20260701",
+    "공포일자": "20260630",
+    "공포번호": "36482",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "009255",
+    "법령명_한글": "중소기업 기술혁신 촉진법 시행령",
+    "시행일자": "20260701",
+    "공포일자": "20260630",
+    "공포번호": "36482",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 46,
+     "eflaw_count": 46
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 4,
+     "eflaw_count": 4
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "sme_tech_rule",
+   "title": "중소기업 기술혁신 촉진법 시행규칙",
+   "manifest_mst": "220365",
+   "manifest_effective_date": "2020-07-30",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "220365",
+   "resolver": {
+    "effective_date": "2020-07-30",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "220365",
+     "20200730"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20200730"
+   ],
+   "served_promulgation_date": "20200730",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20200730",
+   "law_basic": {
+    "법령ID": "009263",
+    "법령명_한글": "중소기업 기술혁신 촉진법 시행규칙",
+    "시행일자": "20200730",
+    "공포일자": "20200730",
+    "공포번호": "00034",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "009263",
+    "법령명_한글": "중소기업 기술혁신 촉진법 시행규칙",
+    "시행일자": "20200730",
+    "공포일자": "20200730",
+    "공포번호": "00034",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 11,
+     "eflaw_count": 11
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 7,
+     "eflaw_count": 7
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "performance_eval_act",
+   "title": "국가연구개발사업 등의 성과평가 및 성과관리에 관한 법률",
+   "manifest_mst": "255639",
+   "manifest_effective_date": "2023-10-31",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "255639",
+   "resolver": {
+    "effective_date": "2023-10-31",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "255639",
+     "20231031"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20231031"
+   ],
+   "served_promulgation_date": "20231031",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20231031",
+   "law_basic": {
+    "법령ID": "010090",
+    "법령명_한글": "국가연구개발사업 등의 성과평가 및 성과관리에 관한 법률",
+    "시행일자": "20231031",
+    "공포일자": "20231031",
+    "공포번호": "19782",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "010090",
+    "법령명_한글": "국가연구개발사업 등의 성과평가 및 성과관리에 관한 법률",
+    "시행일자": "20231031",
+    "공포일자": "20231031",
+    "공포번호": "19782",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 30,
+     "eflaw_count": 30
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 0,
+     "eflaw_count": 0
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "performance_eval_decree",
+   "title": "국가연구개발사업 등의 성과평가 및 성과관리에 관한 법률 시행령",
+   "manifest_mst": "270435",
+   "manifest_effective_date": "2025-04-01",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "270435",
+   "resolver": {
+    "effective_date": "2025-04-01",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "270435",
+     "20250401"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20250401"
+   ],
+   "served_promulgation_date": "20250401",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20250401",
+   "law_basic": {
+    "법령ID": "010187",
+    "법령명_한글": "국가연구개발사업 등의 성과평가 및 성과관리에 관한 법률 시행령",
+    "시행일자": "20250401",
+    "공포일자": "20250401",
+    "공포번호": "35407",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "010187",
+    "법령명_한글": "국가연구개발사업 등의 성과평가 및 성과관리에 관한 법률 시행령",
+    "시행일자": "20250401",
+    "공포일자": "20250401",
+    "공포번호": "35407",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 29,
+     "eflaw_count": 29
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 0,
+     "eflaw_count": 0
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "health_tech_act",
+   "title": "보건의료기술 진흥법",
+   "manifest_mst": "279703",
+   "manifest_effective_date": "2026-02-12",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "279703",
+   "resolver": {
+    "effective_date": "2026-02-12",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "279703",
+     "20260212"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260212"
+   ],
+   "served_promulgation_date": "20251111",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260212",
+   "law_basic": {
+    "법령ID": "000219",
+    "법령명_한글": "보건의료기술 진흥법",
+    "시행일자": "20260212",
+    "공포일자": "20251111",
+    "공포번호": "21106",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "000219",
+    "법령명_한글": "보건의료기술 진흥법",
+    "시행일자": "20260212",
+    "공포일자": "20251111",
+    "공포번호": "21106",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 54,
+     "eflaw_count": 54
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 0,
+     "eflaw_count": 0
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "health_tech_decree",
+   "title": "보건의료기술 진흥법 시행령",
+   "manifest_mst": "282961",
+   "manifest_effective_date": "2026-02-01",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "282961",
+   "resolver": {
+    "effective_date": "2026-02-01",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "282961",
+     "20260201"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260201"
+   ],
+   "served_promulgation_date": "20260127",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260201",
+   "law_basic": {
+    "법령ID": "003637",
+    "법령명_한글": "보건의료기술 진흥법 시행령",
+    "시행일자": "20260201",
+    "공포일자": "20260127",
+    "공포번호": "36055",
+    "제개정구분": "타법개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "003637",
+    "법령명_한글": "보건의료기술 진흥법 시행령",
+    "시행일자": "20260201",
+    "공포일자": "20260127",
+    "공포번호": "36055",
+    "제개정구분": "타법개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 52,
+     "eflaw_count": 52
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 3,
+     "eflaw_count": 3
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "health_tech_rule",
+   "title": "보건의료기술 진흥법 시행규칙",
+   "manifest_mst": "264101",
+   "manifest_effective_date": "2024-07-17",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "264101",
+   "resolver": {
+    "effective_date": "2024-07-17",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "264101",
+     "20240717"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20240717"
+   ],
+   "served_promulgation_date": "20240717",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20240717",
+   "law_basic": {
+    "법령ID": "007270",
+    "법령명_한글": "보건의료기술 진흥법 시행규칙",
+    "시행일자": "20240717",
+    "공포일자": "20240717",
+    "공포번호": "01033",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "007270",
+    "법령명_한글": "보건의료기술 진흥법 시행규칙",
+    "시행일자": "20240717",
+    "공포일자": "20240717",
+    "공포번호": "01033",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 21,
+     "eflaw_count": 21
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 21,
+     "eflaw_count": 21
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "hakjin_act",
+   "title": "학술진흥법",
+   "manifest_mst": "230413",
+   "manifest_effective_date": "2021-06-23",
+   "verdict": "MATCH",
+   "flags": [
+    "MULTI_STAGE_DONE",
+    "PENDING"
+   ],
+   "errors": [],
+   "served_mst": "230413",
+   "resolver": {
+    "effective_date": "2021-06-23",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "230413",
+     "20210623"
+    ]
+   ],
+   "future_rows": [
+    [
+     "286363",
+     "20261203"
+    ]
+   ],
+   "served_stages": [
+    "20210323",
+    "20210623"
+   ],
+   "served_promulgation_date": "20210323",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20210623",
+   "law_basic": {
+    "법령ID": "000857",
+    "법령명_한글": "학술진흥법",
+    "시행일자": "20210323",
+    "공포일자": "20210323",
+    "공포번호": "17954",
+    "제개정구분": "타법개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "000857",
+    "법령명_한글": "학술진흥법",
+    "시행일자": "20210623",
+    "공포일자": "20210323",
+    "공포번호": "17954",
+    "제개정구분": "타법개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 24,
+     "eflaw_count": 24
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 0,
+     "eflaw_count": 0
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "hakjin_decree",
+   "title": "학술진흥법 시행령",
+   "manifest_mst": "245227",
+   "manifest_effective_date": "2022-11-08",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "245227",
+   "resolver": {
+    "effective_date": "2022-11-08",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "245227",
+     "20221108"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20221108"
+   ],
+   "served_promulgation_date": "20221108",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20221108",
+   "law_basic": {
+    "법령ID": "005396",
+    "법령명_한글": "학술진흥법 시행령",
+    "시행일자": "20221108",
+    "공포일자": "20221108",
+    "공포번호": "32979",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "005396",
+    "법령명_한글": "학술진흥법 시행령",
+    "시행일자": "20221108",
+    "공포일자": "20221108",
+    "공포번호": "32979",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 28,
+     "eflaw_count": 28
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 3,
+     "eflaw_count": 3
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "hakjin_rule",
+   "title": "학술진흥법 시행규칙",
+   "manifest_mst": "220701",
+   "manifest_effective_date": "2020-10-13",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "220701",
+   "resolver": {
+    "effective_date": "2020-10-13",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "220701",
+     "20201013"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20201013"
+   ],
+   "served_promulgation_date": "20201013",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20201013",
+   "law_basic": {
+    "법령ID": "011877",
+    "법령명_한글": "학술진흥법 시행규칙",
+    "시행일자": "20201013",
+    "공포일자": "20201013",
+    "공포번호": "00220",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "011877",
+    "법령명_한글": "학술진흥법 시행규칙",
+    "시행일자": "20201013",
+    "공포일자": "20201013",
+    "공포번호": "00220",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 8,
+     "eflaw_count": 8
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 1,
+     "eflaw_count": 1
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "sanhak_act",
+   "title": "산업교육진흥 및 산학연협력촉진에 관한 법률",
+   "manifest_mst": "267351",
+   "manifest_effective_date": "2025-06-21",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "267351",
+   "resolver": {
+    "effective_date": "2025-06-21",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "267351",
+     "20250621"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20250621"
+   ],
+   "served_promulgation_date": "20241220",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20250621",
+   "law_basic": {
+    "법령ID": "000865",
+    "법령명_한글": "산업교육진흥 및 산학연협력촉진에 관한 법률",
+    "시행일자": "20250621",
+    "공포일자": "20241220",
+    "공포번호": "20563",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "000865",
+    "법령명_한글": "산업교육진흥 및 산학연협력촉진에 관한 법률",
+    "시행일자": "20250621",
+    "공포일자": "20241220",
+    "공포번호": "20563",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 67,
+     "eflaw_count": 67
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 0,
+     "eflaw_count": 0
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "sanhak_decree",
+   "title": "산업교육진흥 및 산학연협력촉진에 관한 법률 시행령",
+   "manifest_mst": "284767",
+   "manifest_effective_date": "2026-03-24",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "284767",
+   "resolver": {
+    "effective_date": "2026-03-24",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "284767",
+     "20260324"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260324"
+   ],
+   "served_promulgation_date": "20260324",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260324",
+   "law_basic": {
+    "법령ID": "003777",
+    "법령명_한글": "산업교육진흥 및 산학연협력촉진에 관한 법률 시행령",
+    "시행일자": "20260324",
+    "공포일자": "20260324",
+    "공포번호": "36220",
+    "제개정구분": "타법개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "003777",
+    "법령명_한글": "산업교육진흥 및 산학연협력촉진에 관한 법률 시행령",
+    "시행일자": "20260324",
+    "공포일자": "20260324",
+    "공포번호": "36220",
+    "제개정구분": "타법개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 67,
+     "eflaw_count": 67
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 1,
+     "eflaw_count": 1
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "sanhak_rule",
+   "title": "산업교육진흥 및 산학연협력촉진에 관한 법률 시행규칙",
+   "manifest_mst": "285257",
+   "manifest_effective_date": "2026-03-27",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "285257",
+   "resolver": {
+    "effective_date": "2026-03-27",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "285257",
+     "20260327"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260327"
+   ],
+   "served_promulgation_date": "20260327",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260327",
+   "law_basic": {
+    "법령ID": "007354",
+    "법령명_한글": "산업교육진흥 및 산학연협력촉진에 관한 법률 시행규칙",
+    "시행일자": "20260327",
+    "공포일자": "20260327",
+    "공포번호": "00380",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "007354",
+    "법령명_한글": "산업교육진흥 및 산학연협력촉진에 관한 법률 시행규칙",
+    "시행일자": "20260327",
+    "공포일자": "20260327",
+    "공포번호": "00380",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 8,
+     "eflaw_count": 8
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 11,
+     "eflaw_count": 11
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "corp_lab_act",
+   "title": "기업부설연구소등의 연구개발 지원에 관한 법률",
+   "manifest_mst": "282553",
+   "manifest_effective_date": "2026-02-01",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "282553",
+   "resolver": {
+    "effective_date": "2026-02-01",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "282553",
+     "20260201"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260201"
+   ],
+   "served_promulgation_date": "20251231",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260201",
+   "law_basic": {
+    "법령ID": "014828",
+    "법령명_한글": "기업부설연구소등의 연구개발 지원에 관한 법률",
+    "시행일자": "20260201",
+    "공포일자": "20251231",
+    "공포번호": "21309",
+    "제개정구분": "타법개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "014828",
+    "법령명_한글": "기업부설연구소등의 연구개발 지원에 관한 법률",
+    "시행일자": "20260201",
+    "공포일자": "20251231",
+    "공포번호": "21309",
+    "제개정구분": "타법개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 27,
+     "eflaw_count": 27
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 0,
+     "eflaw_count": 0
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "corp_lab_decree",
+   "title": "기업부설연구소등의 연구개발 지원에 관한 법률 시행령",
+   "manifest_mst": "282915",
+   "manifest_effective_date": "2026-02-01",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "282915",
+   "resolver": {
+    "effective_date": "2026-02-01",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "282915",
+     "20260201"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260201"
+   ],
+   "served_promulgation_date": "20260127",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260201",
+   "law_basic": {
+    "법령ID": "015035",
+    "법령명_한글": "기업부설연구소등의 연구개발 지원에 관한 법률 시행령",
+    "시행일자": "20260201",
+    "공포일자": "20260127",
+    "공포번호": "36055",
+    "제개정구분": "제정"
+   },
+   "eflaw_basic": {
+    "법령ID": "015035",
+    "법령명_한글": "기업부설연구소등의 연구개발 지원에 관한 법률 시행령",
+    "시행일자": "20260201",
+    "공포일자": "20260127",
+    "공포번호": "36055",
+    "제개정구분": "제정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 20,
+     "eflaw_count": 20
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 3,
+     "eflaw_count": 3
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "corp_lab_rule",
+   "title": "기업부설연구소등의 연구개발 지원에 관한 법률 시행규칙",
+   "manifest_mst": "283223",
+   "manifest_effective_date": "2026-02-01",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "283223",
+   "resolver": {
+    "effective_date": "2026-02-01",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "283223",
+     "20260201"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260201"
+   ],
+   "served_promulgation_date": "20260130",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260201",
+   "law_basic": {
+    "법령ID": "015041",
+    "법령명_한글": "기업부설연구소등의 연구개발 지원에 관한 법률 시행규칙",
+    "시행일자": "20260201",
+    "공포일자": "20260130",
+    "공포번호": "00163",
+    "제개정구분": "제정"
+   },
+   "eflaw_basic": {
+    "법령ID": "015041",
+    "법령명_한글": "기업부설연구소등의 연구개발 지원에 관한 법률 시행규칙",
+    "시행일자": "20260201",
+    "공포일자": "20260130",
+    "공포번호": "00163",
+    "제개정구분": "제정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 14,
+     "eflaw_count": 14
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 16,
+     "eflaw_count": 16
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "research_industry_act",
+   "title": "연구산업진흥법",
+   "manifest_mst": "231603",
+   "manifest_effective_date": "2021-10-21",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "231603",
+   "resolver": {
+    "effective_date": "2021-10-21",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "231603",
+     "20211021"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20211021"
+   ],
+   "served_promulgation_date": "20210420",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20211021",
+   "law_basic": {
+    "법령ID": "014069",
+    "법령명_한글": "연구산업진흥법",
+    "시행일자": "20211021",
+    "공포일자": "20210420",
+    "공포번호": "18075",
+    "제개정구분": "제정"
+   },
+   "eflaw_basic": {
+    "법령ID": "014069",
+    "법령명_한글": "연구산업진흥법",
+    "시행일자": "20211021",
+    "공포일자": "20210420",
+    "공포번호": "18075",
+    "제개정구분": "제정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 18,
+     "eflaw_count": 18
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 0,
+     "eflaw_count": 0
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "research_industry_decree",
+   "title": "연구산업진흥법 시행령",
+   "manifest_mst": "261923",
+   "manifest_effective_date": "2024-06-01",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "261923",
+   "resolver": {
+    "effective_date": "2024-06-01",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "261923",
+     "20240601"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20240601"
+   ],
+   "served_promulgation_date": "20240423",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20240601",
+   "law_basic": {
+    "법령ID": "014174",
+    "법령명_한글": "연구산업진흥법 시행령",
+    "시행일자": "20240601",
+    "공포일자": "20240423",
+    "공포번호": "34449",
+    "제개정구분": "타법개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "014174",
+    "법령명_한글": "연구산업진흥법 시행령",
+    "시행일자": "20240601",
+    "공포일자": "20240423",
+    "공포번호": "34449",
+    "제개정구분": "타법개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 23,
+     "eflaw_count": 23
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 2,
+     "eflaw_count": 2
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "research_industry_rule",
+   "title": "연구산업진흥법 시행규칙",
+   "manifest_mst": "262117",
+   "manifest_effective_date": "2024-06-01",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "262117",
+   "resolver": {
+    "effective_date": "2024-06-01",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "262117",
+     "20240601"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20240601"
+   ],
+   "served_promulgation_date": "20240426",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20240601",
+   "law_basic": {
+    "법령ID": "014176",
+    "법령명_한글": "연구산업진흥법 시행규칙",
+    "시행일자": "20240601",
+    "공포일자": "20240426",
+    "공포번호": "00125",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "014176",
+    "법령명_한글": "연구산업진흥법 시행규칙",
+    "시행일자": "20240601",
+    "공포일자": "20240426",
+    "공포번호": "00125",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 4,
+     "eflaw_count": 4
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 15,
+     "eflaw_count": 15
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "lab_safety_act",
+   "title": "연구실 안전환경 조성에 관한 법률",
+   "manifest_mst": "283355",
+   "manifest_effective_date": "2026-05-20",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "283355",
+   "resolver": {
+    "effective_date": "2026-05-20",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "283355",
+     "20260520"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260520"
+   ],
+   "served_promulgation_date": "20260219",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260520",
+   "law_basic": {
+    "법령ID": "009925",
+    "법령명_한글": "연구실 안전환경 조성에 관한 법률",
+    "시행일자": "20260520",
+    "공포일자": "20260219",
+    "공포번호": "21349",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "009925",
+    "법령명_한글": "연구실 안전환경 조성에 관한 법률",
+    "시행일자": "20260520",
+    "공포일자": "20260219",
+    "공포번호": "21349",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 46,
+     "eflaw_count": 46
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 0,
+     "eflaw_count": 0
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "lab_safety_decree",
+   "title": "연구실 안전환경 조성에 관한 법률 시행령",
+   "manifest_mst": "286181",
+   "manifest_effective_date": "2026-05-20",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "286181",
+   "resolver": {
+    "effective_date": "2026-05-20",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "286181",
+     "20260520"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260520"
+   ],
+   "served_promulgation_date": "20260519",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260520",
+   "law_basic": {
+    "법령ID": "010191",
+    "법령명_한글": "연구실 안전환경 조성에 관한 법률 시행령",
+    "시행일자": "20260520",
+    "공포일자": "20260519",
+    "공포번호": "36330",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "010191",
+    "법령명_한글": "연구실 안전환경 조성에 관한 법률 시행령",
+    "시행일자": "20260520",
+    "공포일자": "20260519",
+    "공포번호": "36330",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 35,
+     "eflaw_count": 35
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 13,
+     "eflaw_count": 13
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "lab_safety_rule",
+   "title": "연구실 안전환경 조성에 관한 법률 시행규칙",
+   "manifest_mst": "283229",
+   "manifest_effective_date": "2026-02-01",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "283229",
+   "resolver": {
+    "effective_date": "2026-02-01",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "283229",
+     "20260201"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260201"
+   ],
+   "served_promulgation_date": "20260130",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260201",
+   "law_basic": {
+    "법령ID": "010190",
+    "법령명_한글": "연구실 안전환경 조성에 관한 법률 시행규칙",
+    "시행일자": "20260201",
+    "공포일자": "20260130",
+    "공포번호": "00163",
+    "제개정구분": "타법개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "010190",
+    "법령명_한글": "연구실 안전환경 조성에 관한 법률 시행규칙",
+    "시행일자": "20260201",
+    "공포일자": "20260130",
+    "공포번호": "00163",
+    "제개정구분": "타법개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 24,
+     "eflaw_count": 24
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 21,
+     "eflaw_count": 21
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "defense_tech_act",
+   "title": "국방과학기술혁신 촉진법",
+   "manifest_mst": "258057",
+   "manifest_effective_date": "2024-07-10",
+   "verdict": "MATCH",
+   "flags": [
+    "MULTI_STAGE_DONE",
+    "PENDING"
+   ],
+   "errors": [],
+   "served_mst": "258057",
+   "resolver": {
+    "effective_date": "2024-07-10",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "258057",
+     "20240710"
+    ]
+   ],
+   "future_rows": [
+    [
+     "283941",
+     "20260911"
+    ]
+   ],
+   "served_stages": [
+    "20240410",
+    "20240710"
+   ],
+   "served_promulgation_date": "20240109",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20240710",
+   "law_basic": {
+    "법령ID": "013716",
+    "법령명_한글": "국방과학기술혁신 촉진법",
+    "시행일자": "20240410",
+    "공포일자": "20240109",
+    "공포번호": "19948",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "013716",
+    "법령명_한글": "국방과학기술혁신 촉진법",
+    "시행일자": "20240710",
+    "공포일자": "20240109",
+    "공포번호": "19948",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 21,
+     "eflaw_count": 21
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 0,
+     "eflaw_count": 0
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "defense_tech_decree",
+   "title": "국방과학기술혁신 촉진법 시행령",
+   "manifest_mst": "287549",
+   "manifest_effective_date": "2026-07-01",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "287549",
+   "resolver": {
+    "effective_date": "2026-07-01",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "287549",
+     "20260701"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20260701"
+   ],
+   "served_promulgation_date": "20260630",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20260701",
+   "law_basic": {
+    "법령ID": "014049",
+    "법령명_한글": "국방과학기술혁신 촉진법 시행령",
+    "시행일자": "20260701",
+    "공포일자": "20260630",
+    "공포번호": "36453",
+    "제개정구분": "일부개정"
+   },
+   "eflaw_basic": {
+    "법령ID": "014049",
+    "법령명_한글": "국방과학기술혁신 촉진법 시행령",
+    "시행일자": "20260701",
+    "공포일자": "20260630",
+    "공포번호": "36453",
+    "제개정구분": "일부개정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 20,
+     "eflaw_count": 20
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 3,
+     "eflaw_count": 3
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  },
+  {
+   "id": "defense_tech_rule",
+   "title": "국방과학기술혁신 촉진법 시행규칙",
+   "manifest_mst": "230705",
+   "manifest_effective_date": "2021-04-01",
+   "verdict": "MATCH",
+   "flags": [],
+   "errors": [],
+   "served_mst": "230705",
+   "resolver": {
+    "effective_date": "2021-04-01",
+    "is_updated": false,
+    "resolve_failed": false,
+    "pending": null
+   },
+   "current_rows": [
+    [
+     "230705",
+     "20210401"
+    ]
+   ],
+   "future_rows": [],
+   "served_stages": [
+    "20210401"
+   ],
+   "served_promulgation_date": "20210330",
+   "missing_predicted": [],
+   "premature_predicted": [],
+   "current_count": 1,
+   "efyd": "20210401",
+   "law_basic": {
+    "법령ID": "014050",
+    "법령명_한글": "국방과학기술혁신 촉진법 시행규칙",
+    "시행일자": "20210401",
+    "공포일자": "20210330",
+    "공포번호": "01049",
+    "제개정구분": "제정"
+   },
+   "eflaw_basic": {
+    "법령ID": "014050",
+    "법령명_한글": "국방과학기술혁신 촉진법 시행규칙",
+    "시행일자": "20210401",
+    "공포일자": "20210330",
+    "공포번호": "01049",
+    "제개정구분": "제정"
+   },
+   "key_collisions": {
+    "law": {
+     "articles": 0,
+     "annexes": 0
+    },
+    "eflaw": {
+     "articles": 0,
+     "annexes": 0
+    }
+   },
+   "diff": {
+    "articles": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 13,
+     "eflaw_count": 13
+    },
+    "annexes": {
+     "only_in_law": [],
+     "only_in_eflaw": [],
+     "changed": [],
+     "law_count": 2,
+     "eflaw_count": 2
+    },
+    "is_match": true,
+    "is_format_only": false
+   }
+  }
+ ]
+}
