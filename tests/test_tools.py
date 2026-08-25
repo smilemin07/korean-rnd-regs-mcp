@@ -120,6 +120,17 @@ def mock_client(monkeypatch):
         )
     client.resolve_latest_doc_id.side_effect = _resolve_passthrough
     monkeypatch.setattr(main_module, "_client_instance", client)
+    # (v0.55.0) 상세·검색 경로가 시행일 기준 조회 계약(get_law_detail_staged → (detail, stage_basis))을
+    # 쓰므로 mock도 같은 계약을 제공한다. get_law_detail을 동적으로 위임하므로, 개별 테스트가 뒤에서
+    # return_value/side_effect를 바꿔도 그대로 반영된다(예외도 그대로 전파 = 종전 오류 경로 무회귀).
+    # basis 판정은 실제 클라이언트와 같은 정규화를 거친다 — "bad-date"처럼 형식이 틀린 값을
+    # eflaw로 분류하면 mock이 실제 계약을 왜곡한다(최종 재검증 라운드 지적).
+    client.get_law_detail_staged.side_effect = (
+        lambda mst, efyd="", expected_title="": (
+            client.get_law_detail(mst),
+            "eflaw" if LawApiClient.normalize_efyd(efyd) else "law",
+        )
+    )
     return client
 
 
@@ -5773,7 +5784,9 @@ def test_v0500_term_drift_hint_surfaces():
         "search_provision docstring": search_provision.__doc__ or "",
     }
     for surface_name, text in surfaces.items():
-        for tok in ("이의신청", "재검토 요청", "재검색", "토큰 AND"):
+        # v0.55.0: 시행일 기준 전환으로 구 용어('지역균형발전') 검색이 제5조에 미도달이 되므로
+        # 실제 교체 쌍 1건을 예시에 추가 — 잠금 토큰도 동반 갱신(문면 수정은 예상된 갱신 신호).
+        for tok in ("이의신청", "재검토 요청", "재검색", "토큰 AND", "균형성장"):
             assert tok in text, f"{surface_name}에 v0.50.0 용어 드리프트 토큰 '{tok}' 누락 — 2표면 동기화 필요"
         assert "함께 넣지 마십시오" in text, f"{surface_name}에 동시 투입 금지 지시 누락"
 

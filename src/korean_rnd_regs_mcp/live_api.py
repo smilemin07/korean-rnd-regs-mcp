@@ -49,6 +49,18 @@ _READ_TIMEOUT_S = 12.0
 _REQUEST_TIMEOUT = (_CONNECT_TIMEOUT_S, _READ_TIMEOUT_S)
 _MAX_RETRIES = 2
 
+# === v0.55.0: 시행일 기준 조회(eflaw) 전용 대기 예산 ===
+# eflaw는 1차 시도이고 실패하면 곧바로 law 폴백이 직렬로 이어지므로, 기본 예산(8,12)·2회를 그대로
+# 물려받으면 규정당 대기가 두 배가 되어 fan-out 예산(main._FANOUT_BUDGET_S=20s)을 깬다.
+# 결정론 시뮬레이션(32워커·66과제·폴백 3s 가정, 2026-08-25): (3,5)=최악 22.1s로 예산 초과 /
+# (2,4)=최악 18.1s로 예산 내. 정상 eflaw p90은 1,145ms 실측이라 read 4s 상한의 오탐 여지는 사실상 없다
+# (read는 총 시간이 아니라 "바이트가 도착하지 않는 구간"의 상한이므로 대형 문서도 흐르는 한 끊기지 않는다).
+_EFLAW_TIMEOUT = (2.0, 4.0)
+# ★_request_with_retry(max_retries=N)의 N은 "재시도 횟수"가 아니라 `range(N)` = 실제 시도 횟수다.
+#   0을 넘기면 네트워크 요청이 한 번도 발생하지 않는다(구현 diff 적대검토 Codex 적발 — 제로콜 버그).
+#   "재시도 없음"의 올바른 표현은 1이다.
+_EFLAW_ATTEMPTS = 1
+
 
 class LawApiError(Exception):
     """Standard error for live API calls (carries `code` per contract §4)."""
@@ -390,6 +402,14 @@ class LawApiClient:
         # _detail_cache(maxsize 96·검색 fan-out warm-hit 상주)와 분리해, 대비표 조회가 detail warm
         # 엔트리를 축출해 cold fan-out latency를 되돌리는 간섭을 원천 차단.
         self._old_and_new_cache: TTLCache = TTLCache(maxsize=16, ttl=86400)
+        # v0.55.0: eflaw 전용 캐시 2종.
+        # - _eflaw_failure_cache: eflaw 실패 기억(서킷 브레이커). 기존 _failure_cache와 물리 분리한다 —
+        #   _check_caches는 실패 키를 발견하면 즉시 raise하므로 같은 캐시를 쓰면 law 폴백 경로 자체가
+        #   차단된다(구현 diff 적대검토 지적). eflaw 성공 본문은 키가 disjoint하므로 _detail_cache 공유.
+        # - _law_fallback_cache: eflaw 실패 시 대신 제공한 공포 합본 본문. 24h _detail_cache에 넣으면
+        #   열화 본문이 하루 고착되므로 실패 기억과 같은 TTL(300s)로 함께 만료시킨다.
+        self._eflaw_failure_cache: TTLCache = TTLCache(maxsize=48, ttl=300)
+        self._law_fallback_cache: TTLCache = TTLCache(maxsize=40, ttl=300)
         # v0.9.1(B2): TTLCache 6종은 thread-safe 아님(in/get/[] read도 expire+링크 변경=mutation).
         # B2가 fan-out 동시성을 8→32로 키워 같은 client 캐시에 동시 접근이 늘므로, 캐시 touch를
         # 이 Lock으로 직렬화해 내부 링크 corruption을 막는다. ★Lock은 cache 접근에만 — network
@@ -472,101 +492,304 @@ class LawApiClient:
             raise
 
     # --- 법령 상세 ---
+    def _law_detail_request(
+        self,
+        mst: str,
+        target: str = "law",
+        efyd: str = "",
+        timeout: tuple[float, float] = _REQUEST_TIMEOUT,
+        max_retries: int = _MAX_RETRIES,
+    ) -> dict:
+        """lawService 상세 1회 조회+파싱 — 캐시 무관 (v0.55.0에서 get_law_detail 본문을 그대로 추출).
+
+        target="eflaw"는 efyd(YYYYMMDD)가 그 MST의 실제 시행 단계와 짝이 맞을 때만 본문을 반환하고,
+        어긋나면 HTTP 200 + 빈 <Law/>(126B)를 돌려준다(2026-08-25 실측). 아래 not_found 가드가 그
+        빈 응답을 잡으므로 호출자는 예외로 일관되게 처리할 수 있다.
+
+        캐시 접근을 이 함수에서 분리한 이유: eflaw 실패 시의 law 폴백이 24h _detail_cache를 읽지도
+        쓰지도 않아야 하기 때문이다(열화 본문 24h 고착 차단 — 구현 diff 적대검토 조건).
+        """
+        response = _request_with_retry(
+            f"{self.base_url}/lawService.do",
+            {"OC": self.api_key, "target": target, "type": "XML", "MST": mst,
+             **({"efYd": efyd} if efyd else {})},
+            max_retries=max_retries,
+            timeout=timeout,
+        )
+        root = _parse_xml(response)
+        # lawService.do?target=law 의 응답 schema는 search와 다름:
+        #   - 법령명_한글 (underscore!), 법종구분 (구분명 아님), 소관부처 (명 없음)
+        #   - 조문 list는 .//조문 wrapper 아래 .//조문단위 49개 형태
+        #   - 법령일련번호는 response에 없음 — 호출 param mst를 그대로 사용
+        # LIVE 검증: <조문여부>=전문 element는 장/절/관 wrapper(예: "제1장 총칙")로
+        # 실제 조문이 아님. 동일 조문번호로 wrapper + 실제 조문이 함께 등장하여 (혁신법·시행령 7건 collision)
+        # JO0001 검색·상세조회 시 wrapper만 반환되는 silent bug 발생. 조문여부="조문"만 articles에 포함.
+        # 가지조문(<조문가지번호> 채워진 element, 예: 제7조의2)도 포함 (v0.14.0) — JO 6자리 가지
+        # 인코딩(JO000702)으로 본조문(제7조)과 collision 없이 표현(가지별표 BP 6자리 동형). 조문가지번호는
+        # main._article_unit_id/_article_branch_no가 (번호,가지) id 생성·매칭에 사용. findtext라 never-raise
+        # (articles 조립 comprehension에 per-article try 없음 — 신규 필드도 예외를 던지지 않아야 함).
+        articles = [
+            {
+                "조문번호": a.findtext("조문번호", ""),
+                "조문가지번호": a.findtext("조문가지번호", ""),  # v0.14.0: 가지조문 (번호,가지) 인코딩용
+                "조문제목": a.findtext("조문제목", ""),
+                # 다항조문은 본문이 <항>·<호>에 있음.
+                # _build_article_content가 조문내용 + 항(항내용 + 호) 모두 합침.
+                "조문내용": _build_article_content(a),
+                # v0.15.0: 조문참고자료 — 대괄호 개정 이력 마커([본조신설 날짜]·[전문개정 날짜]·
+                # [제목개정 날짜]·[종전 …으로 이동 <날짜>] 등)의 유일 위치. content 꺾쇠 마커와 병용해
+                # main._article_amendment_history가 조문별 최신 공포일(개정 발견성)을 도출한다. ★신설 조문
+                # (제N조의M)은 content 마커가 없고 이 태그에만 [본조신설 …]이 있어(GT5) 캡처 필수.
+                # findtext라 never-raise (articles 조립 comprehension에 per-article try 없음 — 조문가지번호와 동일).
+                "조문참고자료": a.findtext("조문참고자료", ""),
+                # machine-readable nested hierarchy (LLM 재포맷 방어).
+                "structured": _build_article_structure(a),
+            }
+            for a in root.findall(".//조문단위")
+            if (a.findtext("조문여부") or "").strip() == "조문"
+        ]
+        # 별표 (v0.2): 법령(시행령) 별표 inline 텍스트 지원. fault-isolation —
+        # 별표 파싱 실패가 조문(articles) 반환 경로를 깨뜨리지 않도록 독립 try/except로 격리하고,
+        # 실패는 버리지 않고 annex_parse_error로 표면화한다 (get_admin_rule_detail의 별표 schema와 동일).
+        annexes: list[dict] = []
+        annex_parse_error: str | None = None
+        try:
+            annexes = [
+                {
+                    "별표번호": ann.findtext("별표번호", ""),
+                    # v0.2.1: 가지별표(별표 N의M)·별지/서식 구분 — BP id 충돌(오도달) 해소의 전제.
+                    "별표가지번호": ann.findtext("별표가지번호", ""),
+                    "별표구분": ann.findtext("별표구분", ""),
+                    # v0.2.1: 소스가 CDATA 안에 사전 이스케이프 텍스트를 담는 경우가 있어
+                    # (예: 삭제 별표 제목 '삭제 &lt;2016.1.22.&gt;') 제목만 단일 관문에서 unescape.
+                    # 본문·조문은 LIVE 실측상 실문자라 적용하지 않음 (이중 unescape 방지).
+                    "별표제목": html.unescape(ann.findtext("별표제목", "")),
+                    "별표내용": ann.findtext("별표내용", ""),
+                    "별표서식파일링크": ann.findtext("별표서식파일링크", ""),
+                }
+                for ann in root.findall(".//별표단위")
+            ]
+        except Exception as exc:  # noqa: BLE001 — 별표 파싱 실패가 조문 반환을 막지 않게
+            annex_parse_error = type(exc).__name__
+            logger.warning("get_law_detail: MST=%s 별표 파싱 실패: %s", mst, annex_parse_error)
+            annexes = []
+        result = {
+            "법령ID": root.findtext(".//법령ID", ""),
+            "법령일련번호": mst,
+            "법령명한글": root.findtext(".//법령명_한글", ""),
+            "법령구분명": root.findtext(".//법종구분", ""),
+            "소관부처명": root.findtext(".//소관부처", ""),
+            "시행일자": root.findtext(".//시행일자", ""),
+            "공포일자": root.findtext(".//공포일자", ""),
+            # v0.17.0: 개정 전/후 대조(redline) 최소형 — 이미 받아오지만 버리던 개정문 필드 캡처(추가 네트워크 0).
+            # <개정문내용> = 최신 개정분의 개정지시문 산문("제N조 중 'A'를 'B'로 한다" 식 실질 delta),
+            # <제개정구분> = "일부개정"/"제정"/"타법개정" 등. 문서레벨 get_provision_detail(law)에서 amendment_text·
+            # amendment_kind로 additive 노출(main._attach_amendment_meta). findtext라 never-raise(검색 fan-out
+            # 공유 경로 안전 — 이 필드는 search가 소비하지 않아 blast radius 0). LIVE census: 단일 element·자식 0·
+            # HTML 이스케이프 0(unescape 불요)·개정문내용에 별지 서식 이미지 참조 <img> 태그가 포함될 수 있음(verbatim 유지).
+            "개정문내용": root.findtext(".//개정문내용", ""),
+            "제개정구분": root.findtext(".//제개정구분", ""),
+            "articles": articles,
+            "annexes": annexes,
+            "annex_parse_error": annex_parse_error,
+        }
+        if not articles and not result["법령명한글"]:
+            raise LawApiError(ERROR_NOT_FOUND, f"법령 상세 결과 없음: MST={mst}")
+        return result
+
     def get_law_detail(self, mst: str) -> dict:
+        """법령 상세 (공포 합본, target=law) — 종전 동작 그대로. 성공 24h·실패 300s 캐시."""
         self._require_key()
         cache_key = ("get_law_detail", mst)
         cached = self._check_caches(cache_key, self._detail_cache)
         if cached is not None:
             return cached
-        url = f"{self.base_url}/lawService.do"
-        params = {"OC": self.api_key, "target": "law", "type": "XML", "MST": mst}
         try:
-            response = _request_with_retry(url, params)
-            root = _parse_xml(response)
-            # lawService.do?target=law 의 응답 schema는 search와 다름:
-            #   - 법령명_한글 (underscore!), 법종구분 (구분명 아님), 소관부처 (명 없음)
-            #   - 조문 list는 .//조문 wrapper 아래 .//조문단위 49개 형태
-            #   - 법령일련번호는 response에 없음 — 호출 param mst를 그대로 사용
-            # LIVE 검증: <조문여부>=전문 element는 장/절/관 wrapper(예: "제1장 총칙")로
-            # 실제 조문이 아님. 동일 조문번호로 wrapper + 실제 조문이 함께 등장하여 (혁신법·시행령 7건 collision)
-            # JO0001 검색·상세조회 시 wrapper만 반환되는 silent bug 발생. 조문여부="조문"만 articles에 포함.
-            # 가지조문(<조문가지번호> 채워진 element, 예: 제7조의2)도 포함 (v0.14.0) — JO 6자리 가지
-            # 인코딩(JO000702)으로 본조문(제7조)과 collision 없이 표현(가지별표 BP 6자리 동형). 조문가지번호는
-            # main._article_unit_id/_article_branch_no가 (번호,가지) id 생성·매칭에 사용. findtext라 never-raise
-            # (articles 조립 comprehension에 per-article try 없음 — 신규 필드도 예외를 던지지 않아야 함).
-            articles = [
-                {
-                    "조문번호": a.findtext("조문번호", ""),
-                    "조문가지번호": a.findtext("조문가지번호", ""),  # v0.14.0: 가지조문 (번호,가지) 인코딩용
-                    "조문제목": a.findtext("조문제목", ""),
-                    # 다항조문은 본문이 <항>·<호>에 있음.
-                    # _build_article_content가 조문내용 + 항(항내용 + 호) 모두 합침.
-                    "조문내용": _build_article_content(a),
-                    # v0.15.0: 조문참고자료 — 대괄호 개정 이력 마커([본조신설 날짜]·[전문개정 날짜]·
-                    # [제목개정 날짜]·[종전 …으로 이동 <날짜>] 등)의 유일 위치. content 꺾쇠 마커와 병용해
-                    # main._article_amendment_history가 조문별 최신 공포일(개정 발견성)을 도출한다. ★신설 조문
-                    # (제N조의M)은 content 마커가 없고 이 태그에만 [본조신설 …]이 있어(GT5) 캡처 필수.
-                    # findtext라 never-raise (articles 조립 comprehension에 per-article try 없음 — 조문가지번호와 동일).
-                    "조문참고자료": a.findtext("조문참고자료", ""),
-                    # machine-readable nested hierarchy (LLM 재포맷 방어).
-                    "structured": _build_article_structure(a),
-                }
-                for a in root.findall(".//조문단위")
-                if (a.findtext("조문여부") or "").strip() == "조문"
-            ]
-            # 별표 (v0.2): 법령(시행령) 별표 inline 텍스트 지원. fault-isolation —
-            # 별표 파싱 실패가 조문(articles) 반환 경로를 깨뜨리지 않도록 독립 try/except로 격리하고,
-            # 실패는 버리지 않고 annex_parse_error로 표면화한다 (get_admin_rule_detail의 별표 schema와 동일).
-            annexes: list[dict] = []
-            annex_parse_error: str | None = None
-            try:
-                annexes = [
-                    {
-                        "별표번호": ann.findtext("별표번호", ""),
-                        # v0.2.1: 가지별표(별표 N의M)·별지/서식 구분 — BP id 충돌(오도달) 해소의 전제.
-                        "별표가지번호": ann.findtext("별표가지번호", ""),
-                        "별표구분": ann.findtext("별표구분", ""),
-                        # v0.2.1: 소스가 CDATA 안에 사전 이스케이프 텍스트를 담는 경우가 있어
-                        # (예: 삭제 별표 제목 '삭제 &lt;2016.1.22.&gt;') 제목만 단일 관문에서 unescape.
-                        # 본문·조문은 LIVE 실측상 실문자라 적용하지 않음 (이중 unescape 방지).
-                        "별표제목": html.unescape(ann.findtext("별표제목", "")),
-                        "별표내용": ann.findtext("별표내용", ""),
-                        "별표서식파일링크": ann.findtext("별표서식파일링크", ""),
-                    }
-                    for ann in root.findall(".//별표단위")
-                ]
-            except Exception as exc:  # noqa: BLE001 — 별표 파싱 실패가 조문 반환을 막지 않게
-                annex_parse_error = type(exc).__name__
-                logger.warning("get_law_detail: MST=%s 별표 파싱 실패: %s", mst, annex_parse_error)
-                annexes = []
-            result = {
-                "법령ID": root.findtext(".//법령ID", ""),
-                "법령일련번호": mst,
-                "법령명한글": root.findtext(".//법령명_한글", ""),
-                "법령구분명": root.findtext(".//법종구분", ""),
-                "소관부처명": root.findtext(".//소관부처", ""),
-                "시행일자": root.findtext(".//시행일자", ""),
-                "공포일자": root.findtext(".//공포일자", ""),
-                # v0.17.0: 개정 전/후 대조(redline) 최소형 — 이미 받아오지만 버리던 개정문 필드 캡처(추가 네트워크 0).
-                # <개정문내용> = 최신 개정분의 개정지시문 산문("제N조 중 'A'를 'B'로 한다" 식 실질 delta),
-                # <제개정구분> = "일부개정"/"제정"/"타법개정" 등. 문서레벨 get_provision_detail(law)에서 amendment_text·
-                # amendment_kind로 additive 노출(main._attach_amendment_meta). findtext라 never-raise(검색 fan-out
-                # 공유 경로 안전 — 이 필드는 search가 소비하지 않아 blast radius 0). LIVE census: 단일 element·자식 0·
-                # HTML 이스케이프 0(unescape 불요)·개정문내용에 별지 서식 이미지 참조 <img> 태그가 포함될 수 있음(verbatim 유지).
-                "개정문내용": root.findtext(".//개정문내용", ""),
-                "제개정구분": root.findtext(".//제개정구분", ""),
-                "articles": articles,
-                "annexes": annexes,
-                "annex_parse_error": annex_parse_error,
-            }
-            if not articles and not result["법령명한글"]:
-                raise LawApiError(ERROR_NOT_FOUND, f"법령 상세 결과 없음: MST={mst}")
-            with self._cache_lock:  # v0.9.1(B2): 캐시 write 직렬화
-                self._detail_cache[cache_key] = result
-            return result
+            result = self._law_detail_request(mst)
         except LawApiError as e:
             self._record_failure(cache_key, e)
             raise
+        with self._cache_lock:  # v0.9.1(B2): 캐시 write 직렬화
+            self._detail_cache[cache_key] = result
+        return result
+
+    @staticmethod
+    def normalize_efyd(effective_date: str) -> str:
+        """표시용 시행일(YYYY-MM-DD)을 efYd 파라미터 형식(YYYYMMDD)으로 정규화. 부적합하면 ""."""
+        d = (effective_date or "").strip().replace("-", "")
+        return d if len(d) == 8 and d.isdigit() else ""
+
+    def _eflaw_success(self, key: tuple) -> dict | None:
+        with self._cache_lock:
+            hit = self._detail_cache.get(key, _CACHE_MISS)
+        return None if hit is _CACHE_MISS else hit
+
+    def _eflaw_breaker_open(self, key: tuple) -> bool:
+        """직전 eflaw 실패가 아직 기억에 남아 있는가(=네트워크 없이 폴백할 것인가)."""
+        with self._cache_lock:
+            return self._eflaw_failure_cache.get(key) is not None
+
+    def _eflaw_store_success(self, key: tuple, result: dict) -> None:
+        """성공 저장 + 상충 실패 기억 제거를 한 critical section에서(경합 시 성공 우선)."""
+        with self._cache_lock:
+            self._detail_cache[key] = result
+            self._eflaw_failure_cache.pop(key, None)
+
+    def _eflaw_store_failure(self, key: tuple, err: LawApiError) -> None:
+        """실패 기록 직전 성공을 재확인 — 동시 요청의 성공을 실패가 덮지 못하게 한다."""
+        with self._cache_lock:
+            if self._detail_cache.get(key, _CACHE_MISS) is not _CACHE_MISS:
+                return
+            self._eflaw_failure_cache[key] = err
+
+    def get_law_detail_staged(
+        self, mst: str, efyd: str = "", expected_title: str = ""
+    ) -> tuple[dict, str]:
+        """(v0.55.0) 시행일 기준 본문 우선 조회 + 공포 합본 폴백. 반환 = (detail, stage_basis).
+
+        stage_basis 의미(원인별로 정확히 하나):
+          - "eflaw"        : 유효 efyd로 조회해 4중 판정을 모두 통과한 시행 본문
+          - "law_fallback" : 유효 efyd로 시도했으나 실패해 공포 합본으로 대체
+          - "law"          : efyd 부재(resolve 실패 등)로 eflaw를 아예 시도하지 않음 = 종전 경로
+
+        ★stage_basis는 캐시된 dict에 쓰지 않고 별도 값으로 반환한다 — 같은 dict가 여러 경로로
+        공유되므로 본문에 출처를 부착하면 호출 순서·스레드 경합에 따라 오염된다(적대검토 조건).
+        ★인증 실패(auth_failed)는 폴백하지 않고 즉시 전파한다 — 같은 키로 law를 다시 불러도 동일하게
+        실패하므로 요청만 2배가 된다.
+
+        ★캐시 적중에도 _verify_eflaw를 다시 돌린다(네트워크 0 — 순수 필드 비교뿐). expected_title은
+        캐시 키(mst, efyd)에 포함되지 않으므로, 재검증이 없으면 제목 미지정으로 적재된 본문이 이후
+        다른 제목의 호출에 그대로 통과한다(최종 재검증 라운드에서 결정론 프로브로 재현·수정).
+        """
+        self._require_key()
+        efyd = self.normalize_efyd(efyd)
+        if not efyd:
+            return self.get_law_detail(mst), "law"
+
+        key = ("get_law_detail", "eflaw", mst, efyd)
+        hit = self._eflaw_success(key)
+        if hit is not None:
+            # ★캐시 적중에도 4중 판정을 다시 돌린다(네트워크 0 — 순수 필드 비교뿐).
+            #   expected_title은 캐시 키에 없으므로, 재검증이 없으면 다른 규정 제목으로 들어온 호출이
+            #   캐시된 본문을 그대로 통과시킨다(구현 diff 적대검토에서 결정론 프로브로 재현).
+            #   불일치면 eflaw를 재시도하지 않고 곧장 폴백한다 — 재시도해도 같은 본문이 와서
+            #   브레이커만 오염시키기 때문이다.
+            try:
+                self._verify_eflaw(hit, mst, efyd, expected_title)
+                return hit, "eflaw"
+            except LawApiError:
+                logger.info("eflaw 캐시 본문이 요청과 불일치 → 공포 합본 폴백: MST=%s", mst)
+                return self._fallback_preferring_eflaw(mst, key, efyd, expected_title)
+
+        if not self._eflaw_breaker_open(key):
+            try:
+                result = self._law_detail_request(
+                    mst, target="eflaw", efyd=efyd,
+                    timeout=_EFLAW_TIMEOUT, max_retries=_EFLAW_ATTEMPTS,
+                )
+                self._verify_eflaw(result, mst, efyd, expected_title)
+                self._eflaw_store_success(key, result)
+                return result, "eflaw"
+            except LawApiError as e:
+                if e.code == ERROR_AUTH_FAILED:
+                    raise
+                logger.info("eflaw 조회 실패 → 공포 합본 폴백: MST=%s code=%s", mst, e.code)
+                self._eflaw_store_failure(key, e)
+
+        return self._fallback_preferring_eflaw(mst, key, efyd, expected_title)
+
+    def _eflaw_hit_verified(self, key: tuple, mst: str, efyd: str, expected_title: str) -> dict | None:
+        """검증 통과한 eflaw 성공 캐시 본문 — 없거나 요청과 불일치하면 None(never-raise)."""
+        hit = self._eflaw_success(key)
+        if hit is None:
+            return None
+        try:
+            self._verify_eflaw(hit, mst, efyd, expected_title)
+            return hit
+        except LawApiError:
+            return None
+
+    def _fallback_preferring_eflaw(
+        self, mst: str, key: tuple, efyd: str, expected_title: str
+    ) -> tuple[dict, str]:
+        """폴백을 수행하되, 그 사이 성립한 eflaw 성공이 있으면 항상 그것을 우선한다.
+
+        ★최종 재검증 라운드에서 재현된 두 경합을 함께 닫는다: (a) 성공이 성립했는데 폴백 본문이
+        나가는 창 (b) 폴백까지 실패해 성공이 캐시에 있는데도 오류가 반환되는 창. 폴백 반환·오류
+        전파 직전에 각각 성공을 재확인한다. 재확인 본문도 4중 판정을 거친다(경로 단일화 —
+        "캐시에서 나온 본문은 항상 재검증" 원칙).
+        """
+        try:
+            result, basis = self._law_fallback(mst)
+        except LawApiError:
+            hit = self._eflaw_hit_verified(key, mst, efyd, expected_title)
+            if hit is not None:
+                return hit, "eflaw"
+            raise
+        hit = self._eflaw_hit_verified(key, mst, efyd, expected_title)
+        if hit is not None:
+            return hit, "eflaw"
+        return result, basis
+
+    def _law_fallback(self, mst: str) -> tuple[dict, str]:
+        """공포 합본 폴백 — 24h _detail_cache에 **쓰지 않는** 별도 경로(열화 본문 고착 차단).
+
+        ★읽기는 한다(최종 재검증 라운드 Codex 공격으로 정정): 유효한 24h law 성공 본문이 살아 있는데
+        그것을 무시하고 네트워크를 타면, 실패 시 공유 실패 기억이 그 성공 캐시를 가려 efyd-부재
+        경로(get_law_detail — 실패를 성공보다 먼저 검사)까지 5분간 오류가 된다. 성공 본문의 내용은
+        폴백이 반환하려는 공포 합본과 동일하므로 읽기는 무해하고, 성공이 있으면 실패가 기록될 일
+        자체가 없어져 "실패 기록은 성공-미스 상태에서만"이라는 종전 불변식이 복원된다.
+
+        ★실패 기억(_failure_cache·300s)은 종전 get_law_detail과 공유한다 — 공유하지 않으면 상위 API
+        전면 장애 시 매 호출이 재시도 전량(최악 41s)을 다시 태워 outage를 증폭한다. 기록 직전에
+        락 안에서 law 성공을 재확인해, 경합으로 성립한 성공을 실패가 가리지 못하게 한다.
+        """
+        fb_key = ("law_fallback", mst)
+        law_key = ("get_law_detail", mst)
+        with self._cache_lock:
+            cached_fb = self._law_fallback_cache.get(fb_key, _CACHE_MISS)
+            law_hit = self._detail_cache.get(law_key, _CACHE_MISS)
+            law_failed = self._failure_cache.get(law_key, _CACHE_MISS)
+        if cached_fb is not _CACHE_MISS:
+            return cached_fb, "law_fallback"
+        if law_hit is not _CACHE_MISS:
+            return law_hit, "law_fallback"
+        if law_failed is not _CACHE_MISS:
+            raise law_failed
+        try:
+            result = self._law_detail_request(mst)
+        except LawApiError as e:
+            with self._cache_lock:
+                law_hit = self._detail_cache.get(law_key, _CACHE_MISS)
+                if law_hit is _CACHE_MISS and e.code not in (ERROR_AUTH_FAILED,):
+                    self._failure_cache[law_key] = e
+            if law_hit is not _CACHE_MISS:
+                return law_hit, "law_fallback"
+            raise
+        with self._cache_lock:
+            self._law_fallback_cache[fb_key] = result
+        return result, "law_fallback"
+
+    def _verify_eflaw(self, result: dict, mst: str, efyd: str, expected_title: str) -> None:
+        """eflaw 성공 4중 판정 — 하나라도 어긋나면 LawApiError로 폴백을 유발한다.
+
+        ①조문 ≥ 1 ②법령명 비공백 ③법령명이 요청 규정과 일치 ④응답 시행일자 == 요청 efyd.
+        ③은 "다른 법령인데 시행일만 같은" 응답이 통과하는 구멍을 막는다(적대검토 지적). manifest 제목이
+        비어 있으면(호출자 미지정) 이 조건만 건너뛴다 — 나머지 3중은 항상 적용.
+        ④는 감사 스크립트의 efyd_provenance_mismatch 가드와 동형이며, 우리가 요청한 시행 단계의
+        본문임을 응답 스스로 증명하게 한다.
+        """
+        if not result.get("articles"):
+            raise LawApiError(ERROR_NOT_FOUND, f"eflaw 조문 0건: MST={mst} efYd={efyd}")
+        title = (result.get("법령명한글") or "").strip()
+        if not title:
+            raise LawApiError(ERROR_NOT_FOUND, f"eflaw 법령명 없음: MST={mst} efYd={efyd}")
+        if expected_title and self._normalize_title(title) != self._normalize_title(expected_title):
+            raise LawApiError(ERROR_NOT_FOUND, f"eflaw 법령 불일치: MST={mst} efYd={efyd}")
+        served = (result.get("시행일자") or "").strip().replace("-", "")
+        if served != efyd:
+            raise LawApiError(ERROR_NOT_FOUND, f"eflaw 시행일자 불일치: MST={mst} efYd={efyd} 응답={served}")
+
 
     # --- 신구조문대비표 (v0.18.0) ---
     def get_old_and_new(self, mst: str) -> dict:
@@ -791,6 +1014,26 @@ class LawApiClient:
         d = (raw_date or "").strip().replace("-", "")
         return len(d) == 8 and d.isdigit() and d > today
 
+    @classmethod
+    def _resolution_due(cls, resolved: ResolvedDocId, today: str | None = None) -> bool:
+        """예정 판본의 시행일이 도래했는가 — 도래했으면 resolve 성공 캐시를 만료로 취급한다(never-raise).
+
+        왜 필요한가: resolve 성공 캐시는 TTL 24h이고 client가 OC 키별로 분리돼 있어, 시행 전환일 0시가
+        지나도 사용자마다 최대 24시간 동안 어제 판본이 서빙된다. 이번 릴리스의 표적인 2026-09-11
+        전환이 하루 늦게 반영되는 것을 막는다.
+
+        재평가 폭풍이 없는 이유: 재판정 시점에 그 행은 더 이상 미래가 아니므로(_is_future_date는
+        today 초과만 미래로 본다) best 후보로 선택되고, pending에는 그 다음 예정일만 남는다.
+        즉 새 결과는 due가 아니어서 정상적으로 24h 캐시된다(2026-09-11 → 다음 pending 2027-01-01).
+        """
+        try:
+            raw = (resolved.pending_effective_date or "").strip().replace("-", "")
+            if len(raw) != 8 or not raw.isdigit():
+                return False
+            return raw <= (today or cls._today_kst())
+        except Exception:  # pragma: no cover - 방어선(판정 실패가 resolve 경로를 막지 않게)
+            return False
+
     def resolve_latest_doc_id(
         self,
         title: str,
@@ -807,9 +1050,16 @@ class LawApiClient:
         # v0.9.1(B2): id-resolution 캐시 직접 get 2건을 한 critical section으로(_check_caches 미경유).
         with self._cache_lock:
             cached = self._id_resolution_cache.get(cache_key)
+            if cached is not None and self._resolution_due(cached):
+                # (v0.55.0) 예정 판본의 시행일이 도래 — "무시"가 아니라 성공·실패 기억을 실제로 제거하고
+                # 즉시 재판정한다. 무시만 하면 due 엔트리가 남아 매 호출 재평가가 반복된다(적대검토 조건).
+                self._id_resolution_cache.pop(cache_key, None)
+                self._id_resolution_failure_cache.pop(cache_key, None)
+                cached = cached_fail = None
+            else:
+                cached_fail = self._id_resolution_failure_cache.get(cache_key)
             if cached is not None:
                 return cached
-            cached_fail = self._id_resolution_failure_cache.get(cache_key)
             if cached_fail is not None:
                 return cached_fail
 

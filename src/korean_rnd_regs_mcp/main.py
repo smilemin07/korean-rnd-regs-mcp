@@ -87,7 +87,9 @@ _SERVER_INSTRUCTIONS = (
     "본 서버 범위 밖 질문에는 호출하지 마십시오. "
     "법령 개정으로 조문 본문의 용어가 바뀌어, 실무·하위 규정에 남아 있는 구 용어로는 search_provision 검색이 "
     "해당 조문에 도달하지 못할 수 있습니다(예: 제재처분에 대한 '이의신청'은 2026년 2월 개정으로 "
-    "국가연구개발혁신법 제33조에서 '재검토 요청'으로 바뀜 — 하위 규정·실무 자료에는 구 용어가 남아 있음). "
+    "국가연구개발혁신법 제33조에서 '재검토 요청'으로 바뀜 — 하위 규정·실무 자료에는 구 용어가 남아 있음. "
+    "또 다른 예: 산업기술혁신 촉진법 제5조가 인용하는 특별법 명칭이 '지방자치분권 및 지역균형발전'에서 "
+    "'지방자치분권 및 균형성장'으로 바뀜). "
     "구 용어 검색이 기대한 조문에 도달하지 못하면 현행 조문 용어로 재검색하되, 구 용어와 현행 용어를 "
     "한 query에 함께 넣지 마십시오(모든 토큰이 한 조문에 동시에 존재해야 매칭되는 토큰 AND 방식이라 0건이 되기 쉽습니다). "
     "현재 대화에 규정 도구가 보이지 않거나 호출에 실패하여 질문의 근거를 확인할 수 없으면, "
@@ -1012,7 +1014,7 @@ _STAGE_NOTICE_MISMATCH_TEMPLATE = (
 )
 
 
-def _stage_notice_line(rs, served_doc_id: str | None) -> str | None:
+def _stage_notice_line(rs, served_doc_id: str | None, stage_basis: str = "law") -> str | None:
     """(v0.54.0) 시행 단계 차이 고지 1줄 — 감사 판본과 실제 조회 판본을 결합해 판정. 네트워크 0.
 
     왜 판본 결합인가: 상세 조회는 매 호출 resolve로 그 시점의 최신 doc_id를 쓰고(실패 시 manifest
@@ -1024,6 +1026,10 @@ def _stage_notice_line(rs, served_doc_id: str | None) -> str | None:
     never-raise: 고지 조립 실패가 본문 응답을 막지 않도록 어떤 예외도 삼키고 None을 반환한다.
     """
     try:
+        # (v0.55.0) 시행일 기준 본문(eflaw)이 4중 판정을 통과해 서빙됐다면 이 고지는 거짓이 된다
+        # ("반영되어 있지 않습니다"가 사실이 아님) → 억제. 폴백·판정 실패·efyd 부재에서는 유지(fail-closed).
+        if stage_basis == "eflaw":
+            return None
         notice = getattr(rs, "stage_notice", None)
         if notice is None:
             return None
@@ -1042,16 +1048,35 @@ def _stage_notice_line(rs, served_doc_id: str | None) -> str | None:
         return None
 
 
-def _detail_warnings(rs, stage_notice_line: str | None) -> list[str]:
+_STAGE_FALLBACK_NOTICE = (
+    "주의: 시행일 기준 본문 조회에 실패해 공포 시점 합본 본문을 대신 제공했습니다. 이 본문은 공포된 개정을 "
+    "시행 여부와 무관하게 합친 것이라 조회 시점에 실제로 시행 중인 내용과 다를 수 있습니다. 시행일 기준 본문은 "
+    "국가법령정보센터(law.go.kr)에서 기준일을 지정해 확인하십시오."
+)
+
+
+def _stage_fallback_line(stage_basis: str) -> str | None:
+    """(v0.55.0) 폴백 가시화 1줄 — 실제로 eflaw를 시도했다가 실패한 경우(law_fallback)에만 발화.
+
+    "law"(efyd 부재로 미시도)에는 붙이지 않는다. 그 상태는 resolve 실패이며 기존
+    resolve_fallback_notice·upcoming_revision이 전담하므로, 여기서 "조회 실패"라고 하면 원인이
+    부정확해진다(적대검토 3/3 합의). stage_notice가 없는 나머지 31개 법령에서 열화가 보이지 않던
+    갭을 이 1줄이 메운다.
+    """
+    return _STAGE_FALLBACK_NOTICE if stage_basis == "law_fallback" else None
+
+
+def _detail_warnings(rs, stage_notice_line: str | None, fallback_line: str | None = None) -> list[str]:
     """(v0.54.0) 상세 응답 warnings 조립 — 시행 단계 고지를 **첫 원소**로, 기존 제약을 뒤에.
 
     첫 원소인 이유: 호출부가 이후 동적 경고(별표 첨부·청크 등)를 append하므로 "말미" 위치는
     성립하지 않는다. 원본 rs.known_limitations는 새 리스트 생성으로 불변 유지(반복 호출 누적 방지).
     """
     base = list(rs.known_limitations)
-    if stage_notice_line:
-        return [stage_notice_line, *base]
-    return base
+    # 순서: 감사 고지(어느 내용이 어긋나는가) → 폴백 고지(왜 합본이 제공됐는가) → 기존 제약.
+    # stage_notice가 없는 규정에서는 폴백 고지가 자연히 선두가 된다.
+    head = [x for x in (stage_notice_line, fallback_line) if x]
+    return [*head, *base] if head else base
 
 
 def _build_match(rs, unit_id: str, unit_type: str, title: str, snippet: str,
@@ -1618,7 +1643,7 @@ def _annex_locate_result(content: str, query: str, chunks: list[str]) -> dict:
     return result
 
 
-def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date: str, force_oversized: bool = False, annex_chunk: int | None = None, annex_locate: str | None = None, stage_notice_line: str | None = None) -> dict:
+def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date: str, force_oversized: bool = False, annex_chunk: int | None = None, annex_locate: str | None = None, stage_notice_line: str | None = None, stage_fallback_line: str | None = None) -> dict:
     """별표 단위 상세 응답 (v0.2, size-tiered + verbatim 정확성 가드).
 
     force_oversized=True면 전문 분기를 건너뛰고 oversized_pointer로 강등(v0.5.0 — 호출부가 사후주입(version 메타·
@@ -1660,7 +1685,7 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
         "effective_date": eff_date,
         "contract_version": CONTRACT_VERSION,
         "disclaimer": _DISCLAIMER,
-        "warnings": _detail_warnings(rs, stage_notice_line),
+        "warnings": _detail_warnings(rs, stage_notice_line, stage_fallback_line),
     }
     # v0.2.1 (B): 제목의 의존 조문 참조를 미검증 단서로 노출 — 호스트가 적용값 확정을 위해 동반 조회.
     hints = _dependent_article_hints(title)
@@ -1833,7 +1858,7 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
     return base
 
 
-def _build_article_detail(provision_id: str, unit_id: str, rs, art: dict, eff_date: str, force_oversized: bool = False, stage_notice_line: str | None = None) -> dict:
+def _build_article_detail(provision_id: str, unit_id: str, rs, art: dict, eff_date: str, force_oversized: bool = False, stage_notice_line: str | None = None, stage_fallback_line: str | None = None) -> dict:
     """조문(JO) 단위 상세 응답 (v0.6.0, size-tiered — 별표 _build_annex_detail와 동일 사상).
 
     force_oversized=True면 전문 분기를 건너뛰고 oversized_pointer로 강등(호출부가 사후주입(version 메타·
@@ -1867,7 +1892,7 @@ def _build_article_detail(provision_id: str, unit_id: str, rs, art: dict, eff_da
         "effective_date": eff_date,
         "contract_version": CONTRACT_VERSION,
         "disclaimer": _DISCLAIMER,
-        "warnings": _detail_warnings(rs, stage_notice_line),
+        "warnings": _detail_warnings(rs, stage_notice_line, stage_fallback_line),
     }
     if not force_oversized:
         # 1) 전문 + structure (종전 조문 응답과 동일 필드·순서)
@@ -2007,9 +2032,10 @@ async def search_provision(query: str) -> dict:
 
     v0.50.0(용어 드리프트): 법령 개정으로 조문 본문 용어가 바뀐 경우 구 용어 검색은 해당 조문에
     도달하지 못합니다(예: 제재처분 '이의신청'은 2026년 2월 개정으로 혁신법 제33조에서
-    '재검토 요청'으로 바뀜 — 하위 규정·실무 자료에는 구 용어가 남아 있음). 구 용어 검색이
-    기대한 조문에 도달하지 못하면 현행 조문 용어로 재검색하고, 구 용어와 현행 용어를 한 query에
-    함께 넣지 마십시오(토큰 AND라 0건이 되기 쉽습니다).
+    '재검토 요청'으로 바뀜 — 하위 규정·실무 자료에는 구 용어가 남아 있음. 또 다른 예: 산업기술혁신
+    촉진법 제5조가 인용하는 특별법 명칭이 '지방자치분권 및 지역균형발전'에서 '지방자치분권 및
+    균형성장'으로 바뀜). 구 용어 검색이 기대한 조문에 도달하지 못하면 현행 조문 용어로 재검색하고,
+    구 용어와 현행 용어를 한 query에 함께 넣지 마십시오(토큰 AND라 0건이 되기 쉽습니다).
     """
     _e = _http_no_key_error()
     if _e is not None:
@@ -2056,6 +2082,10 @@ async def search_provision(query: str) -> dict:
     # v0.2.10(관측성): 규정별 fan-out 지연(ms) 수집 — 요약 INFO의 max_rule_ms/slow_rule_count 산출용.
     # 완료(정상·오류) task만 기록하고, 예산 초과로 cancel된 task는 제외(skipped로 별도 집계).
     _rule_ms: list[float] = []
+    # (v0.55.0) 조회 경로별 집계 — 배포 게이트 ⑤·⑦이 "폴백이 남아 있는가"를 이 값으로 판정한다.
+    # stage_basis는 응답에 노출하지 않으므로(계약 additive 회피) 운영 관측의 유일한 직접 증거다.
+    # 정수 카운터만 로깅한다(키·URL·질의 미포함 — 기존 요약 로그의 보안 규약 동일).
+    _stage_counts: dict[str, int] = {"eflaw": 0, "law_fallback": 0, "law": 0}
 
     async def _fetch_rule_set(rs):
         _t0 = time.monotonic()
@@ -2065,7 +2095,12 @@ async def search_provision(query: str) -> dict:
             resolved = await _resolve_doc_id(rs, client)
             doc_id = resolved.doc_id
             if rs.api_target == ApiTarget.LAW:
-                detail = await _run_offloaded(client.get_law_detail, doc_id)
+                # (v0.55.0) 검색도 상세와 같은 시행 단계를 봐야 한다 — 분리하면 검색이 옛 조문을
+                # 안내하고 상세가 새 조문을 반환하는 직접 모순이 생긴다(적대검토 3/3).
+                detail, _basis = await _run_offloaded(
+                    client.get_law_detail_staged, doc_id, resolved.effective_date, rs.title)
+                if _basis in _stage_counts:
+                    _stage_counts[_basis] += 1
                 return (rs, resolved, detail.get("articles", []),
                         detail.get("annexes", []), detail.get("annex_parse_error"))
             else:
@@ -2191,9 +2226,11 @@ async def search_provision(query: str) -> dict:
     _slow_rule_count = sum(1 for _m in _rule_ms if _m >= _SLOW_RULE_MS)
     logger.info(
         "event=search_fanout_summary live_rules=%d done=%d skipped=%d wall_ms=%.0f "
-        "budget_ms=%.0f max_rule_ms=%.0f slow_rule_count=%d errors_count=%d",
+        "budget_ms=%.0f max_rule_ms=%.0f slow_rule_count=%d errors_count=%d "
+        "stage_eflaw=%d stage_fallback=%d stage_law=%d",
         len(live_items), len(_done), len(_pending), _fanout_wall_ms,
         _FANOUT_BUDGET_S * 1000.0, _max_rule_ms, _slow_rule_count, len(errors),
+        _stage_counts["eflaw"], _stage_counts["law_fallback"], _stage_counts["law"],
     )
 
     # v0.2.8: 절단 전 관련도 정렬 — 정렬키는 결정적(마지막 요소가 append 순서)이라
@@ -2636,8 +2673,10 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
         resolved = await _resolve_doc_id(rs, client)
         doc_id = resolved.doc_id
         annex_parse_error: str | None = None
+        stage_basis = "law"
         if pid.doc_type == "law":
-            detail = await _run_offloaded(client.get_law_detail, doc_id)
+            detail, stage_basis = await _run_offloaded(
+                client.get_law_detail_staged, doc_id, resolved.effective_date, rs.title)
             articles = detail.get("articles", [])
             annexes = detail.get("annexes", [])
             annex_parse_error = detail.get("annex_parse_error")
@@ -2665,7 +2704,9 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
     # v0.54.0: 시행 단계 차이 고지 1줄 — 실제 조회 판본(doc_id)과 감사 판본을 결합해 1회 계산하고
     # 상세 3반환점(문서·조문·별표)의 warnings 선두에 부착. 검색(_build_match)에는 부착하지 않는다
     # (16k 예산 잠식으로 뒤쪽 매치가 절단돼 returned가 감소 — 로컬 LIVE 실측 최대 -3건).
-    stage_notice_line = _stage_notice_line(rs, doc_id)
+    stage_notice_line = _stage_notice_line(rs, doc_id, stage_basis)
+    # (v0.55.0) 폴백 가시화 1줄 — 상세 3반환점에 stage_notice와 같은 경로로 주입.
+    stage_fallback_line = _stage_fallback_line(stage_basis)
 
     # document-level (unit_id 없음)
     if pid.unit_id is None:
@@ -2678,7 +2719,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
             "articles_count": len(articles),
             "contract_version": CONTRACT_VERSION,
             "disclaimer": _DISCLAIMER,
-            "warnings": _detail_warnings(rs, stage_notice_line),
+            "warnings": _detail_warnings(rs, stage_notice_line, stage_fallback_line),
         }
         result.update(_version_meta)  # v0.5.0: admrul issuance_number·regulation_kind·version_label
         result["annexes_count"] = len(annexes)  # 별표단위 전건 집계(별표·별지·서식 포함) — 하위호환 유지
@@ -2841,7 +2882,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 continue
             if _article_branch_no(art) != target_branch:  # v0.14.0: 가지 엄격 매칭(제7조 ↔ 제7조의2 구분)
                 continue
-            resp = _build_article_detail(provision_id, pid.unit_id, rs, art, eff_date, stage_notice_line=stage_notice_line)
+            resp = _build_article_detail(provision_id, pid.unit_id, rs, art, eff_date, stage_notice_line=stage_notice_line, stage_fallback_line=stage_fallback_line)
             resp.update(_version_meta)  # v0.5.0: admrul version 식별자(조문+번호 동반 질의 시 외부행 차단)
             if _revision:
                 resp["revision_notice"] = _revision
@@ -2853,7 +2894,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 resp.get("content_format") == "plain_text_verbatim"
                 and len(json.dumps(resp, ensure_ascii=False)) > _ANNEX_DETAIL_CHAR_BUDGET
             ):
-                resp = _build_article_detail(provision_id, pid.unit_id, rs, art, eff_date, force_oversized=True, stage_notice_line=stage_notice_line)
+                resp = _build_article_detail(provision_id, pid.unit_id, rs, art, eff_date, force_oversized=True, stage_notice_line=stage_notice_line, stage_fallback_line=stage_fallback_line)
                 resp.update(_version_meta)
                 if _revision:
                     resp["revision_notice"] = _revision
@@ -2900,7 +2941,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 continue
             if _annex_branch_no(ann) != target_branch:
                 continue
-            resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date, annex_chunk=annex_chunk, annex_locate=annex_locate, stage_notice_line=stage_notice_line)
+            resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date, annex_chunk=annex_chunk, annex_locate=annex_locate, stage_notice_line=stage_notice_line, stage_fallback_line=stage_fallback_line)
             if "errors" in resp:
                 return resp  # v0.20.0: annex_chunk 범위 밖 — 오류 dict에 version 메타 오염 방지
             resp.update(_version_meta)  # v0.5.0: oversized 별표도 version은 도구에서(프롬프트4 외부행 차단)
@@ -2916,7 +2957,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 and "annex_status" not in resp
                 and len(json.dumps(resp, ensure_ascii=False)) > _ANNEX_DETAIL_CHAR_BUDGET
             ):
-                resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date, force_oversized=True, annex_chunk=annex_chunk, annex_locate=annex_locate, stage_notice_line=stage_notice_line)
+                resp = _build_annex_detail(provision_id, pid.unit_id, rs, ann, eff_date, force_oversized=True, annex_chunk=annex_chunk, annex_locate=annex_locate, stage_notice_line=stage_notice_line, stage_fallback_line=stage_fallback_line)
                 resp.update(_version_meta)
                 if _revision:
                     resp["revision_notice"] = _revision
