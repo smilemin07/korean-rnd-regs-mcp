@@ -113,12 +113,12 @@ def test_contract_version_0_34_0():
     assert CONTRACT_VERSION == "0.36.0"
 
 
-def test_package_version_0_55_0():
-    """패키지 버전 0.55.0(시행일 기준 조회 전환 — law 트랙 본문 공급원을 공포 합본에서
-    시행일 기준 편집본으로 전환. 검색·상세 동시 전환 · 실패 시 종전 경로 폴백 ·
-    입력 스키마 무변 · contract 0.36.0 유지 · 재연결 불요). 배포 전 버전 일치 가드."""
+def test_package_version_0_56_0():
+    """패키지 버전 0.56.0(시행 도래 반영 — manifest 현행화와 제목 변경 규정 회복.
+    데이터·문면만 변경 · 실행 로직 무변경 · 입력 스키마 무변 · contract 0.36.0 유지 ·
+    재연결 불요). 배포 전 버전 일치 가드."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.55.0"
+    assert __version__ == "0.56.0"
 
 
 def test_cache_maxsize_96_v0240():

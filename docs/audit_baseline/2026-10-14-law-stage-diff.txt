@@ -1,0 +1,53 @@
+기준일(오늘·KST): 20261014 · 대상 35건(law) · 모드 LIVE
+MATCH   | innovation_act                 | manifest 290757 → 서빙 290757 | efYd 20261002 | 단계 20261002 | 플래그 PENDING
+          시행예정: 289563@20270316
+DIFF    | innovation_decree              | manifest 288773 → 서빙 288335 | efYd 20260911 | 단계 20260728,20260911,20270101 | 플래그 MULTI_STAGE_OPEN,PENDING,MISSING_PREDICTED,PREMATURE_PREDICTED,MANIFEST_CHANGED
+          시행예정: 288335@20270101
+          누락 예측(서빙본 이후 공포·이미 시행): 288773@20260820(공포 20260818)
+          선노출 예측(서빙본 이전 공포·미시행 단계): 288335@20270101(공포 20260728)
+          조문 law 69 / eflaw 71 · law에만 - · eflaw에만 ['제45조의2', '제48조의2'] · 본문 상이 ['제9조(99자)', '제13조(27자)', '제16조(199자)', '제17조(298자)', '제20조(237자)', '제25조(13자)', '제26조(56자)', '제31조(154자)', '제35조(116자)', '제41조(279자)', '제44조(602자)', '제45조(939자)', '제46조(148자)', '제47조(56자)', '제48조(228자)', '제56조(17자)', '제68조(17자)']
+          별표 law 7 / eflaw 8 · law에만 - · eflaw에만 ['별표 0005의02'] · 본문 상이 ['별표 0002의00(52자)', '별표 0006의00(462자)', '별표 0007의00(913자)']
+          fallback(manifest 288773) vs 시행본: law에만 - · eflaw에만 - · 상이 ['제16조', '제17조', '제31조', '제41조']
+FORMAT_ONLY | innovation_rule                | manifest 289003 → 서빙 289003 | efYd 20260820 | 단계 20260820 | 플래그 -
+          별표 law 12 / eflaw 12 · law에만 - · eflaw에만 - · 본문 상이 ['서식 0002의00(형식만)']
+MATCH   | sector_kt_act                  | manifest 268733 → 서빙 268733 | efYd 20260201 | 단계 20260201 | 플래그 -
+MATCH   | sector_kt_decree               | manifest 288777 → 서빙 288777 | efYd 20260820 | 단계 20260820 | 플래그 -
+MATCH   | sector_kt_rule                 | manifest 203848 → 서빙 203848 | efYd 20180608 | 단계 20180608 | 플래그 -
+DIFF    | industry_tech_act              | manifest 284363 → 서빙 284363 | efYd 20260918 | 단계 20260918 | 플래그 MISSING_PREDICTED
+          누락 예측(서빙본 이후 공포·이미 시행): 286565@20260602(공포 20260602)
+          조문 law 72 / eflaw 72 · law에만 - · eflaw에만 - · 본문 상이 ['제5조(16자)']
+MATCH   | industry_tech_decree           | manifest 285891 → 서빙 285891 | efYd 20260603 | 단계 20260603 | 플래그 -
+FORMAT_ONLY | industry_tech_rule             | manifest 286385 → 서빙 286385 | efYd 20260603 | 단계 20260603 | 플래그 -
+          별표 law 20 / eflaw 20 · law에만 - · eflaw에만 - · 본문 상이 ['별표 0003의00(형식만)']
+DIFF    | sme_tech_act                   | manifest 281987 → 서빙 281987 | efYd 20260701 | 단계 20260701 | 플래그 PENDING,MISSING_PREDICTED
+          시행예정: 290205@20270330
+          누락 예측(서빙본 이후 공포·이미 시행): 286263@20260526(공포 20260526)
+          조문 law 49 / eflaw 52 · law에만 - · eflaw에만 ['제27조의4', '제27조의5', '제28조의2'] · 본문 상이 ['제2조(1128자)', '제27조의2(116자)', '제27조의3(563자)']
+MATCH   | sme_tech_decree                | manifest 289953 → 서빙 289953 | efYd 20260922 | 단계 20260922 | 플래그 -
+MATCH   | sme_tech_rule                  | manifest 220365 → 서빙 220365 | efYd 20200730 | 단계 20200730 | 플래그 -
+MATCH   | performance_eval_act           | manifest 255639 → 서빙 255639 | efYd 20231031 | 단계 20231031 | 플래그 -
+MATCH   | performance_eval_decree        | manifest 270435 → 서빙 270435 | efYd 20250401 | 단계 20250401 | 플래그 -
+MATCH   | health_tech_act                | manifest 279703 → 서빙 279703 | efYd 20260212 | 단계 20260212 | 플래그 -
+MATCH   | health_tech_decree             | manifest 282961 → 서빙 282961 | efYd 20260201 | 단계 20260201 | 플래그 -
+MATCH   | health_tech_rule               | manifest 264101 → 서빙 264101 | efYd 20240717 | 단계 20240717 | 플래그 -
+MATCH   | hakjin_act                     | manifest 230413 → 서빙 230413 | efYd 20210623 | 단계 20210323,20210623 | 플래그 MULTI_STAGE_DONE,PENDING
+          시행예정: 286363@20261203
+MATCH   | hakjin_decree                  | manifest 245227 → 서빙 245227 | efYd 20221108 | 단계 20221108 | 플래그 -
+MATCH   | hakjin_rule                    | manifest 220701 → 서빙 220701 | efYd 20201013 | 단계 20201013 | 플래그 -
+MATCH   | sanhak_act                     | manifest 267351 → 서빙 267351 | efYd 20250621 | 단계 20250621 | 플래그 -
+MATCH   | sanhak_decree                  | manifest 284767 → 서빙 284767 | efYd 20260324 | 단계 20260324 | 플래그 -
+MATCH   | sanhak_rule                    | manifest 285257 → 서빙 285257 | efYd 20260327 | 단계 20260327 | 플래그 -
+MATCH   | corp_lab_act                   | manifest 282553 → 서빙 282553 | efYd 20260201 | 단계 20260201 | 플래그 -
+MATCH   | corp_lab_decree                | manifest 282915 → 서빙 282915 | efYd 20260201 | 단계 20260201 | 플래그 -
+MATCH   | corp_lab_rule                  | manifest 283223 → 서빙 283223 | efYd 20260201 | 단계 20260201 | 플래그 -
+MATCH   | research_industry_act          | manifest 231603 → 서빙 231603 | efYd 20211021 | 단계 20211021 | 플래그 -
+MATCH   | research_industry_decree       | manifest 261923 → 서빙 261923 | efYd 20240601 | 단계 20240601 | 플래그 -
+MATCH   | research_industry_rule         | manifest 262117 → 서빙 262117 | efYd 20240601 | 단계 20240601 | 플래그 -
+MATCH   | lab_safety_act                 | manifest 283355 → 서빙 283355 | efYd 20260520 | 단계 20260520 | 플래그 -
+MATCH   | lab_safety_decree              | manifest 286181 → 서빙 286181 | efYd 20260520 | 단계 20260520 | 플래그 -
+MATCH   | lab_safety_rule                | manifest 283229 → 서빙 283229 | efYd 20260201 | 단계 20260201 | 플래그 -
+MATCH   | defense_tech_act               | manifest 283941 → 서빙 283941 | efYd 20260911 | 단계 20260911 | 플래그 -
+MATCH   | defense_tech_decree            | manifest 287549 → 서빙 287549 | efYd 20260701 | 단계 20260701 | 플래그 -
+MATCH   | defense_tech_rule              | manifest 230705 → 서빙 230705 | efYd 20210401 | 단계 20210401 | 플래그 -
+요약: MATCH 30 / FORMAT_ONLY 2 / DIFF 3 / UNKNOWN 0 (전체 35) · MULTI_STAGE_OPEN 1 · PENDING 4 · FAIL 플래그 0 · 예측↔실측 DIFF 일치 3/3 · LIVE 호출 107회 46.8s
+→ DIFF·FORMAT_ONLY·UNKNOWN·MULTI_STAGE_OPEN·SAME_DAY_AMBIGUOUS 존재: 사람 판정 필요(known_limitations·eflaw 적용 대상 결정 — FORMAT_ONLY도 자동 통과가 아니라 눈으로 1회 확인).

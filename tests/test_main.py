@@ -528,13 +528,14 @@ def test_sme_tech_family_current_docids_v0131():
     법률 286263→281987·시행령 283001→287505(둘 다 시행 2026-07-01). resolve 실패 시 fallback이
     구버전(비현행) 본문을 서빙하던 잠재 결함을 이 잠금이 차단한다(acceptance의 fetched_ok는
     search-first가 title로 resolve하므로 manifest fallback 값 오타를 못 잡음 → 정적 lock 필요).
+    (v0.56.0) 시행령은 2026-09-22 시행 일부개정(대통령령 제36699호)으로 287505 → 289953 갱신.
     """
     from korean_rnd_regs_mcp.manifest import load_manifest
     items = {rs.id: rs for rs in load_manifest()}
     assert items["sme_tech_act"].api_doc_id == "281987"
     assert items["sme_tech_act"].effective_date == "2026-07-01"
-    assert items["sme_tech_decree"].api_doc_id == "287505"
-    assert items["sme_tech_decree"].effective_date == "2026-07-01"
+    assert items["sme_tech_decree"].api_doc_id == "289953"
+    assert items["sme_tech_decree"].effective_date == "2026-09-22"
 
 
 def test_readme_has_stable_usage_guidance():
@@ -670,7 +671,7 @@ def test_defense_family_registered_v0230():
     from korean_rnd_regs_mcp.manifest import load_manifest
     items = {rs.id: rs for rs in load_manifest()}
     expected = {
-        "defense_tech_act": ("258057", 1, "article", "2024-07-10"),
+        "defense_tech_act": ("283941", 1, "article", "2026-09-11"),  # v0.56.0 현행화(구 258057·2024-07-10)
         "defense_tech_decree": ("287549", 2, "both", "2026-07-01"),
         "defense_tech_rule": ("230705", 3, "both", "2021-04-01"),
     }
@@ -844,11 +845,13 @@ def test_manifest_4_rules_current_v0510():
     - innovation_rule 286879 → 289003 (공포 당일 시행·서식 12종)
     - sector_kt_decree 264735 → 288777 (대통령령 제36580호 일괄)
     신 MST 4건 전건 lawService 상세 시행일자 = 20260820 ≤ 오늘(감사 검사 통과) 실측.
+
+    (v0.56.0) innovation_act는 2026-10-14 재감사로 290757(2026-10-02 시행)로 갱신 —
+    잠금은 test_manifest_current_v0560으로 이관. 나머지 3건은 v0.51.0 값 그대로 유지.
     """
     from korean_rnd_regs_mcp.manifest import load_manifest
     items = {rs.id: rs for rs in load_manifest()}
     expected = {
-        "innovation_act": "283413",
         "innovation_decree": "288773",
         "innovation_rule": "289003",
         "sector_kt_decree": "288777",
@@ -858,6 +861,53 @@ def test_manifest_4_rules_current_v0510():
         assert rs.api_target == "law", rid
         assert rs.api_doc_id == doc_id, rid
         assert rs.effective_date == "2026-08-20", rid
+
+
+# === v0.56.0: 2026-10-14 재감사 반영 manifest 정적 잠금 (검색 행 기준·상세 시행일자 전건 ≤ 감사일) ===
+def test_manifest_current_v0560():
+    """v0.56.0: 시행 도래·제목 변경 반영 6건 + 의도적 유지 1건(innovation_decree 288773) 잠금.
+
+    acceptance의 fetched_ok는 search-first가 title로 resolve하므로 manifest 폴백 값 오타를 못 잡는다
+    (v0.13.1 학습) → 정적 lock. innovation_decree는 288335(검색 행 현행)의 공포 합본이 2026-08-20
+    시행분을 누락하므로 폴백용으로 288773을 유지한다(rule_sets.yaml 주석·2027-01-01 재판정).
+    """
+    from korean_rnd_regs_mcp.manifest import load_manifest
+    items = {rs.id: rs for rs in load_manifest()}
+    expected = {
+        "innovation_act": ("290757", "2026-10-02"),
+        "industry_tech_act": ("284363", "2026-09-18"),
+        "sme_tech_decree": ("289953", "2026-09-22"),
+        "defense_tech_act": ("283941", "2026-09-11"),
+        "facility_equipment_standard": ("2100000285744", "2026-09-30"),
+        "msit_rnd_processing": ("2100000285280", "2026-09-18"),
+        "innovation_decree": ("288773", "2026-08-20"),   # ★의도적 유지(위 docstring)
+    }
+    for rid, (doc_id, eff) in expected.items():
+        assert items[rid].api_doc_id == doc_id, rid
+        assert items[rid].effective_date == eff, rid
+
+
+def test_msit_title_change_v0560():
+    """v0.56.0: msit_rnd_processing 정식 제목 변경 반영 — resolve 키(title)·검색어·표시 표면 3곳 동기.
+
+    resolve는 정규화(공백 제거·ㆍ→·) 제목 정확일치라 '소관' 한 단어 차이로도 0행 → 구판 폴백이 된다.
+    구 제목은 등록 정보 참고용으로 query 목록에만 남긴다(query는 런타임에서 쓰이지 않음 — 제목 변경 안내는
+    known_limitations 1문장이 맡는다).
+    """
+    from pathlib import Path
+    from korean_rnd_regs_mcp.main import _REVIEW_PROMPT_TEMPLATE
+    from korean_rnd_regs_mcp.manifest import load_manifest
+    new_title = "과학기술정보통신부 과학기술분야 연구개발사업처리규정"
+    old_title = "과학기술정보통신부 소관 과학기술분야 연구개발사업 처리규정"
+    rs = next(r for r in load_manifest() if r.id == "msit_rnd_processing")
+    assert rs.title == new_title
+    assert rs.ministry == "과학기술정보통신부"
+    assert rs.query[0] == new_title and old_title in rs.query
+    assert rs.source_url.endswith("과학기술정보통신부과학기술분야연구개발사업처리규정")
+    assert new_title in _REVIEW_PROMPT_TEMPLATE and old_title not in _REVIEW_PROMPT_TEMPLATE
+    assert any("훈령 제325호" in k and old_title in k and new_title in k for k in rs.known_limitations)
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
+    assert f"| `msit_rnd_processing` | {new_title} |" in readme
 
 
 def test_v0470_template_and_instructions_scope_66():

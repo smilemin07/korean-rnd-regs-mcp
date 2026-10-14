@@ -260,8 +260,10 @@ def _rs(rule_id):
 
 
 def test_stage_notice_suppressed_only_on_eflaw():
-    """eflaw 본문에는 '반영되어 있지 않습니다'가 거짓이 되므로 억제. 그 외에는 fail-closed 유지."""
-    rs = _rs("innovation_act")
+    """eflaw 본문에는 '반영되어 있지 않습니다'가 거짓이 되므로 억제. 그 외에는 fail-closed 유지.
+
+    (v0.56.0) innovation_act 고지 제거로 대상 규정을 sme_tech_act로 이전."""
+    rs = _rs("sme_tech_act")
     served = rs.stage_notice.audited_doc_id
     assert M._stage_notice_line(rs, served, "eflaw") is None
     for basis in ("law_fallback", "law"):
@@ -290,7 +292,7 @@ def test_detail_warnings_order_and_isolation():
 def test_internal_stage_fields_never_serialized(mock_client, monkeypatch):
     """stage_basis·stage_efyd가 응답에 새면 계약 additive가 되어 규격 번호를 올려야 한다."""
     monkeypatch.setenv("LAW_API_KEY", "fake_key_for_test")
-    for pid in ("law:283413", "law:283413:JO0015"):
+    for pid in ("law:290757", "law:290757:JO0015"):
         out = asyncio.run(M.get_provision_detail(pid))
         blob = _json.dumps(out, ensure_ascii=False)
         assert "stage_basis" not in blob and "stage_efyd" not in blob, pid
@@ -302,7 +304,7 @@ def test_detail_carries_fallback_notice_when_eflaw_fails(mock_client, monkeypatc
     mock_client.get_law_detail_staged.side_effect = (
         lambda mst, efyd="", expected_title="": (mock_client.get_law_detail(mst), "law_fallback")
     )
-    out = asyncio.run(M.get_provision_detail("law:283413:JO0015"))
+    out = asyncio.run(M.get_provision_detail("law:290757:JO0015"))
     assert M._STAGE_FALLBACK_NOTICE in out["warnings"]
 
 
@@ -420,11 +422,11 @@ def test_main_passes_exact_staged_arguments(mock_client, monkeypatch):
     # 배선 검증에는 실제 형태의 판정 결과를 명시 주입한다.
     mock_client.resolve_latest_doc_id.side_effect = lambda title, target, mid, ministry: ResolvedDocId(
         doc_id=mid, effective_date="2026-08-20", is_updated=False, manifest_doc_id=mid)
-    asyncio.run(M.get_provision_detail("law:283413:JO0015"))
+    asyncio.run(M.get_provision_detail("law:290757:JO0015"))
     assert mock_client.get_law_detail_staged.call_args is not None, "staged 경로 미사용"
     args, kwargs = mock_client.get_law_detail_staged.call_args
     doc_id, efyd, title = (list(args) + [kwargs.get("efyd"), kwargs.get("expected_title")])[:3]
-    assert doc_id == "283413"
+    assert doc_id == "290757"
     assert efyd == "2026-08-20", f"2번째 인자는 시행일자여야 한다(받은 값 {efyd!r})"
     assert title == "국가연구개발혁신법", f"3번째 인자는 규정 제목이어야 한다(받은 값 {title!r})"
 
