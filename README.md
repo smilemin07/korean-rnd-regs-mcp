@@ -11,7 +11,7 @@
 - 관련 규정 확인: 특정 사례의 규정 검토를 위해 확인이 필요한 규정의 조문 출력
 - 규정 검토: 특정 사례에 대한 다층적[법률 > 시행령 > 시행규칙 > 행정규칙(고시/훈령)] 규정 검토 결과
   - 동일한 프롬프트에 대해서도 사용하는 AI 모델에 따라 결과가 달라질 수 있습니다.
-    - 클로드 사용 시 → Sonnet 4.6, Effort Level은 High 이상을 사용하시는 것을 추천드립니다.
+    - Claude의 경우, Sonnet 5.5 Effort Level은 High 이상, ChatGPT의 경우, GPT-6.1 Sol Effort Level은 Medium 이상의 모델 사용을 권고(Work mode에서 설정 가능)
 
 **대상 사용자**: 연구자, R&D전문기관 직원, 정부부처 R&D사업 담당 공무원
 
@@ -232,170 +232,165 @@
 
 ![질병관리청 시설장비 규정과 범부처 시설장비 규정 비교 (2배속)](docs/images/example2-facility-comparison.gif)
 
-## 설치 방법
+## 연결 방법
 
-### 사전 준비: 국가법령정보센터에서 API Key 발급받기
+### 1단계: 국가법령정보센터에서 API Key 발급받기
 
-본 MCP 서버는 [국가법령정보센터 OpenAPI](https://open.law.go.kr)를 사용하여 연구행정 관련 규정을 불러옵니다.
+본 서버는 국가법령정보센터 OpenAPI를 활용해 규정 원문을 불러옵니다.
+이 OpenAPI 사용을 위해서는 본인의 API 키(OC)가 필요합니다.
 
-#### 처음 발급받는 경우 (무료 / 5분 정도 소요)
+<details>
+<summary>처음 가입하는 경우 (눌러서 펼치기)</summary>
 
-1. https://open.law.go.kr 접속 → 회원가입
-2. 로그인 → [마이페이지] → [API 신청] → "법령" 카테고리 신청 → '승인' 대기
-3. API Key 발급(Key 확인 방법: 법령정보센터 → 마이페이지 → API인증키관리)
+1. https://open.law.go.kr 접속 → 오른쪽 위 '로그인' 클릭 → '사용자 가입' 클릭
+2. 안내문 2개의 '위 내용에 동의합니다.' 체크
+3. '휴대전화 본인 인증' 또는 '아이핀 본인 인증'으로 본인 인증
+4. '이메일주소' 입력 → '인증' 클릭 → 이메일 인증
+5. '비밀번호'·'비밀번호확인' 입력
+6. 'openAPI를 신청합니다.' 체크 → 아래에 신청 항목이 열림
+7. 'API인증키(OC)' 칸에 사용할 API Key를 직접 정해 입력 → '중복확인' 클릭
+   - 영문·숫자만 사용(8자 이상 권장). 이메일 아이디나 다른 곳의 비밀번호는 쓰지 않음
+   - 정한 API Key는 메모해 두고 비밀번호처럼 관리
+8. '도메인주소'는 '도메인 없음', '서버장비의 IP주소'는 빈칸 그대로 둠
+9. '국가법령정보 활용 목적' 칸에 한 문장 입력(예: 국가연구개발사업 관리를 위한 규정 검토 등)
+   - 비워 두면 승인이 취소될 수 있음
+10. '공동활용 법령종류'에서 '전체선택' 체크
+11. '국가법령정보 OPEN API 활용에 따른 주의사항' 2개의 '위 내용에 동의합니다.' 체크
+12. '사용자 가입하기' 클릭 → 자동 승인 후 바로 사용 가능
 
-#### 이미 키를 보유하고 있는 경우 → 다음 단계 진행
+</details>
+
+<details>
+<summary>이미 가입한 경우 (눌러서 펼치기)</summary>
+
+1. https://open.law.go.kr 에 로그인
+2. 위쪽 메뉴 '마이페이지' 클릭 → 왼쪽 'API인증키관리'에서 본인 API Key 확인
+3. 위쪽 메뉴 'OPEN API' 클릭 → 왼쪽 'OPEN API 신청' 클릭
+4. 신청 목록의 '승인여부'가 '승인'인지 확인
+5. 목록 맨 앞 체크 칸 선택 → '수정' 클릭
+6. '공동활용 법령종류'에서 '대한민국 현행법령'과 '현행 행정규칙'의 '목록 XML'·'본문 XML'이 체크돼 있는지 확인
+7. 빠진 칸이 있으면 체크 → 아래 주의사항 2개의 '위 내용에 동의합니다.' 체크 → '수정' 클릭
+8. 바꿀 것이 없으면 '목록' 클릭
+
+</details>
 
 ---
 
-### 설치
+### 2단계: 사용하는 AI에 연결하기
 
-#### Option 1: Claude.ai(웹에서 Claude 사용)
+A~D 안내 모두 아래 주소를 씁니다.
 
-1. claude.ai에 로그인
-2. 왼쪽 사이드바에서 'Customize' 클릭
-3. 'Connectors' 클릭
-4. 돋보기 옆에 있는 '+' 클릭
+```
+https://mcp.rndmanagers.org/mcp?oc=여기에_API_Key를_기재
+```
+
+- 예: API Key가 `abc123`이면 `https://mcp.rndmanagers.org/mcp?oc=abc123`
+  - API Key는 보안에 유의하여 관리 필요
+
+| 사용하는 AI | 안내 | 참고 |
+|---|---|---|
+| Claude 웹 | A | 무료 요금제도 사용 가능 |
+| Claude Code | B | 터미널 명령 1줄 |
+| ChatGPT 웹 | C | 무료 요금제도 사용 가능 |
+| Codex | D | 터미널 명령 1줄 |
+
+<details>
+<summary>A. Claude 웹 (눌러서 펼치기)</summary>
+
+1. https://claude.ai 에 로그인
+2. 왼쪽 메뉴에서 'Customize' 클릭
+3. 위쪽 'Connectors' 탭 클릭
+4. 오른쪽 위 '+ Add' 클릭
 5. 'Add custom connector' 클릭
-6. Name: korean-rnd-regs-mcp
-7. url: 아래 주소를 붙여넣기(mcp?oc=XX → XX 대신 국가법령정보센터에서 받은 API key 입력)
+6. 'Name'에 `korean-rnd-regs-mcp` 입력
+7. 'MCP server URL'에 위 주소 붙여넣기
+8. 'Continue' 클릭
+9. 'Authentication'에서 'No sign-in' 선택
+   - 'Request headers'에는 아무것도 넣지 않음(API Key는 주소에만 들어감)
+10. 'Add' 클릭
+11. 'Continue' 클릭
+12. 다시 왼쪽 패널에서 'Customize' 클릭
+13. 'Connectors' 탭 클릭 → 그 오른편에 있는 'Yours' 클릭
+14. 새롭게 등록된 korean-rnd-regs-mcp 클릭
+    - 이 화면에는 API Key가 든 주소가 보이므로 캡처·공유 주의
+15. Tool permissions 오른쪽 Dropdown menu의 값을 Needs approval에서 Always allow로 변경
+
+</details>
+
+<details>
+<summary>B. Claude Code (눌러서 펼치기)</summary>
+
+Claude Code가 설치된 컴퓨터에서 사용.
+- 터미널: Mac은 '터미널' 앱, Windows는 'PowerShell'
 
 ```
-https://mcp.rndmanagers.org/mcp?oc=이_부분을_본인_국가법령정보센터_API키로_교체
+claude mcp add --scope user --transport http korean-rnd-regs "https://mcp.rndmanagers.org/mcp?oc=여기에_API_Key를_기재"
 ```
 
-8. 'Add' 클릭
-9. 생성된 'korean-rnd-regs-mcp' 클릭
-10. 우측에 'tool permissions'의 값을 'Needs approval'에서 'Always allow'로 수정
-11. 완료
+1. 위 명령어 복사
+2. 메모장에 붙여넣기
+3. `여기에_API_Key를_기재`를 본인 API Key로 교체
+4. 교체한 명령어 복사
+5. 터미널 열기
+6. 터미널에 붙여넣기 → Enter
+7. Claude Code 시작
 
-##### 설치 확인
+</details>
+
+<details>
+<summary>C. ChatGPT 웹 (눌러서 펼치기)</summary>
+
+1. https://chatgpt.com 에 로그인
+2. 왼쪽 메뉴에서 '플러그인' 클릭
+3. 오른쪽 위 '추가' 클릭
+4. '사용자 지정 MCP 서버 추가' 클릭
+5. '이름'에 `korean-rnd-regs-mcp` 입력
+6. '연결'에서 '서버 URL' 선택
+7. 주소 칸에 위 주소 붙여넣기
+8. '인증'을 'OAuth'에서 '인증 없음'으로 변경
+   - 'OAuth 또는 인증 없음'은 선택하지 않음
+9. '이해했으며 계속 진행하겠습니다' 체크
+10. '플러그인으로 생성' 클릭
+11. 새 채팅 열기
+12. 입력창에 `@` 입력 → 목록에서 `korean-rnd-regs-mcp` 선택 후 질문
+
+</details>
+
+<details>
+<summary>D. Codex (눌러서 펼치기)</summary>
+
+Codex가 설치된 컴퓨터에서 사용.
+- 터미널: Mac은 '터미널' 앱, Windows는 'PowerShell'
+
+```
+codex mcp add korean-rnd-regs --url "https://mcp.rndmanagers.org/mcp?oc=여기에_API_Key를_기재"
+```
+
+1. 위 명령어 복사
+2. 메모장에 붙여넣기
+3. `여기에_API_Key를_기재`를 본인 API Key로 교체
+4. 교체한 명령어 복사
+5. 터미널 열기
+6. 터미널에 붙여넣기 → Enter
+7. Codex 시작
+
+</details>
+
+<details>
+<summary>그 밖의 AI (눌러서 펼치기)</summary>
+
+- Gemini 웹: 사용자 지정 MCP 주소 등록 기능이 미국 개인 계정·영어 사용 등으로 제한되어 국내에서는 사용할 수 없음(2026-10 기준)
+- 원격 MCP 주소를 등록할 수 있는 다른 AI 도구에서도 위 주소 사용 가능
+
+</details>
+
+### 3단계: 연결 확인
 
 새 채팅에서 아래 프롬프트를 입력했을 때, 'status=ok'가 출력되면 정상 설치
 
 ```
 korean-rnd-regs-mcp 서버의 health 테스트를 진행해줘.
 ```
-
-##### 업데이트 → 자동 업데이트(매번 최신 버전 사용 가능)
-
-#### Option 2: Claude Code(터미널에서 Claude 사용)
-
-1. uv가 설치돼 있어야 합니다.
-
-- uv 설치 여부를 터미널에서 확인 → 아래 명령어를 입력했을 때, uv의 버전이 출력돼야 함.
-
-```
-  uv --version
-```
-
-- uv가 설치되지 않은 경우 → 아래 명령어를 입력해서 uv 설치를 진행
-
-  - Windows
-
-  ```
-  powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-  ```
-
-  - Mac
-
-  ```
-  brew install uv
-  ```
-
-2. Claude Code 시작 → 아래 명령어 입력
-
-```
-/plugin marketplace add smilemin07/korean-rnd-regs-mcp
-```
-
-3. 아래 명령어 입력
-
-```
-/plugin install korean-rnd-regs@korean-rnd-regs-marketplace
-```
-
-4. 추가 선택 화면에서 mcp 활용 목적에 맞게 선택
-
-- 현재의 working directory에서만 사용하고 싶은 경우 → Local
-- 시스템 전체에서 사용하고 싶은 경우 → Global
-
-5. 아래 명령어 입력
-
-```
-/reload-plugins
-```
-
-6. 완료
-
-##### 설치 확인
-
-Claude Code에서 아래 프롬프트를 입력했을 때, 'status=ok'가 출력되면 정상 설치
-
-```
-korean-rnd-regs-mcp 서버의 health 테스트를 진행해줘.
-```
-
-##### 업데이트
-
-1. 새 버전 존재 여부 확인 방법 → Claude Code에서 아래 명령어 입력
-
-```
-/plugin marketplace update korean-rnd-regs-marketplace
-```
-
-2. 업데이트 방법 → Claude Code에서 아래 명령어를 순서대로 입력(한줄씩 입력)
-
-```
-/plugin update korean-rnd-regs@korean-rnd-regs-marketplace
-/reload-plugins
-```
-
-3. 업데이트 확인 → 위 '설치 확인'의 health 테스트로 `version` 값이 최신인지 확인. 만약 버전이 그대로라면(uvx 캐시) 터미널에서 아래 명령을 실행한 뒤 Claude Code를 재시작
-
-```
-uvx --refresh korean-rnd-regs-mcp --version
-```
-
-#### Option 3: Codex(터미널에서 ChatGPT 사용)
-
-1. Terminal에서(Codex 사용 전) 아래 명령어 입력
-
-```
-codex mcp add korean-rnd-regs --url "https://mcp.rndmanagers.org/mcp?oc=이_부분을_본인_국가법령정보센터_API키로_교체"
-```
-
-2. Codex 시작
-
-##### 설치 확인
-
-Codex에서 아래 프롬프트를 입력했을 때, 'status=ok'가 출력되면 정상 설치
-
-```
-korean-rnd-regs-mcp 서버의 health 테스트를 진행해줘.
-```
-
-##### 업데이트 → 자동 업데이트(매번 최신 버전 사용 가능)
-
-#### Option 4: ChatGPT(웹에서 ChatGPT 사용 — 개발자 모드)
-
-ChatGPT 유료 요금제(Plus·Pro 등) 웹 버전에서 개발자 모드를 켜면 본 서버를 연결할 수 있습니다(2026-08 실계정 검증 완료 — 조문·매뉴얼 조회, 답변 하단 안내까지 정상 동작 확인).
-
-> ⚠️ 주의: 개발자 모드에서는 OpenAI가 검증하지 않은 사용자 지정 MCP 앱을 연결할 수 있게 됩니다. 어떤 서버든 연결 전에 운영 주체와 서버 주소를 확인하고, 신뢰할 수 있는 서버만 연결하세요. 신뢰하지 않는 서버는 프롬프트 인젝션 등 보안 위험을 높일 수 있습니다.
-
-1. chatgpt.com 로그인 → 프로필 아이콘 → 설정 → **보안 및 로그인** → **개발자 모드** 켬
-2. 사이드바 **플러그인** → **＋**(만들기) → 아래 입력 후 저장
-   - 이름: 원하는 이름(예: `korean-rnd-regs-mcp`)
-   - MCP 서버 URL: `https://mcp.rndmanagers.org/mcp?oc=이_부분을_본인_국가법령정보센터_API키로_교체` (끝에 `/`를 붙이지 말 것)
-   - 인증: **인증 없음(No authentication)**
-3. 도구 7개가 표시되면 연결 성공
-4. 대화에서 사용: 입력창의 **＋** 메뉴에 등록한 앱 이름을 타이핑해 선택(기본 목록에는 표시되지 않습니다)
-
-##### 업데이트 → 자동 업데이트(서버 재배포 시 반영. 새 도구가 추가된 업데이트만 앱 설정에서 도구 새로고침 필요)
-
-#### 기타 (웹 사용이 제한되는 환경)
-
-- Gemini(웹): 커스텀 MCP URL 등록 기능이 미국 내 개인 계정·영어 사용 등으로 제한되어 국내에서는 사용할 수 없습니다(2026-10 기준). 단, Gemini 계열 CLI·API에서는 MCP를 지원합니다.
 
 ---
 
@@ -595,10 +590,12 @@ Tier 2 — 공통 행정규칙 추가 (4개):
 
 ### Q1. AI가 "관련 조문을 찾을 수 없습니다"라고 답합니다
 
-1. AI에게 도구 응답의 `errors` field 확인 요청 — API 인증 실패 등은 errors로 전달됨
-2. `health` 도구로 `api_key_configured: true` 확인
-3. LAW_API_KEY가 정확한지 [국가법령정보센터 OpenAPI 마이페이지](https://open.law.go.kr/LSO/mypage.do)에서 확인
-4. 키 문자열 앞뒤 공백 제거
+1. AI에게 도구 응답의 `errors` 내용을 그대로 보여 달라고 요청
+2. API Key가 맞는지 [API인증키관리](https://open.law.go.kr/LSO/usr/usrOcInfoMod.do)에서 확인(로그인 필요)
+3. API Key 앞뒤 공백 제거
+4. 신청 항목에 '대한민국 현행법령'과 '현행 행정규칙'이 모두 있는지 확인
+- API Key가 틀려도 오류가 아니라 '결과 없음'으로 보일 수 있음
+- 원격 연결에서는 `health`의 `api_key_configured: true`가 API Key가 맞다는 뜻이 아님
 
 ### Q2. AI가 조문 본문에 없는 부제나 요약을 만들어냅니다
 
@@ -611,8 +608,8 @@ Tier 2 — 공통 행정규칙 추가 (4개):
 
 ### Q4. "auth_failed" 오류
 
-- LAW_API_KEY가 비어있거나 잘못됨. open.law.go.kr 마이페이지 → API 키 재발급
-- 원격(웹 커넥터)으로 사용 중이라면 커넥터 URL의 ?oc= 값이 본인의 API 키와 일치하는지 확인하십시오.
+- 연결 주소에 `?oc=` 값(API Key)이 빠졌을 때 나옴 → 연결 주소의 `oc=` 뒷부분 확인
+- API Key가 틀린 경우에는 이 오류가 아니라 '결과 없음'으로 보일 수 있음 → Q1 참고
 
 ### Q5. "rate_limited" 오류
 
@@ -676,7 +673,8 @@ LAW_API_KEY는 국가법령정보센터 OpenAPI에서 무료로 발급받는 공
 
 ### 키 노출 시 대처
 
-키가 노출된 경우 [open.law.go.kr](https://open.law.go.kr)에서 기존 키를 삭제하고 새로 발급받을 수 있습니다.
+1. [open.law.go.kr](https://open.law.go.kr) 로그인 → '마이페이지' → 'API인증키관리'에서 API Key를 새 값으로 변경
+2. 사용 중인 AI의 연결 주소에서 `oc=` 뒷부분을 새 API Key로 교체
 
 자세한 보안 정책·취약점 보고: [SECURITY.md](SECURITY.md)
 
