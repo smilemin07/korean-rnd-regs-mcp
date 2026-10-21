@@ -36,6 +36,25 @@ ERROR_RATE_LIMITED = "rate_limited"
 ERROR_PARSE_FAILED = "parse_failed"
 ERROR_NOT_FOUND = "not_found"
 
+# === v0.57.0: 본문 인증 오류 판별 ===
+# 법령정보센터는 틀린 OC(또는 신청·등록 설정 불일치)에 HTTP 200 + 아래 본문을 돌려준다(2026-10-21 실측 —
+# lawSearch law/admrul·lawService law/eflaw/admrul/oldAndNew 6종 전부 동일 193자):
+#   <Response><result>사용자 정보 검증에 실패하였습니다.</result><msg>…IP주소 및 도메인주소를 등록해 주세요.</msg></Response>
+# 종전에는 조문·행이 없어 not_found로 보였다(틀린 키가 '결과 없음' 66건). 정상 응답 루트(LawSearch·
+# AdmRulSearch·법령·Law·AdmRulService·OldAndNewService)에는 result 자식이 없다(같은 날 실측).
+# ★판별은 루트 태그 + result 전문 일치만 — 다른 문구는 근거가 없어 분기를 만들지 않는다(현행 동작 유지).
+_AUTH_FAILURE_ROOT = "Response"
+_AUTH_FAILURE_RESULT = "사용자 정보 검증에 실패하였습니다."
+# 정적 문구(키·동적값 미포함). 원인을 키 오류로 단정하지 않는다 — 신청 승인·신청 항목·서버 IP·도메인
+# 설정 불일치도 같은 응답을 받는다(msg 문면). 설정을 지우라고 지시하지 않는다(다른 시스템 영향 가능).
+AUTH_FAILED_BODY_MESSAGE = (
+    "국가법령정보센터가 API Key(OC) 사용자 검증에 실패했습니다. "
+    "API Key 값이 open.law.go.kr 'API인증키관리'의 값과 같은지, OPEN API 신청이 승인됐고 "
+    "'대한민국 현행법령'·'현행 행정규칙'이 신청 항목에 있는지, 신청서에 적은 서버 IP·도메인이 "
+    "이 서버 호출과 맞는지 확인하십시오. 원격(HTTP)은 연결 주소의 oc= 값, "
+    "로컬(stdio)은 MCP 설정의 LAW_API_KEY를 확인하십시오."
+)
+
 # === 외부 OpenAPI 대기 상한 (v0.2.7: 구동 안정성 강화 — 외부 API 대기 상한 보수화) ===
 # requests timeout을 (connect, read) 튜플로 분리해 read 단계를 보수적으로 bound한다.
 # 종전 정수 30s는 connect·read *각 단계*에 30s를 허용 → 단일 to_thread 호출이 최악 ~30s 점유 +
@@ -95,6 +114,9 @@ class ResolvedDocId:
     pending_doc_id: str = ""          # (v0.37.0) 미래 시행 예정 판본 ID — 없으면 ""
     pending_effective_date: str = ""  # (v0.37.0) 예정 판본 시행일 ISO — 없으면 ""
     resolve_failed: bool = False      # (v0.37.0) True = 검색 실패/일치 0행으로 manifest fallback
+    # (v0.57.0) resolve_failed 사유 — "zero_rows"(일치 0행) 또는 검색 오류 코드. 내부 관측용(응답 미노출).
+    # 요약 로그가 '구판 폴백'(제목 불일치 등)과 '인증 실패'를 나눠 세는 데 쓴다.
+    resolve_error_code: str = ""
 
 
 @dataclass(frozen=True)
@@ -371,12 +393,56 @@ def _parse_xml(response: requests.Response) -> ET.Element:
             "응답이 HTML 형식 (에러 페이지로 추정) — endpoint 또는 API 키 확인 필요",
         )
     try:
-        return ET.fromstring(response.text)
+        root = ET.fromstring(response.text)
     except ET.ParseError as e:
         raise LawApiError(ERROR_PARSE_FAILED, f"XML 파싱 실패: {e}") from e
+    # v0.57.0: 본문 인증 오류 → auth_failed(계약 §4 "본문에 인증 오류"). 루트 태그를 먼저 보고,
+    # result 부재(None)·공백은 판별에서 빠진다(never-raise — 정상 루트 6종은 이 분기에 들어오지 않는다).
+    # result는 자식 요소가 없어야 한다 — findtext는 자식 텍스트를 무시하므로, 전문 일치를 보장하려면
+    # 자식이 붙은 result(실측 없음)를 판별에서 뺀다(구현 diff 적대검토 Codex).
+    if root.tag == _AUTH_FAILURE_ROOT:
+        res = root.find("result")
+        if res is not None and len(res) == 0 and (res.text or "").strip() == _AUTH_FAILURE_RESULT:
+            raise LawApiError(ERROR_AUTH_FAILED, AUTH_FAILED_BODY_MESSAGE)
+    return root
 
 
 # === LawApiClient ===
+
+# === v0.57.0: resolve 폴백 경고 — 프로세스 단위 억제 ===
+# 키별 클라이언트마다 300초 실패 기억이 따로 있어, 억제가 없으면 같은 사건이 (이용자 수 × 12회/시간)
+# 줄로 반복된다. 키 = (target, manifest 제목, 사유 코드) — 사유는 고정 열거(zero_rows·오류 코드)라
+# 항목 수는 규정 수 수준에 머문다. 값은 monotonic 시각. 판정과 기록은 한 락 안, 로그 출력은 락 밖.
+_RESOLVE_WARN_INTERVAL_S = 3600.0
+_RESOLVE_WARN_MAX_KEYS = 512
+_resolve_warn_last: dict[tuple, float] = {}
+_resolve_warn_lock = threading.Lock()
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _resolve_warn_due(target: str, title: str, reason: str) -> bool:
+    """이 (target, 제목, 사유)의 경고를 지금 남길 차례인가(1시간 1회). never-raise."""
+    key = (target, title, reason)
+    now = time.monotonic()
+    with _resolve_warn_lock:
+        last = _resolve_warn_last.get(key)
+        if last is not None and now - last < _RESOLVE_WARN_INTERVAL_S:
+            return False
+        if last is None and len(_resolve_warn_last) >= _RESOLVE_WARN_MAX_KEYS:
+            # 상한 도달: 만료된 항목부터 지우고, 그래도 가득하면 가장 오래된 1건만 지운다
+            # (전체 비움은 다른 키의 억제까지 풀어 경고가 반복될 수 있음 — 적대검토 Codex·Gemini).
+            for k in [k for k, t in _resolve_warn_last.items() if now - t >= _RESOLVE_WARN_INTERVAL_S]:
+                del _resolve_warn_last[k]
+            if len(_resolve_warn_last) >= _RESOLVE_WARN_MAX_KEYS:
+                del _resolve_warn_last[min(_resolve_warn_last, key=_resolve_warn_last.get)]
+        _resolve_warn_last[key] = now
+        return True
+
+
+def _log_safe_title(text: str, limit: int = 80) -> str:
+    """외부 응답 제목을 한 줄 로그용으로 정리 — 제어문자 제거·길이 제한(로그 주입 차단)."""
+    return _CONTROL_CHARS.sub(" ", text or "").strip()[:limit]
+
 
 # v0.9.1(B2): TTLCache 조회용 sentinel — `key in cache` 후 `cache[key]` 2단계 대신
 # `cache.get(key, _CACHE_MISS)` 단일 조회로 TTL 만료 경계의 이론적 KeyError까지 차단.
@@ -422,8 +488,8 @@ class LawApiClient:
         if not self.api_key:
             raise LawApiError(
                 ERROR_AUTH_FAILED,
-                "LAW_API_KEY가 설정되지 않음 — 로컬(stdio)은 .env의 LAW_API_KEY, "
-                "원격(HTTP)은 커넥터 URL의 ?oc= 값 설정 확인",
+                "LAW_API_KEY가 설정되지 않음 — 로컬(stdio)은 MCP 설정의 env 항목(또는 .env)의 "
+                "LAW_API_KEY, 원격(HTTP)은 커넥터 URL의 ?oc= 값 설정 확인",
             )
 
     def _check_caches(self, cache_key: tuple, success_cache: TTLCache) -> Any:
@@ -440,10 +506,12 @@ class LawApiClient:
         return None
 
     def _record_failure(self, cache_key: tuple, err: LawApiError) -> None:
-        # do not cache auth_failed (user might fix key) or parse on first attempt
-        if err.code not in (ERROR_AUTH_FAILED,):
-            with self._cache_lock:  # v0.9.1(B2): 캐시 write 직렬화
-                self._failure_cache[cache_key] = err
+        # v0.57.0: auth_failed도 300초 기억한다. 클라이언트는 키별이라(main._client_by_key) 키를 고치면
+        # 새 클라이언트가 되고, 같은 응답은 종전에도 not_found로 300초 기억됐다(재호출 억제 유지).
+        # 기억하지 않으면 틀린 키의 반복 검색마다 상세 요청이 공용 NAS IP에서 다시 나간다.
+        # 한계: 같은 키로 신청 승인·IP 설정만 고치면 최대 300초 뒤에 반영된다(종전과 같음).
+        with self._cache_lock:  # v0.9.1(B2): 캐시 write 직렬화
+            self._failure_cache[cache_key] = err
 
     # --- 법령 검색 ---
     def search_laws(self, query: str, page: int = 1, page_size: int = 10) -> SearchResult:
@@ -654,8 +722,9 @@ class LawApiClient:
 
         ★stage_basis는 캐시된 dict에 쓰지 않고 별도 값으로 반환한다 — 같은 dict가 여러 경로로
         공유되므로 본문에 출처를 부착하면 호출 순서·스레드 경합에 따라 오염된다(적대검토 조건).
-        ★인증 실패(auth_failed)는 폴백하지 않고 즉시 전파한다 — 같은 키로 law를 다시 불러도 동일하게
-        실패하므로 요청만 2배가 된다.
+        ★(v0.57.0) 인증 실패(auth_failed)도 폴백한다 — 본문 인증 오류를 auth_failed로 판별하게 되면서,
+        종전처럼 not_found로 폴백되던 키(검색 성공·eflaw 거부)를 끊지 않기 위해서다. 폴백 실패는
+        _law_fallback이 300초 기억한다(v0.55.0의 '즉시 전파' 규칙 대체).
 
         ★캐시 적중에도 _verify_eflaw를 다시 돌린다(네트워크 0 — 순수 필드 비교뿐). expected_title은
         캐시 키(mst, efyd)에 포함되지 않으므로, 재검증이 없으면 제목 미지정으로 적재된 본문이 이후
@@ -691,8 +760,10 @@ class LawApiClient:
                 self._eflaw_store_success(key, result)
                 return result, "eflaw"
             except LawApiError as e:
-                if e.code == ERROR_AUTH_FAILED:
-                    raise
+                # v0.57.0: auth_failed도 다른 실패처럼 폴백한다. 이 경로는 같은 키의 resolve 검색이 성공한
+                # 뒤에만 닿는다(실패하면 efyd가 비어 위의 law 경로로 감). 종전 인증 본문은 not_found로
+                # 폴백됐으므로(v0.56.0 실제 동작), 즉시 전파하면 '검색은 되고 eflaw만 거부되는 키'가 끊긴다.
+                # 폴백도 같은 인증 오류면 _law_fallback이 300초 기억해 요청이 반복되지 않는다.
                 logger.info("eflaw 조회 실패 → 공포 합본 폴백: MST=%s code=%s", mst, e.code)
                 self._eflaw_store_failure(key, e)
 
@@ -761,7 +832,7 @@ class LawApiClient:
         except LawApiError as e:
             with self._cache_lock:
                 law_hit = self._detail_cache.get(law_key, _CACHE_MISS)
-                if law_hit is _CACHE_MISS and e.code not in (ERROR_AUTH_FAILED,):
+                if law_hit is _CACHE_MISS:  # v0.57.0: auth_failed 포함(_record_failure와 같은 규칙)
                     self._failure_cache[law_key] = e
             if law_hit is not _CACHE_MISS:
                 return law_hit, "law_fallback"
@@ -1074,9 +1145,15 @@ class LawApiClient:
                 sr = self.search_laws(title, page_size=5)
             else:
                 sr = self.search_admin_rules(title, page_size=5)
-        except LawApiError:
-            logger.warning("resolve_latest_doc_id: search 실패, manifest ID fallback (target=%s)", api_target)
-            failed = replace(fallback, resolve_failed=True)  # (v0.37.0) silent fallback 해소 — 발동 사실 보존
+        except LawApiError as e:
+            # v0.57.0: 어느 규정인지(제목)와 사유 코드를 남긴다. auth_failed는 규정별로 남기지 않는다 —
+            # 틀린 키 1회에 66줄이 찍혔고(2026-10-15 실측), fan-out 요약 줄의 auth_failed 수가 이를 센다.
+            if e.code != ERROR_AUTH_FAILED and _resolve_warn_due(api_target, title, e.code):
+                logger.warning(
+                    "resolve_latest_doc_id: search 실패, manifest ID fallback (target=%s code=%s title=%s)",
+                    api_target, e.code, _log_safe_title(title),
+                )
+            failed = replace(fallback, resolve_failed=True, resolve_error_code=e.code)  # (v0.37.0) silent fallback 해소 — 발동 사실 보존
             with self._cache_lock:  # v0.9.1(B2): 캐시 write 직렬화
                 self._id_resolution_failure_cache[cache_key] = failed
             return failed
@@ -1109,7 +1186,8 @@ class LawApiClient:
         if best is None:
             # 일치 행이 전부 미래이거나 0건 — manifest fallback. 미래 행만 있던 경우는 resolve 실패가
             # 아니라 "현행 = manifest 스냅샷" 판정이므로 resolve_failed는 일치 0행일 때만 True.
-            result = replace(fallback, resolve_failed=(not pending_raw))
+            result = replace(fallback, resolve_failed=(not pending_raw),
+                             resolve_error_code=("" if pending_raw else "zero_rows"))
         else:
             result = best
         if pending_raw:
@@ -1119,6 +1197,16 @@ class LawApiClient:
                 pending_effective_date=self._format_date(pending_raw),
             )
         if result.resolve_failed:
+            # v0.57.0: 일치 0행 폴백에 경고 — 종전에는 이 경로만 로그가 없어, 처리규정 제목 변경
+            # (2026-09-18) 뒤 약 27일 동안 구판이 서빙된 것을 아무도 몰랐다. 구 제목 검색은 새 제목 1행을
+            # 돌려주므로 첫 행 제목을 함께 남기면 제목 변경을 바로 알아볼 수 있다(공개 데이터만).
+            if _resolve_warn_due(api_target, title, "zero_rows"):
+                logger.warning(
+                    "resolve_latest_doc_id: 정확일치 0행, manifest ID fallback "
+                    "(target=%s title=%s rows=%d first_row_title=%s)",
+                    api_target, _log_safe_title(title), len(sr.items),
+                    _log_safe_title(sr.items[0].title if sr.items else ""),
+                )
             # (v0.37.0 diff 적대검토 MAJOR 반영) 일치 0행 fallback은 검색 예외와 같은 실패 클래스 —
             # 24h 성공 캐시에 고착시키지 않고 단기 failure cache(TTL 300s)로 저장해 재확인을 연다.
             # 한계: 하위 _search_cache(24h)가 같은 검색 응답을 재공급하면 무매치가 그 TTL 내 반복될 수

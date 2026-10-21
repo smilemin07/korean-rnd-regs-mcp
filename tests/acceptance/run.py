@@ -55,8 +55,18 @@ def _errors_by_code(resp):
     return Counter((e or {}).get("code") for e in (resp.get("errors") or []))
 
 
+_ALL_RULES = "*"  # v0.57.0: 합쳐진 인증 오류(rule_set_id 없음) = 어느 규정도 도달했다고 볼 수 없음
+
+
 def _reg_ids_errored(resp):
-    return {(e or {}).get("rule_set_id") for e in (resp.get("errors") or [])}
+    ids = set()
+    for e in (resp.get("errors") or []):
+        e = e or {}
+        if e.get("code") == "auth_failed" and "rule_set_id" not in e:
+            ids.add(_ALL_RULES)  # 거짓 '도달' 차단 — 인증 오류 규정이 errors에서 사라졌기 때문
+        else:
+            ids.add(e.get("rule_set_id"))
+    return ids
 
 
 def _is_infra(resp, raised_type):
@@ -70,6 +80,14 @@ def _is_infra(resp, raised_type):
     total = results_n + sum(errs.values())
     if total == 0:
         return False
+    # v0.57.0: 서버가 규정별 auth_failed를 rule_set_id 없는 1건으로 합치므로 아래 '최소 2건' 기준을 못
+    # 넘는다. 합쳐진 인증 항목이 있고 나머지 오류가 전부 infra 코드·timeout이면 infra로 본다(정상 키
+    # 러너에서 인증 오류 = 상위 응답 문제 또는 판별 오탐 → 사람 판정. spec이 auth 1건이라도 사람 BLOCK).
+    # 특례를 합쳐진 항목으로 한정해 단일 parse_failed 회귀는 종전대로 잡는다(구현 diff 적대검토 Codex·Gemini).
+    merged_auth = any((e or {}).get("code") == "auth_failed" and "rule_set_id" not in (e or {})
+                      for e in (resp.get("errors") or []))
+    if merged_auth and all(c in INFRA_ERROR_CODES or c == "timeout" for c in errs):
+        return True
     # 전건/과반이 parse_failed·auth_failed → 상위 API 다운 신호
     return infra_n >= max(2, total * 0.5)
 
@@ -88,7 +106,7 @@ def _eval_assert(a, resp, elapsed):
     if kind == "fetched_ok":
         rid = a.get("rule_set_id")
         errored = _reg_ids_errored(resp)
-        ok = rid not in errored
+        ok = rid not in errored and _ALL_RULES not in errored
         return ok, f"reaches({rid}): {'도달' if ok else 'errors에 존재=미도달'}"
     if kind == "returned_not_below":
         n = len(resp.get("results") or [])

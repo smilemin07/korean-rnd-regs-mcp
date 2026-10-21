@@ -588,7 +588,7 @@ Tier 2 — 공통 행정규칙 추가 (4개):
 2. API Key가 맞는지 [API인증키관리](https://open.law.go.kr/LSO/usr/usrOcInfoMod.do)에서 확인(로그인 필요)
 3. API Key 앞뒤 공백 제거
 4. 신청 항목에 '대한민국 현행법령'과 '현행 행정규칙'이 모두 있는지 확인
-- API Key가 틀려도 오류가 아니라 '결과 없음'으로 보일 수 있음
+- v0.57.0부터 API Key가 틀리면 '결과 없음'이 아니라 `auth_failed` 오류로 표시됨 → Q4 참고
 - 원격 연결에서는 `health`의 `api_key_configured: true`가 API Key가 맞다는 뜻이 아님
 
 ### Q2. AI가 조문 본문에 없는 부제나 요약을 만들어냅니다
@@ -603,7 +603,10 @@ Tier 2 — 공통 행정규칙 추가 (4개):
 ### Q4. "auth_failed" 오류
 
 - 연결 주소에 `?oc=` 값(API Key)이 빠졌을 때 나옴 → 연결 주소의 `oc=` 뒷부분 확인
-- API Key가 틀린 경우에는 이 오류가 아니라 '결과 없음'으로 보일 수 있음 → Q1 참고
+- API Key가 틀렸거나, OPEN API 신청이 승인되지 않았거나, 신청 항목·신청서의 서버 IP·도메인 설정이 맞지 않을 때도 나옴(v0.57.0~)
+  - [API인증키관리](https://open.law.go.kr/LSO/usr/usrOcInfoMod.do)의 API Key와 연결 주소의 `oc=` 값이 같은지 확인
+  - 'OPEN API 신청' 목록의 '승인여부'와 신청 항목('대한민국 현행법령'·'현행 행정규칙')을 확인
+- 같은 API Key로 신청 승인·신청 항목·IP 설정만 고친 경우에는 반영까지 최대 5분이 걸릴 수 있음(키 값을 바꾸면 바로 반영)
 
 ### Q5. "rate_limited" 오류
 
@@ -689,6 +692,11 @@ LAW_API_KEY는 국가법령정보센터 OpenAPI에서 무료로 발급받는 공
 이슈·PR 환영합니다: https://github.com/smilemin07/korean-rnd-regs-mcp/issues
 
 ## Changelog
+
+### 2026. 10. 21.: v0.57.0
+
+- API Key가 틀렸을 때 '결과 없음' 대신 `auth_failed` 오류와 확인 방법을 표시
+- 규정 제목이 바뀌어 현행 판본을 찾지 못할 때 서버 로그에 기록(운영자용) 등
 
 ### 2026. 10. 15.: v0.56.0
 

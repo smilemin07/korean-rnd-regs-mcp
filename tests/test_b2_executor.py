@@ -113,12 +113,12 @@ def test_contract_version_0_34_0():
     assert CONTRACT_VERSION == "0.36.0"
 
 
-def test_package_version_0_56_0():
-    """패키지 버전 0.56.0(시행 도래 반영 — manifest 현행화와 제목 변경 규정 회복.
-    데이터·문면만 변경 · 실행 로직 무변경 · 입력 스키마 무변 · contract 0.36.0 유지 ·
-    재연결 불요). 배포 전 버전 일치 가드."""
+def test_package_version_0_57_0():
+    """패키지 버전 0.57.0(틀린 API Key 판별과 조용한 구판 폴백 기록 — 본문 인증 오류를
+    auth_failed로 분류·검색 오류 합치기·인증 실패 300초 기억·eflaw 인증 폴백·resolve 0행 경고 ·
+    입력 스키마 무변 · contract 0.36.0 유지 · 재연결 불요). 배포 전 버전 일치 가드."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.56.0"
+    assert __version__ == "0.57.0"
 
 
 def test_cache_maxsize_96_v0240():

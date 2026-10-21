@@ -9,6 +9,7 @@ import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
+from collections import Counter
 from collections.abc import Mapping
 from typing import Annotated
 from urllib.parse import urljoin, parse_qs
@@ -875,6 +876,26 @@ _HTTP_NO_KEY_MESSAGE = (
     "원격(HTTP) 호출에는 커넥터 URL에 ?oc=<발급키>가 필요합니다. "
     "키 없이는 법령 조회를 수행하지 않습니다."
 )
+
+
+def _merged_auth_error(auth_failed: list) -> dict:
+    """(v0.57.0) 규정별 auth_failed를 오류 1건으로 합친다 — [(rs, LawApiError)] → {"code", "message"}.
+
+    같은 키라 규정마다 같은 안내가 반복된다(틀린 키 1회 = 66건, suggest는 검색어 수만큼 곱해 24,540자 실측).
+    안내문은 첫 오류의 정적 문구를 그대로 쓰고, 어느 트랙이 막혔는지는 규정 수로 덧붙인다(부분 권한 키 진단).
+    rule_set_id는 두지 않는다(계약 §4.1상 선택 필드 — 무키 HTTP 오류와 같은 형태).
+    """
+    n_law = sum(1 for rs, _ in auth_failed if rs.api_target == ApiTarget.LAW)
+    n_admrul = len(auth_failed) - n_law
+    # 안내문 = 가장 많이 나온 문구(동률이면 먼저 나온 것). 출처는 전부 정적 문구(본문 판별·HTTP 401/403·
+    # 키 미설정)라 키가 섞이지 않지만, 한 규정의 다른 문구가 전체 안내를 바꾸지 않게 다수 문구를 쓴다.
+    guidance = Counter(err.message for _, err in auth_failed).most_common(1)[0][0]
+    return {
+        "code": "auth_failed",
+        "message": _sanitize_error_message(
+            f"{guidance} (이번 검색에서 인증 오류: 법령 {n_law}·행정규칙 {n_admrul}개 규정)"
+        ),
+    }
 
 
 def _http_no_key_error() -> dict | None:
@@ -2086,6 +2107,9 @@ async def search_provision(query: str) -> dict:
     # stage_basis는 응답에 노출하지 않으므로(계약 additive 회피) 운영 관측의 유일한 직접 증거다.
     # 정수 카운터만 로깅한다(키·URL·질의 미포함 — 기존 요약 로그의 보안 규약 동일).
     _stage_counts: dict[str, int] = {"eflaw": 0, "law_fallback": 0, "law": 0}
+    # v0.57.0(관측성): resolve가 manifest 스냅샷으로 폴백한 규정의 사유 코드 — resolve 직후 기록한다
+    # (상세가 실패하면 resolved가 결과 조립부까지 오지 않는다). 요약 줄은 예산 안에 끝난 규정만 센다.
+    _resolve_codes: dict[str, str] = {}
 
     async def _fetch_rule_set(rs):
         _t0 = time.monotonic()
@@ -2093,6 +2117,8 @@ async def search_provision(query: str) -> dict:
         _record = True
         try:
             resolved = await _resolve_doc_id(rs, client)
+            if resolved.resolve_failed:
+                _resolve_codes[rs.id] = resolved.resolve_error_code or "unknown"
             doc_id = resolved.doc_id
             if rs.api_target == ApiTarget.LAW:
                 # (v0.55.0) 검색도 상세와 같은 시행 단계를 봐야 한다 — 분리하면 검색이 옛 조문을
@@ -2148,6 +2174,7 @@ async def search_provision(query: str) -> dict:
         else:
             fetch_results.append(_FanoutSkipped())
 
+    _auth_failed: list = []  # v0.57.0: (rs, LawApiError) — 합치기 전 원본(요약 줄 계수용)
     for i, result in enumerate(fetch_results):
         if isinstance(result, _FanoutSkipped):
             rs = live_items[i]
@@ -2157,6 +2184,11 @@ async def search_provision(query: str) -> dict:
             continue
         if isinstance(result, LawApiError):
             rs = live_items[i]
+            if result.code == "auth_failed":
+                # v0.57.0: 인증 오류는 규정마다 같은 안내라 아래에서 1건으로 합친다(규정별 경고도 생략 —
+                # 틀린 키 1회에 66줄). 다른 오류(timeout·parse_failed 등)는 종전처럼 규정별로 둔다.
+                _auth_failed.append((rs, result))
+                continue
             logger.warning("search_provision: rule_set=%s detail 실패, code=%s", rs.id, result.code)
             errors.append({"rule_set_id": rs.id, "code": result.code, "message": _sanitize_error_message(result.message)})
             continue
@@ -2222,16 +2254,30 @@ async def search_provision(query: str) -> dict:
     # v0.2.10(관측성): fan-out 요약 1줄(INFO·key=value) — B2 풀 크기 N 산정용.
     # wall_ms ≫ max_rule_ms이면 8스레드 풀 큐잉(격리 필요), 근사하면 네트워크 지연 우세.
     # 시크릿(키·URL·query·keywords·예외 message) 미포함 — rule 식별자·정수 지표만.
+    # v0.57.0: resolve_failed = 인증 외 사유(제목 불일치 0행·검색 오류)로 스냅샷에 폴백한 규정 수(구판
+    # 서빙 신호). auth_failed = 어느 단계든(resolve 검색·상세) 인증 오류가 난 규정 수 — 목록만 거부되고
+    # 상세는 성공한 키도 여기에 잡힌다. 둘 다 예산 안에 끝난 규정 기준(취소된 규정 제외).
+    _done_ids = {live_items[_i].id for _i, _t in enumerate(_tasks) if _t in _done}
+    _resolve_failed_n = sum(1 for _rid, _c in _resolve_codes.items()
+                            if _rid in _done_ids and _c != "auth_failed")
+    _auth_rule_ids = {rs.id for rs, _ in _auth_failed} | {
+        _rid for _rid, _c in _resolve_codes.items() if _rid in _done_ids and _c == "auth_failed"}
     _max_rule_ms = max(_rule_ms, default=0.0)
     _slow_rule_count = sum(1 for _m in _rule_ms if _m >= _SLOW_RULE_MS)
     logger.info(
         "event=search_fanout_summary live_rules=%d done=%d skipped=%d wall_ms=%.0f "
         "budget_ms=%.0f max_rule_ms=%.0f slow_rule_count=%d errors_count=%d "
-        "stage_eflaw=%d stage_fallback=%d stage_law=%d",
+        "stage_eflaw=%d stage_fallback=%d stage_law=%d resolve_failed=%d auth_failed=%d",
         len(live_items), len(_done), len(_pending), _fanout_wall_ms,
-        _FANOUT_BUDGET_S * 1000.0, _max_rule_ms, _slow_rule_count, len(errors),
+        # v0.57.0: errors_count는 합치기 전 규정별 오류 수(종전 의미 유지 — 틀린 키는 종전처럼 66).
+        _FANOUT_BUDGET_S * 1000.0, _max_rule_ms, _slow_rule_count, len(errors) + len(_auth_failed),
         _stage_counts["eflaw"], _stage_counts["law_fallback"], _stage_counts["law"],
+        _resolve_failed_n, len(_auth_rule_ids),
     )
+    # v0.57.0: 인증 오류를 1건으로 합쳐 맨 앞에 둔다 — 크기 예산(base_size) 계산 전이라 축약된 크기가
+    # 결과 예산에 반영된다. 응답 모양·footer는 그대로(rule_set_id 없는 항목 = 무키 오류와 같은 형태).
+    if _auth_failed:
+        errors.insert(0, _merged_auth_error(_auth_failed))
 
     # v0.2.8: 절단 전 관련도 정렬 — 정렬키는 결정적(마지막 요소가 append 순서)이라
     # 동률 시 현행 순서를 보존한다. 정렬키는 내부 전용(응답 schema·필드 무변).
@@ -2376,6 +2422,12 @@ async def suggest_review_sources(
                 term_cache[term] = await search_provision(term)
             res = term_cache[term]
             for err in res.get("errors", []):
+                if err.get("code") == "auth_failed" and "rule_set_id" not in err:
+                    # v0.57.0: 합쳐진 인증 오류는 검색어마다 같다 — 1건만, keyword 없이 둔다
+                    # (keyword를 붙이면 그 단어의 실패로 읽힐 수 있다). 규정 수는 첫 검색 기준.
+                    if not any(e.get("code") == "auth_failed" and "rule_set_id" not in e for e in errors):
+                        errors.append(dict(err))
+                    continue
                 errors.append({**err, "keyword": origin})
             for m in res.get("results", []):
                 pid = m["provision_id"]

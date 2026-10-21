@@ -4,7 +4,7 @@
   1) 제로콜 버그 차단: eflaw 시도가 실제로 1회 요청을 낸다(_EFLAW_ATTEMPTS != 0).
   2) eflaw 전용 예산이 기본 예산을 상속하지 않는다.
   3) 4중 성공 판정(조문·법령명·법령 일치·시행일자 provenance).
-  4) 실패 6종 전부 law 폴백 / auth_failed만 즉시 전파.
+  4) 실패 6종 전부 law 폴백 — v0.57.0부터 auth_failed도 폴백(종전 '즉시 전파' 대체).
   5) 서킷 브레이커: 실패 후 재시도 생략, 실패 기억이 만료되면 재시도 재개.
   6) sticky fallback 금지: 폴백 본문이 24h _detail_cache를 오염시키지 않는다.
   7) 공유 dict 무오염: stage_basis를 본문에 쓰지 않는다.
@@ -116,17 +116,39 @@ def test_all_failure_kinds_fall_back(client, monkeypatch, code):
     assert basis == "law_fallback"
 
 
-def test_auth_failed_propagates_without_fallback(client, monkeypatch):
-    """같은 키로 law를 다시 불러도 동일하게 실패하므로 요청만 2배가 된다 → 즉시 전파."""
+def test_auth_failed_falls_back_like_other_failures_v0570(client, monkeypatch):
+    """(v0.57.0) eflaw auth_failed도 폴백 — v0.55.0 '즉시 전파'를 대체.
+
+    v0.56.0까지 인증 본문은 not_found로 폴백됐다. 본문을 auth_failed로 판별하게 된 뒤에도 같은
+    서빙을 유지해야 '검색은 되고 eflaw만 거부되는 키'가 끊기지 않는다.
+    """
     def h(p):
         if p["target"] == "eflaw":
             raise LawApiError(ERROR_AUTH_FAILED, "synthetic")
-        raise AssertionError("auth_failed에서 law 폴백을 시도하면 안 된다")
+        return _Resp(_LAW_XML.format(eff="19990101", body="합본"))
     calls = _spy(monkeypatch, h)
-    with pytest.raises(LawApiError) as ei:
-        client.get_law_detail_staged("283413", "2026-08-20", "국가연구개발혁신법")
-    assert ei.value.code == ERROR_AUTH_FAILED
-    assert [c["target"] for c in calls] == ["eflaw"]
+    _, basis = client.get_law_detail_staged("283413", "2026-08-20", "국가연구개발혁신법")
+    assert basis == "law_fallback"
+    assert [c["target"] for c in calls] == ["eflaw", "law"]
+    # 브레이커가 auth 실패도 기억 → 300초 안에는 eflaw를 다시 시도하지 않는다(폴백 본문 캐시 적중).
+    client.get_law_detail_staged("283413", "2026-08-20", "국가연구개발혁신법")
+    assert [c["target"] for c in calls] == ["eflaw", "law"]
+
+
+def test_auth_failed_on_both_eflaw_and_law_is_remembered_v0570(client, monkeypatch):
+    """(v0.57.0) eflaw·law 둘 다 인증 실패면 auth_failed — 반복 호출에서 네트워크가 늘지 않는다.
+
+    _law_fallback이 auth_failed를 기억하지 않으면 300초 동안 매 호출 law 요청이 다시 나간다
+    (Redteam 2차 Codex·Fable·Grok 공통 지적).
+    """
+    def h(p):
+        raise LawApiError(ERROR_AUTH_FAILED, "synthetic")
+    calls = _spy(monkeypatch, h)
+    for _ in range(3):
+        with pytest.raises(LawApiError) as ei:
+            client.get_law_detail_staged("283413", "2026-08-20", "국가연구개발혁신법")
+        assert ei.value.code == ERROR_AUTH_FAILED
+    assert [c["target"] for c in calls] == ["eflaw", "law"]
 
 
 # ── 5) 서킷 브레이커
