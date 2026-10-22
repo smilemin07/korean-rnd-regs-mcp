@@ -947,12 +947,12 @@ def _revision_notice(rs, resolved: ResolvedDocId | None) -> str | None:
     if resolved.is_updated:
         return (
             f"개정 반영: 시행일 {live or rs.effective_date} "
-            f"(manifest 기준 ID {resolved.manifest_doc_id} → 최신 ID {resolved.doc_id})"
+            f"(등록 기준 ID {resolved.manifest_doc_id} → 최신 ID {resolved.doc_id})"
         )
     if live and live != rs.effective_date:
         return (
             f"개정 반영: 시행일 {rs.effective_date} → {live} "
-            f"(문서 ID 동일, manifest 시행일 갱신 권장)"
+            f"(문서 ID 동일)"
         )
     return None
 

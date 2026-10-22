@@ -3784,6 +3784,16 @@ def test_version_meta_bounded_within_annex_headroom_v050():
     assert m_max["version_label"] == "훈령 제" + "9" * _ISSUANCE_MAX_LEN + "호"
     # _revision_notice 실제 최대(고정 템플릿 + 8자리 날짜 2개 + 13자리 ID)보다 보수적으로 긴 안내문
     worst_notice = "개정 반영: 시행일 20240101 → 20260506 (LIVE 검색 기준 현행 시행일과 manifest 시행일이 달라 자동으로 현행본을 조회했으며 별도 조치는 불필요합니다 추가 여유분)"
+    # v0.58.0: 고정 문자열이 실제 템플릿 최대(10자리 날짜 2개·13자리 ID)보다 긴지 템플릿에서 직접 확인
+    from types import SimpleNamespace
+    ids = "9" * 13
+    real_max = max(
+        len(_revision_notice(SimpleNamespace(effective_date="2026-01-01", api_doc_id=ids),
+                             ResolvedDocId(doc_id=ids, effective_date="2026-12-31", is_updated=True, manifest_doc_id=ids))),
+        len(_revision_notice(SimpleNamespace(effective_date="2026-01-01", api_doc_id=ids),
+                             ResolvedDocId(doc_id=ids, effective_date="2026-12-31", is_updated=False, manifest_doc_id=ids))),
+    )
+    assert real_max <= len(worst_notice)
     injected = {**m_max, "revision_notice": worst_notice}
     assert len(json.dumps(injected, ensure_ascii=False)) <= _ANNEX_DETAIL_HEADROOM
 
