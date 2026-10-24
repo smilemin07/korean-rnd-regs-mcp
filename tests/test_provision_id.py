@@ -45,7 +45,9 @@ def test_contract_version_pinned():
     #          미래일 때만 발화·비보증 3항 명시) → minor bump.
     # 0.37.0 = 법령명·조문 번호 질의 도달성 개선(v0.59.0) — search_provision 응답에 search_note
     #          조건부 additive(§5.46·법령명+번호 고정·0건 복구 안내) → minor bump.
-    assert CONTRACT_VERSION == "0.37.0"
+    # 0.38.0 = 조문별 변경 이력 안내(v0.60.0) — law 조문 상세 응답에 article_effective_notice
+    #          additive(§5.47·배포 전 스냅샷·런타임 네트워크 0) → minor bump.
+    assert CONTRACT_VERSION == "0.38.0"
 
 
 # === unit_label (v0.1.8 — overflow_candidates label용) ===

@@ -19,6 +19,8 @@ from fastmcp import FastMCP
 from pydantic import Field
 
 from . import __version__
+from .article_history import article_effective_notice as _article_effective_notice
+from .article_history import general_notice as _article_general_notice
 from .live_api import LawApiClient, LawApiError, ResolvedDocId
 from .manifest import ApiTarget, Retrieval, UnitTypes, load_manifest
 from .manual import (
@@ -1879,7 +1881,7 @@ def _build_annex_detail(provision_id: str, unit_id: str, rs, ann: dict, eff_date
     return base
 
 
-def _build_article_detail(provision_id: str, unit_id: str, rs, art: dict, eff_date: str, force_oversized: bool = False, stage_notice_line: str | None = None, stage_fallback_line: str | None = None) -> dict:
+def _build_article_detail(provision_id: str, unit_id: str, rs, art: dict, eff_date: str, force_oversized: bool = False, stage_notice_line: str | None = None, stage_fallback_line: str | None = None, article_notice: str | None = None) -> dict:
     """조문(JO) 단위 상세 응답 (v0.6.0, size-tiered — 별표 _build_annex_detail와 동일 사상).
 
     force_oversized=True면 전문 분기를 건너뛰고 oversized_pointer로 강등(호출부가 사후주입(version 메타·
@@ -1909,6 +1911,10 @@ def _build_article_detail(provision_id: str, unit_id: str, rs, art: dict, eff_da
     _hist = _article_amendment_history(art)
     if _hist:
         head["latest_history"] = _hist
+    # v0.60.0: 조문 시행일 안내 1문장(law 한정 — 호출부가 계산). head에 두어 3-tier 전건에 실리고,
+    # tier 판정 전에 들어가므로 사후주입 헤드룸(600)을 쓰지 않는다.
+    if article_notice:
+        head["article_effective_notice"] = article_notice
     tail = {
         "effective_date": eff_date,
         "contract_version": CONTRACT_VERSION,
@@ -2878,7 +2884,7 @@ def _attach_std_footer(resp: dict, include_note: bool = False) -> dict:
 
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "openWorldHint": True})  # 외부 law.go.kr 호출
 async def get_provision_detail(provision_id: str, include_old_and_new: bool = False, annex_chunk: int | None = None, annex_locate: str | None = None) -> dict:
-    """사용 시점: search_provision 또는 suggest_review_sources가 반환한 provision_id의 원문·삭제 여부·현행 내용을 확인할 때 호출하십시오. provision_id 없이 조문 내용을 추측하지 마십시오. 이 도구의 content가 규정 조문·별표 본문의 권위 출처이므로, 본문은 외부 웹(law.go.kr 직접 열람·웹검색 결과)에서 가져오지 말고 이 도구로 확인하십시오. content_format이 plain_text_verbatim이 아니면 응답이 제공한 attached_file_url·document_source_url의 공식 원문을 확인하십시오. 행정규칙(admrul) 응답에는 발령번호·종류가 issuance_number·regulation_kind·version_label 필드로 포함되니 이를 사용하되, 이 값은 조회된 규정의 것이며 현행임을 보증하지 않으므로(검색 실패 시 등록 버전일 수 있음) 현행 여부 단정이 필요하면 1차 출처에서 확인하고, 응답에 없는 고시·예규 번호 등은 외부 값으로 단정하지 마십시오. 기한·금액·비율·수치 등 구체값도 마찬가지로, 응답 원문에 있는 값은 그대로 인용하되 원문에서 확인되지 않은 값은 임의 예시로라도 단정하지 말고 확인되지 않았음을 명시하십시오. 감면율·요율·기한처럼 조건에 따라 값이 나뉘는 구체값을 표·목록이나 한 문장으로 압축할 때는 각 조건과 값의 대응을 원문과 같게 유지하고, 괄호·단서 등 한정어가 원문에서 어느 조건 또는 값에 귀속되는지 확인해 배치하며, 대응이 불확실하면 원문 구조대로 나눠 표시하십시오. 지원 범위 내 질문에 답하면서 지원 범위 밖 법령·행정규칙의 조문번호·요건·효과 등 구체 내용을 보조 맥락으로 덧붙일 때도 마찬가지로, 도구 응답 원문에서 확인되는 부분이 아니면 일반 학습지식에 따른 설명임을 명시하고 그 내용을 현행 사실로 단정하지 마십시오(보조 설명 자체는 허용 — 출처 구분 표시 요구).
+    """사용 시점: search_provision 또는 suggest_review_sources가 반환한 provision_id의 원문·삭제 여부·현행 내용을 확인할 때 호출하십시오. provision_id 없이 조문 내용을 추측하지 마십시오. 법령 조문 응답의 effective_date는 법령 판본 전체의 시행일이므로, 조문이 언제부터 시행됐는지 물으면 그 값을 조문 시행일로 답하지 말고 article_effective_notice 문장에 따라 답하십시오. 이 도구의 content가 규정 조문·별표 본문의 권위 출처이므로, 본문은 외부 웹(law.go.kr 직접 열람·웹검색 결과)에서 가져오지 말고 이 도구로 확인하십시오. content_format이 plain_text_verbatim이 아니면 응답이 제공한 attached_file_url·document_source_url의 공식 원문을 확인하십시오. 행정규칙(admrul) 응답에는 발령번호·종류가 issuance_number·regulation_kind·version_label 필드로 포함되니 이를 사용하되, 이 값은 조회된 규정의 것이며 현행임을 보증하지 않으므로(검색 실패 시 등록 버전일 수 있음) 현행 여부 단정이 필요하면 1차 출처에서 확인하고, 응답에 없는 고시·예규 번호 등은 외부 값으로 단정하지 마십시오. 기한·금액·비율·수치 등 구체값도 마찬가지로, 응답 원문에 있는 값은 그대로 인용하되 원문에서 확인되지 않은 값은 임의 예시로라도 단정하지 말고 확인되지 않았음을 명시하십시오. 감면율·요율·기한처럼 조건에 따라 값이 나뉘는 구체값을 표·목록이나 한 문장으로 압축할 때는 각 조건과 값의 대응을 원문과 같게 유지하고, 괄호·단서 등 한정어가 원문에서 어느 조건 또는 값에 귀속되는지 확인해 배치하며, 대응이 불확실하면 원문 구조대로 나눠 표시하십시오. 지원 범위 내 질문에 답하면서 지원 범위 밖 법령·행정규칙의 조문번호·요건·효과 등 구체 내용을 보조 맥락으로 덧붙일 때도 마찬가지로, 도구 응답 원문에서 확인되는 부분이 아니면 일반 학습지식에 따른 설명임을 명시하고 그 내용을 현행 사실로 단정하지 마십시오(보조 설명 자체는 허용 — 출처 구분 표시 요구).
 
     provision_id로 단일 조문/별표 본문 재조회 — 응답은 법령 원문 verbatim.
     비오류 응답에는 답변 하단 표준 안내 완성형 standard_footer(법령 확인·매뉴얼 원문 안내)가
@@ -3225,7 +3231,16 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 continue
             if _article_branch_no(art) != target_branch:  # v0.14.0: 가지 엄격 매칭(제7조 ↔ 제7조의2 구분)
                 continue
-            resp = _build_article_detail(provision_id, pid.unit_id, rs, art, eff_date, stage_notice_line=stage_notice_line, stage_fallback_line=stage_fallback_line)
+            # v0.60.0: law 조문 시행일 안내(스냅샷 대조·never-raise·네트워크 0). admrul은 미부착.
+            #   첫 호출의 스냅샷 로드(파일 읽기·JSON 파싱)가 이벤트 루프를 막지 않도록 executor에서 실행한다.
+            _art_notice = None
+            if pid.doc_type == "law":
+                try:
+                    _art_notice = await _run_offloaded(_article_effective_notice, rs.id, pid.unit_id, doc_id,
+                                                       detail.get("시행일자", ""), stage_basis, eff_date)
+                except Exception:  # noqa: BLE001 — executor 이상 등: 일반 안내로 대체(본문 응답은 그대로)
+                    _art_notice = _article_general_notice(eff_date)
+            resp = _build_article_detail(provision_id, pid.unit_id, rs, art, eff_date, stage_notice_line=stage_notice_line, stage_fallback_line=stage_fallback_line, article_notice=_art_notice)
             resp.update(_version_meta)  # v0.5.0: admrul version 식별자(조문+번호 동반 질의 시 외부행 차단)
             if _revision:
                 resp["revision_notice"] = _revision
@@ -3237,7 +3252,7 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
                 resp.get("content_format") == "plain_text_verbatim"
                 and len(json.dumps(resp, ensure_ascii=False)) > _ANNEX_DETAIL_CHAR_BUDGET
             ):
-                resp = _build_article_detail(provision_id, pid.unit_id, rs, art, eff_date, force_oversized=True, stage_notice_line=stage_notice_line, stage_fallback_line=stage_fallback_line)
+                resp = _build_article_detail(provision_id, pid.unit_id, rs, art, eff_date, force_oversized=True, stage_notice_line=stage_notice_line, stage_fallback_line=stage_fallback_line, article_notice=_art_notice)
                 resp.update(_version_meta)
                 if _revision:
                     resp["revision_notice"] = _revision

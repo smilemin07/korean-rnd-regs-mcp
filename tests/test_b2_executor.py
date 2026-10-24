@@ -110,16 +110,18 @@ def test_contract_version_0_34_0():
     get_provision_detail 성공 응답[law 한정]에 fetched_detail_effective_date_notice
     조건부 additive·입력 스키마 무변·재연결 불요. §5.42 참조)
     → 0.36.0 → 0.37.0 minor bump(v0.59.0 법령명·조문 번호 질의 도달성 개선 —
-    search_provision 응답에 search_note 조건부 additive·입력 스키마 무변·재연결 불요. §5.46 참조)."""
+    search_provision 응답에 search_note 조건부 additive·입력 스키마 무변·재연결 불요. §5.46 참조)
+    → 0.37.0 → 0.38.0 minor bump(v0.60.0 조문별 변경 이력 안내 — law 조문 상세에
+    article_effective_notice additive·입력 스키마 무변·재연결 불요. §5.47 참조)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.37.0"
+    assert CONTRACT_VERSION == "0.38.0"
 
 
-def test_package_version_0_59_0():
-    """패키지 버전 0.59.0(법령명·조문 번호 질의 도달성 개선 — 법령명+번호 고정·search_note·도구 설명 2종·
-    검증 로그 · 입력 스키마 무변 · contract 0.36.0 → 0.37.0 · 재연결 불요). 배포 전 버전 일치 가드."""
+def test_package_version_0_60_0():
+    """패키지 버전 0.60.0(조문별 변경 이력 안내 — 배포 전 스냅샷·article_effective_notice·도구 설명 1문장 ·
+    입력 스키마 무변 · contract 0.37.0 → 0.38.0 · 재연결 불요). 배포 전 버전 일치 가드."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.59.0"
+    assert __version__ == "0.60.0"
 
 
 def test_cache_maxsize_96_v0240():

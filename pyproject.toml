@@ -1,6 +1,6 @@
 [project]
 name = "korean-rnd-regs-mcp"
-version = "0.59.0"
+version = "0.60.0"
 description = "MCP server for Korean national R&D regulation review (국가연구개발 규정 검토용 MCP 서버)"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.11"
@@ -86,6 +86,8 @@ packages = ["src/korean_rnd_regs_mcp"]
 "src/korean_rnd_regs_mcp/manual_b4.json" = "korean_rnd_regs_mcp/manual_b4.json"
 # v0.43.0: 국가 R&D 연구비 부적정집행 사례집(KAIA·25.5) — 누락 시 해당 소스 조회만 manual_case_unavailable(기존 6소스·규정 무영향)
 "src/korean_rnd_regs_mcp/manual_case.json" = "korean_rnd_regs_mcp/manual_case.json"
+# v0.60.0: 조문별 변경 이력 스냅샷 — 누락 시 law 조문 상세가 일반 안내 문장으로만 동작(본문·다른 도구 무영향)
+"src/korean_rnd_regs_mcp/article_history.json" = "korean_rnd_regs_mcp/article_history.json"
 
 [tool.hatch.build.targets.sdist]
 # sdist에서 개발 전용 노트는 제외 — README/CHANGELOG/SECURITY/LICENSE만 PyPI 노출.
