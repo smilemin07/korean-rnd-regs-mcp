@@ -43,7 +43,9 @@ def test_contract_version_pinned():
     # 0.36.0 = 상세 조회 미시행 시행일 고지(v0.51.0) — get_provision_detail 성공 응답(law 한정)에
     #          fetched_detail_effective_date_notice 조건부 additive(§5.42·lawService 상세 시행일자가
     #          미래일 때만 발화·비보증 3항 명시) → minor bump.
-    assert CONTRACT_VERSION == "0.36.0"
+    # 0.37.0 = 법령명·조문 번호 질의 도달성 개선(v0.59.0) — search_provision 응답에 search_note
+    #          조건부 additive(§5.46·법령명+번호 고정·0건 복구 안내) → minor bump.
+    assert CONTRACT_VERSION == "0.37.0"
 
 
 # === unit_label (v0.1.8 — overflow_candidates label용) ===

@@ -2007,6 +2007,232 @@ def _admrul_version_meta(pid, detail: dict) -> dict:
     return meta
 
 
+# --- v0.59.0: 법령명 + 조문·별표 번호 고정(search_provision) ---
+# 배경: 토큰 AND 매칭은 법령 제목을 비교하지 않아 "중소기업 기술혁신 촉진법 제27조의3"이 0건,
+# "혁신법 제32조"가 다른 법령의 인용 조문만 돌려줬다(v0.58.0 eval 게이트 D). 질의에서 수록 법령의
+# 이름 바로 뒤에 조문·별표 번호가 오면 그 단위를 이미 받은 데이터에서 찾아 결과 맨 앞에 둔다.
+# 질의 문자열만 읽는 순수 함수라 네트워크·캐시·부팅 경로와 무관하다.
+
+# 공식 약칭 — 국가법령정보 lawSearch(target=law) 응답의 `법령약칭명`(2026-10-24 LIVE 조회, law 35건 중 20건).
+# 런타임에 받지 않는 스냅샷이다. 약칭이 바뀌면 그 이름이 탐지되지 않을 뿐(v0.58.0 동작)이다.
+_OFFICIAL_LAW_ABBREVIATIONS: dict[str, str] = {
+    "sector_kt_act": "국토교통과학기술법",
+    "industry_tech_act": "산업기술혁신법",
+    "sme_tech_act": "중소기업기술혁신법",
+    "sme_tech_decree": "중소기업기술혁신법 시행령",
+    "sme_tech_rule": "중소기업기술혁신법 시행규칙",
+    "performance_eval_act": "연구성과평가법",
+    "performance_eval_decree": "연구성과평가법 시행령",
+    "health_tech_act": "보건의료기술법",
+    "sanhak_act": "산학협력법",
+    "sanhak_decree": "산학협력법 시행령",
+    "sanhak_rule": "산학협력법 시행규칙",
+    "corp_lab_act": "기업부설연구소법",
+    "corp_lab_decree": "기업부설연구소법 시행령",
+    "corp_lab_rule": "기업부설연구소법 시행규칙",
+    "lab_safety_act": "연구실안전법",
+    "lab_safety_decree": "연구실안전법 시행령",
+    "lab_safety_rule": "연구실안전법 시행규칙",
+    "defense_tech_act": "국방과학기술혁신법",
+    "defense_tech_decree": "국방과학기술혁신법 시행령",
+    "defense_tech_rule": "국방과학기술혁신법 시행규칙",
+}
+# 통용명 — 공식 약칭이 없지만 현장에서 흔히 쓰는 이름(manifest query에도 있음). "혁신법"은 다른 계열
+# 공식 약칭(산업기술혁신법 등) 안에 들어 있으므로 아래 앞 낱말 규칙을 추가로 적용한다.
+_COLLOQUIAL_LAW_NAMES: dict[str, str] = {
+    "혁신법": "innovation_act",
+    "혁신법 시행령": "innovation_decree",
+    "혁신법 시행규칙": "innovation_rule",
+    "연구개발비 사용 기준": "rnd_funding_standard",
+}
+# 이름 비교 때 무시하는 기호(공백은 별도로 전부 무시).
+_PIN_IGNORED_MARKS = frozenset("「」『』[]()〈〉《》“”\"'‘’")
+_FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
+# 이름 바로 앞 낱말이 이것이면 옛 법령을 가리키므로 고정하지 않는다.
+_PIN_FORBIDDEN_PREV_WORDS = frozenset({"구", "종전", "옛", "舊", "전", "개정전", "폐지된"})
+_PIN_MAX = 3
+_PIN_NUMBER_RE = re.compile(
+    r"[\s「」『』\[\]\(\)〈〉《》“”\"'‘’]*(?:제\s*([0-9]+)\s*조(?:\s*의\s*([0-9]+))?|별표\s*([0-9]+)(?:\s*의\s*([0-9]+))?)"
+)
+_PIN_RANGE_PREFIXES = ("부터", "~", "∼", "～", "〜", "-", "–", "—", "내지")
+
+
+def _is_hangul_syllable(ch: str) -> bool:
+    return "가" <= ch <= "힣"
+
+
+def _pin_norm(text: str) -> str:
+    """이름 비교용 정규화 — 공백·무시 기호 제거, ㆍ→·."""
+    return "".join(
+        "·" if ch == "ㆍ" else ch
+        for ch in text
+        if not ch.isspace() and ch not in _PIN_IGNORED_MARKS
+    )
+
+
+def _pin_names(live_items) -> list[tuple[str, str, bool]]:
+    """(정규화 이름, rule_set_id, 통용명 여부) 목록 — 긴 이름부터."""
+    ids = {rs.id for rs in live_items}
+    names: list[tuple[str, str, bool]] = []
+    for rs in live_items:
+        title = rs.title or ""
+        names.append((_pin_norm(title), rs.id, False))
+        stripped = re.sub(r"^\s*\([^)]*\)\s*", "", title)  # "(국토교통부) …" 같은 앞 괄호
+        if stripped != title:
+            names.append((_pin_norm(stripped), rs.id, False))
+        abbr = _OFFICIAL_LAW_ABBREVIATIONS.get(rs.id)
+        if abbr:
+            names.append((_pin_norm(abbr), rs.id, False))
+    for alias, rid in _COLLOQUIAL_LAW_NAMES.items():
+        if rid in ids:
+            names.append((_pin_norm(alias), rid, True))
+    names = [n for n in names if n[0]]
+    names.sort(key=lambda n: -len(n[0]))
+    return names
+
+
+def _pin_prev_word(q: str, start: int) -> tuple[str, list[str]]:
+    """원문에서 start 앞의 낱말(공백·무시 기호를 건너뛴 뒤 공백까지).
+
+    반환 = (비교용 낱말 — 기호·가운데점·쉼표 제거, 기호로 나뉜 조각들 — "구(舊)" → ["구", "舊"]).
+    """
+    j = start - 1
+    while j >= 0 and (q[j].isspace() or q[j] in _PIN_IGNORED_MARKS):
+        j -= 1
+    end = j + 1
+    while j >= 0 and not q[j].isspace():
+        j -= 1
+    raw = q[j + 1:end]
+    parts = [p for p in re.split(r"[\s「」『』\[\]()〈〉《》“”\"'‘’·ㆍ,]+", raw) if p]
+    return "".join(parts), parts
+
+
+def _parse_pin_number(q: str, pos: int) -> tuple[str, str] | None:
+    """원문 pos(이름 바로 뒤)에서 '제N조(의M)'·'별표N(의M)'을 읽어 (unit_type, unit_id). 아니면 None."""
+    m = _PIN_NUMBER_RE.match(q, pos)
+    if not m:
+        return None
+    if m.group(1) is not None:
+        unit_type, prefix, no_s, br_s = "article", "JO", m.group(1), m.group(2)
+    else:
+        unit_type, prefix, no_s, br_s = "annex", "BP", m.group(3), m.group(4)
+    if no_s.startswith("0") or len(no_s) > 4:
+        return None
+    no = int(no_s)
+    if no < 1:
+        return None
+    branch = 0
+    if br_s is not None:
+        if br_s.startswith("0") or len(br_s) > 2:
+            return None
+        branch = int(br_s)
+    rest = q[m.end():]
+    if br_s is not None and rest.lstrip()[:1] in ("항", "호"):
+        return None  # "제27조의3항"·"제27조의3 항" = 제27조 제3항을 붙여 쓴 것일 수 있음
+    if rest[:1].isascii() and rest[:1].isdigit():
+        return None  # "제27조3" 같은 이어진 숫자("제32조①"의 원문자는 뒷말로 보고 무시)
+    if re.match(r"\s*의\s*\d", rest):
+        return None  # "제27조의3의2"·비ASCII 숫자 가지("의٣") 같은 미지원 번호 — 본조로 축소하지 않는다
+    if rest.lstrip(" \t,·").startswith(_PIN_RANGE_PREFIXES):
+        return None  # 범위 표기("제32조부터", "제32조~")
+    unit_id = f"{prefix}{no:04d}{branch:02d}" if branch else f"{prefix}{no:04d}"
+    return unit_type, unit_id
+
+
+def _detect_law_unit_refs(query: str, live_items) -> list[dict]:
+    """질의에서 '수록 법령 이름 + 조문·별표 번호'를 찾는다 (v0.59.0). 질의 순서로 최대 _PIN_MAX건.
+
+    반환 원소 = {"rule_set_id", "unit_type", "unit_id"}. 예외는 호출부가 잡는다.
+    """
+    q = (query or "").translate(_FULLWIDTH_DIGITS)  # 같은 길이 치환이라 색인이 유지된다
+    norm_chars: list[str] = []
+    idx_map: list[int] = []
+    for i, ch in enumerate(q):
+        if ch.isspace() or ch in _PIN_IGNORED_MARKS:
+            continue
+        norm_chars.append("·" if ch == "ㆍ" else ch)
+        idx_map.append(i)
+    nq = "".join(norm_chars)
+    if not nq:
+        return []
+    names = _pin_names(live_items)
+    formal_by_id = {rs.id: _pin_norm(rs.title or "") for rs in live_items}
+    taken = [False] * len(nq)
+
+    def _same_family(a_id: str, b_id: str) -> bool:
+        # 정식 제목이 서로를 포함하면 같은 계열(국가연구개발혁신법 ⊂ 국가연구개발혁신법 시행령)
+        a, b = formal_by_id.get(a_id, ""), formal_by_id.get(b_id, "")
+        return bool(a and b) and (a in b or b in a)
+    found: list[tuple[int, dict]] = []
+    for name, rid, colloquial in names:
+        start = 0
+        while True:
+            p = nq.find(name, start)
+            if p < 0:
+                break
+            start = p + 1
+            span = range(p, p + len(name))
+            if any(taken[k] for k in span):
+                continue
+            for k in span:  # 거부돼도 자리를 차지한다(긴 이름 실패 → 짧은 이름 후퇴 금지)
+                taken[k] = True
+            o_start = idx_map[p]
+            o_end = idx_map[p + len(name) - 1] + 1
+            if o_start > 0 and _is_hangul_syllable(q[o_start - 1]):
+                continue  # 다른 낱말 안에 박힌 이름(괄호·따옴표 바로 뒤는 경계로 본다 — "제재처분(혁신법 제32조)")
+            prev, prev_parts = _pin_prev_word(q, o_start)
+            if prev in _PIN_FORBIDDEN_PREV_WORDS or any(p in _PIN_FORBIDDEN_PREV_WORDS for p in prev_parts):
+                continue  # "구 혁신법"·"구(舊) 혁신법" 등 옛 법령
+            # 통용명은 뿌리("혁신법 시행령" → "혁신법")를 품은 다른 계열 이름과 비교한다("산업 혁신법 시행령" 차단).
+            root = re.sub(r"(시행령|시행규칙)$", "", name)
+            if colloquial and len(prev) >= 2 and any(
+                prev in other for other, orid, _c in names
+                if root in other and not _same_family(rid, orid)
+            ):
+                continue  # "산업 혁신법"처럼 다른 계열 이름의 일부(같은 계열 시행령·시행규칙 이름은 제외)
+            parsed = _parse_pin_number(q, o_end)
+            if parsed is None:
+                continue
+            found.append((o_start, {"rule_set_id": rid, "unit_type": parsed[0], "unit_id": parsed[1]}))
+    found.sort(key=lambda f: f[0])
+    out: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for _pos, ref in found:
+        key = (ref["rule_set_id"], ref["unit_id"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(ref)
+        if len(out) >= _PIN_MAX:
+            break
+    return out
+
+
+_SEARCH_NOTE_ZERO = (
+    "검색 결과 0건은 수록 범위 밖이라는 뜻이 아닙니다. 검색은 조문·별표의 제목과 본문에 낱말이 모두 있는지 "
+    "비교합니다(별지·서식 제외). 법령 이름은 바로 뒤에 조문·별표 번호(예: 제27조의3, 별표 2)가 올 때만 "
+    "알아보며, 이름만으로는 검색되지 않습니다. 이름을 빼고 본문 용어로 다시 검색하거나 이름 뒤에 번호를 붙여 "
+    "검색하십시오. 수록 규정은 list_rule_sets로 확인할 수 있습니다."
+)
+
+
+def _search_note_pinned(title: str, label: str) -> str:
+    return f"질의의 「{title}」 {label}에 해당하는 단위를 앞쪽 결과에 두었습니다."
+
+
+def _search_note_absent(title: str, label: str, unit_type: str) -> str:
+    text = (f"「{title}」에서 {label}에 해당하는 단위를 찾지 못했습니다. 번호를 확인하거나 unit 없이 "
+            f"get_provision_detail로 조문·별표 목록을 확인하십시오.")
+    if unit_type == "annex":
+        text += " (별지·서식은 조회 대상이 아닙니다.)"
+    return text
+
+
+def _search_note_unreceived(title: str, label: str, annex_parse: bool = False) -> str:
+    what = f"「{title}」의 별표 자료를 이번 검색에서 읽지 못해" if annex_parse else f"「{title}」 자료를 이번 검색에서 받지 못해"
+    return f"{what} {label}에 해당하는 단위를 확인하지 못했습니다. 잠시 후 다시 검색하십시오."
+
+
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False})  # 로컬 상태 전용
 async def health() -> dict:
     """서비스 상태 확인 — status, service name, version, API 키 설정 여부."""
@@ -2022,41 +2248,17 @@ async def health() -> dict:
 async def search_provision(query: str) -> dict:
     """사용 시점: 국가연구개발·R&D 연구행정 규정의 조문·용어·현행 여부를 묻는 질문에는 일반 학습지식 답변 전에 호출하십시오. 본 서버 범위 밖 일반 대화·번역·문장 다듬기에는 호출하지 마십시오.
 
-    규정 조문·별표 본문에서 query 키워드를 찾아 후보 list 반환.
+    본 서버가 수록한 국가연구개발 관련 법령·행정규칙 전체(국가연구개발혁신법 계열과 부처별 R&D 법령·행정규칙 등 — 정확한 목록은 list_rule_sets)의 조문·별표 본문에서 query를 찾아 후보 list를 반환합니다. 별지·서식은 검색하지 않습니다.
+    법령 이름(정식 명칭·공식 약칭·혁신법 같은 통용명) 바로 뒤에 제N조(의M) 또는 별표N(의M)을 쓰면(예: "중소기업 기술혁신 촉진법 제27조의3") 그 단위를 앞쪽 결과에 두고 search_note로 알립니다. 검색 0건은 수록 범위 밖이라는 뜻이 아닙니다 — search_note에 따라 다시 검색하십시오.
+    결과의 warnings에는 본문과 다를 수 있는 시행일·수록 한계 고지가 실릴 수 있으니 답변에 반영하십시오.
 
-    manifest의 live_api 문서들을 대상으로:
-      - law(혁신법·시행령·시행규칙): 조문(`조문내용`) + 별표(`별표내용`) 검색 (v0.2: 시행령 별표 지원)
-      - admrul(연구개발비 사용 기준 등): 조문 + 별표(`별표내용`) 검색
-        - 각 항목의 `unit_types` (article/annex/both)에 따라 검색 범위 결정
-        - 별표는 별표구분=='별표'만 노출 — 별지·서식 제외 (v0.2.1, BP 번호 충돌 오도달 방지)
+    매칭: query를 공백으로 나눈 모든 토큰(2자 이상)이 한 조문/별표의 제목 또는 본문에 있어야 합니다(토큰 AND). 단일 토큰 query는 부분문자열 매칭. snippet은 2000자 이하, 전체 응답은 16k char 예산 내(초과 시 뒤쪽 결과 절단·truncated=true — 광역 질의는 키워드를 좁혀 재검색할 것).
 
-    응답 최상위에 짧은 `disclaimer` 1개만 두고, 각 결과에는 manifest 특유의 `warnings`만 첨부.
-    snippet은 _SNIPPET_MAX (2000자)로 제한, 전체 응답은 16k char 예산 내(초과 시 뒤쪽
-    결과 절단·truncated=true — 광역 질의는 키워드를 좁혀 재검색할 것) — MCP output size limit 회피.
+    정규 응답(0건·부분 오류 포함)에는 답변 하단 표준 안내 완성형 standard_footer(법령 확인·매뉴얼 원문 안내)가 원칙적으로 동반됩니다(응답이 크기 상한에 달한 극단 케이스는 생략될 수 있음) — 검색 결과만으로 규정 내용을 안내·판단하는 답변에도, 목록만 나열하는 답변에도 마지막 줄들로 그대로 표시하십시오(매뉴얼 내용을 인용한 답변은 매뉴얼 응답의 standard_footer를 대신 사용). standard_footer 바로 앞의 standard_footer_note(인접 지시)는 위 표시 규칙의 요약이니 그대로 따르되, note 자체는 답변에 옮기지 마십시오.
 
-    v0.40.0: 진입부 오류(무키 인증 오류·invalid_query)를 제외한 정규 응답(0건·부분 오류 포함)에는
-    답변 하단 표준 안내 완성형 standard_footer(법령 확인·매뉴얼 원문 안내)가 원칙적으로
-    동반됩니다(응답이 크기 상한에 달한 극단 케이스는 생략될 수 있음) — 검색 결과만으로 규정
-    내용을 안내·판단하는 답변에도, 목록만 나열하는 답변에도 마지막 줄들로 그대로 표시하십시오
-    (매뉴얼 내용을 인용한 답변은 매뉴얼 응답의 standard_footer를 대신 사용).
-    v0.41.0: standard_footer 바로 앞의 standard_footer_note(인접 지시)는 위 표시 규칙의
-    요약이니 그대로 따르되, note 자체는 답변에 옮기지 마십시오.
+    law 조문 매치의 latest_history(예 "개정 2025.12.30(공포)")는 공포일 기준 최신 개정 이력 힌트이며(시행일 아님), 특정 법령의 개정 조문 전수 확인은 문서레벨 get_provision_detail(unit 없이)의 articles 목록으로.
 
-    v0.16.0: law 조문 매치에 최신 개정 이력 힌트가 있으면 `latest_history`(예 "개정 2025.12.30(공포)")를
-    additive 노출 — '최근 개정 조문' 질의에서 검색 결과만으로 개정 조문을 인지 가능(마커 부재 매치·평면
-    admrul·별표는 생략). 날짜는 공포일(값에 (공포) 표기·시행일 아님)이고, 검색 매치는 키워드에 걸린 조문에
-    한정되므로 특정 법령의 개정 조문 전수 확인은 문서레벨 get_provision_detail(unit 없이)의 articles 목록으로.
-
-    매칭 (v0.1.6): query를 공백으로 토큰 분해하여 모든 토큰(2자 이상)이 한 조문/별표의
-    제목 또는 본문에 존재하면 매칭(토큰 AND). 단일 토큰 query는 종전과 동일한 부분문자열 매칭.
-    원문이 "협약의 변경/협약을 변경"으로 써서 "협약 변경"이 안 잡히던 띄어쓰기 불일치를 해소.
-
-    v0.50.0(용어 드리프트): 법령 개정으로 조문 본문 용어가 바뀐 경우 구 용어 검색은 해당 조문에
-    도달하지 못합니다(예: 제재처분 '이의신청'은 2026년 2월 개정으로 혁신법 제33조에서
-    '재검토 요청'으로 바뀜 — 하위 규정·실무 자료에는 구 용어가 남아 있음. 또 다른 예: 산업기술혁신
-    촉진법 제5조가 인용하는 특별법 명칭이 '지방자치분권 및 지역균형발전'에서 '지방자치분권 및
-    균형성장'으로 바뀜). 구 용어 검색이 기대한 조문에 도달하지 못하면 현행 조문 용어로 재검색하고,
-    구 용어와 현행 용어를 한 query에 함께 넣지 마십시오(토큰 AND라 0건이 되기 쉽습니다).
+    용어 드리프트: 법령 개정으로 본문 용어가 바뀌면 구 용어 검색은 해당 조문에 도달하지 못합니다(예: 제재처분 '이의신청'은 2026년 2월 개정으로 혁신법 제33조에서 '재검토 요청'으로 바뀜. 산업기술혁신 촉진법 제5조가 인용하는 특별법 명칭은 '지방자치분권 및 지역균형발전'에서 '지방자치분권 및 균형성장'으로 바뀜). 그러면 현행 조문 용어로 재검색하고, 구 용어와 현행 용어를 한 query에 함께 넣지 마십시오(토큰 AND라 0건이 되기 쉽습니다).
     """
     _e = _http_no_key_error()
     if _e is not None:
@@ -2127,12 +2329,13 @@ async def search_provision(query: str) -> dict:
                     client.get_law_detail_staged, doc_id, resolved.effective_date, rs.title)
                 if _basis in _stage_counts:
                     _stage_counts[_basis] += 1
+                # (v0.59.0) basis는 고정 결과의 warnings 조합(상세 경로와 동일)에 쓴다.
                 return (rs, resolved, detail.get("articles", []),
-                        detail.get("annexes", []), detail.get("annex_parse_error"))
+                        detail.get("annexes", []), detail.get("annex_parse_error"), _basis)
             else:
                 detail = await _run_offloaded(client.get_admin_rule_detail, doc_id)
                 return (rs, resolved, detail.get("articles", []),
-                        detail.get("annexes", []), None)
+                        detail.get("annexes", []), None, "law")
         except asyncio.CancelledError:
             # 예산 초과 skip — timing 미기록(skipped로 요약에 별도 집계). 취소 의미 보존 위해 re-raise.
             _record = False
@@ -2175,6 +2378,8 @@ async def search_provision(query: str) -> dict:
             fetch_results.append(_FanoutSkipped())
 
     _auth_failed: list = []  # v0.57.0: (rs, LawApiError) — 합치기 전 원본(요약 줄 계수용)
+    # (v0.59.0) 법령명+번호 고정용 — 이번 검색에서 데이터를 받은 규정만 담는다(미수신은 키 없음).
+    _received: dict[str, tuple] = {}
     for i, result in enumerate(fetch_results):
         if isinstance(result, _FanoutSkipped):
             rs = live_items[i]
@@ -2197,7 +2402,8 @@ async def search_provision(query: str) -> dict:
             logger.warning("search_provision: rule_set=%s unexpected error: %s", rs.id, type(result).__name__)
             errors.append({"rule_set_id": rs.id, "code": "parse_failed", "message": type(result).__name__})
             continue
-        rs, resolved, articles, annexes, annex_parse_error = result
+        rs, resolved, articles, annexes, annex_parse_error, _rs_basis = result
+        _received[rs.id] = result
         if annex_parse_error and rs.unit_types in (UnitTypes.ANNEX, UnitTypes.BOTH):
             logger.warning("search_provision: rule_set=%s 별표 파싱 실패: %s", rs.id, annex_parse_error)
             errors.append({"rule_set_id": rs.id, "code": "annex_parse_failed", "message": annex_parse_error})
@@ -2283,6 +2489,74 @@ async def search_provision(query: str) -> dict:
     # 동률 시 현행 순서를 보존한다. 정렬키는 내부 전용(응답 schema·필드 무변).
     _scored.sort(key=lambda x: x[0])
     matches = [m for _, m in _scored]
+    # v0.59.0: 법령명+번호 고정 — 원자적(실패 시 고정·안내 조각 전부 버리고 v0.58.0 경로).
+    # _note_parts = [(고정 결과의 provision_id 또는 None, 문장)] — 고정 문장은 최종 kept에 남을 때만 쓴다.
+    _note_parts: list[tuple[str | None, str]] = []
+    _pinned_ids: set[str] = set()
+    try:
+        _refs = _detect_law_unit_refs(query, live_items)
+        if _refs:
+            _pinned: list[dict] = []
+            _parts: list[tuple[str | None, str]] = []
+            _rs_by_id = {rs.id: rs for rs in live_items}
+            for ref in _refs:
+                rs = _rs_by_id[ref["rule_set_id"]]
+                label = unit_label(ref["unit_id"])
+                got = _received.get(rs.id)
+                if got is None:
+                    if not _auth_failed:  # 틀린 키면 전 규정 미수신이라 안내가 무의미하다
+                        _parts.append((None, _search_note_unreceived(rs.title, label)))
+                    continue
+                _rs, resolved, articles, annexes, annex_parse_error, basis = got
+                hit = None
+                if ref["unit_type"] == "article":
+                    for art in articles:
+                        if _article_unit_id(art) == ref["unit_id"]:
+                            title = (art.get("조문제목") or "").strip()
+                            content = (art.get("조문내용") or "").strip()
+                            hit = _build_match(rs, ref["unit_id"], "article", title, _snippet_for(content), resolved)
+                            if rs.api_target == ApiTarget.LAW:
+                                _hist = _article_amendment_history(art)
+                                if _hist:
+                                    hit["latest_history"] = _hist
+                            break
+                else:
+                    if annex_parse_error:
+                        if not _auth_failed:
+                            _parts.append((None, _search_note_unreceived(rs.title, label, annex_parse=True)))
+                        continue
+                    for ann in annexes:
+                        if _is_annex_kind(ann) and _annex_unit_id(ann) == ref["unit_id"]:
+                            title = (ann.get("별표제목") or "").strip()
+                            content = (ann.get("별표내용") or "").strip()
+                            present = [t for t in tokens if t in content]
+                            hit = _build_match(rs, ref["unit_id"], "annex", title,
+                                               _annex_snippet(content, present or [query]), resolved)
+                            break
+                if hit is None:
+                    _parts.append((None, _search_note_absent(rs.title, label, ref["unit_type"])))
+                    continue
+                if hit["provision_id"] in {m["provision_id"] for m in _pinned}:
+                    continue
+                # 상세 조회와 같은 고지 조합 — 폴백·스냅샷 판본의 본문이 고지와 어긋나지 않게(Redteam)
+                hit["warnings"] = _detail_warnings(
+                    rs, _stage_notice_line(rs, resolved.doc_id, basis), _stage_fallback_line(basis))
+                _pinned.append(hit)
+                _parts.append((hit["provision_id"], _search_note_pinned(rs.title, label)))
+            _ids = {m["provision_id"] for m in _pinned}
+            _merged = _pinned + [m for m in matches if m["provision_id"] not in _ids]
+            matches, _note_parts, _pinned_ids = _merged, _parts, _ids
+    except Exception as _e:
+        try:
+            logger.warning("search_provision: 법령명·번호 고정 생략(%s)", type(_e).__name__)
+        except Exception:  # pragma: no cover - 로깅 방어선
+            pass
+        _note_parts, _pinned_ids = [], set()
+        matches = [m for _, m in _scored]
+    # 최종 0건이면 errors 유무와 무관하게 복구 안내(합쳐진 인증 오류는 원인이 따로 있어 제외).
+    _zero_note = _SEARCH_NOTE_ZERO if (not matches and not _auth_failed) else None
+    # 예산용 보수 추정 — 고정 문장 전부 + 나머지 문장(실제 문장은 이 부분집합).
+    _note_estimate = " ".join([t for _, t in _note_parts] + ([_zero_note] if _zero_note else []))
     limited = matches[:_RESULTS_MAX]
     # v0.2.5: 전체 응답 char 예산 — 25개 규정 확대로 광역 질의 응답이 40k+자(25k token
     # 한도 초과 위험)로 실측됨에 따라, suggest(16k)와 동일한 보수 proxy 예산을 적용.
@@ -2300,6 +2574,8 @@ async def search_provision(query: str) -> dict:
         # v0.37.0: 개정 예정 고지는 규정당 1회 top-level — 보수 예산을 위해 base에 전량 포함
         # (실제 부착은 kept에 남은 규정의 부분집합이라 항상 이 보수치 이하 → 예산 초과 없음).
         **({"upcoming_revisions": _upcoming_by_rule} if _upcoming_by_rule else {}),
+        # v0.59.0: 검색 안내 문장도 결과 예산에 넣는다(밖에 두면 예산 찬 응답에서 footer가 빠진다).
+        **({"search_note": _note_estimate} if _note_estimate else {}),
     }, ensure_ascii=False))
     kept: list[dict] = []
     size = base_size
@@ -2319,6 +2595,13 @@ async def search_provision(query: str) -> dict:
         "disclaimer": _DISCLAIMER,
         "results": kept,
     }
+    # v0.59.0: 조건부 안내 1필드 — 고정 문장은 kept에 남은 고정 결과만(예산으로 빠진 것을 "두었다"고 쓰지 않음).
+    _kept_pids = {m.get("provision_id") for m in kept}
+    _note_out = [t for pid, t in _note_parts if pid is None or pid in _kept_pids]
+    if _zero_note:
+        _note_out.append(_zero_note)
+    if _note_out:
+        response["search_note"] = " ".join(_note_out)
     # v0.37.0: kept에 실제 포함된 규정의 개정 예정 고지만 부착(빈 dict면 필드 생략 — additive·조건부)
     _kept_rule_ids = {m.get("rule_set_id") for m in kept}
     _upcoming_out = {rid: line for rid, line in _upcoming_by_rule.items() if rid in _kept_rule_ids}
@@ -2326,6 +2609,14 @@ async def search_provision(query: str) -> dict:
         response["upcoming_revisions"] = _upcoming_out
     if errors:
         response["errors"] = errors
+    # v0.59.0(검증용): 결과 수·고정 수만 정수로 남긴다(질의·키·제목 미포함). 로그 실패가 검색을 막지 않게.
+    try:
+        logger.info(
+            "event=search_result_summary total=%d returned=%d pinned=%d note_parts=%d",
+            len(matches), len(kept), len(_pinned_ids & _kept_pids), len(_note_out),
+        )
+    except Exception:  # pragma: no cover - 로깅 방어선
+        pass
     # v0.40.0: 검색만 보고 답하는 경로에도 하단 표준 안내 도달 — whole-or-omit이라
     # 기존 결과·순서·절단(위 pop 루프)은 byte 불변. 진입부 오류(invalid_query·auth)는
     # early-return이라 이 지점에 오지 않음(정규 반환 전부 부착 — 부분 오류 errors 병존 포함).
@@ -3924,7 +4215,7 @@ def review_regulation_prompt(situation: str) -> str:
 
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False})  # 로컬 manifest 전용
 async def list_rule_sets() -> dict:
-    """등록된 규정 문서(rule set) 목록 — MVP는 live_api retrieval 대상만 반환."""
+    """본 서버가 수록한 법령·행정규칙 목록입니다. 검색이 0건이거나 질문의 법령이 수록 대상인지 불확실할 때 호출하십시오. effective_date는 등록 시점 값이며, 현행 여부는 unit 없이 get_provision_detail로 확인하십시오."""
     items = load_manifest()
     live_items = [rs for rs in items if rs.retrieval == Retrieval.LIVE_API]
     return {
