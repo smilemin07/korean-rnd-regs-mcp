@@ -117,11 +117,11 @@ def test_contract_version_0_34_0():
     assert CONTRACT_VERSION == "0.38.0"
 
 
-def test_package_version_0_60_0():
-    """패키지 버전 0.60.0(조문별 변경 이력 안내 — 배포 전 스냅샷·article_effective_notice·도구 설명 1문장 ·
-    입력 스키마 무변 · contract 0.37.0 → 0.38.0 · 재연결 불요). 배포 전 버전 일치 가드."""
+def test_package_version_0_61_0():
+    """패키지 버전 0.61.0(일별 이용 현황 기록 — 원격 서버가 하루 이용자 수·요청 수를 숫자로 로그에 남김 ·
+    도구 응답·입력 스키마 무변 · contract 0.38.0 유지 · 재연결 불요). 배포 전 버전 일치 가드."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.60.0"
+    assert __version__ == "0.61.0"
 
 
 def test_cache_maxsize_96_v0240():

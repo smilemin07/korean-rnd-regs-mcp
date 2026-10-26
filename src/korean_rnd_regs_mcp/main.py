@@ -16,6 +16,7 @@ from urllib.parse import urljoin, parse_qs
 
 from dotenv import load_dotenv
 from fastmcp import FastMCP
+from fastmcp.server.middleware import Middleware as _FastMCPMiddleware
 from pydantic import Field
 
 from . import __version__
@@ -55,6 +56,8 @@ from .manual import (
     manual_meta_block,
     mdot_normalize,
 )
+from .usage_stats import classify_result as _usage_classify_result
+from .usage_stats import stats as _usage_stats
 from .provision_id import (
     CONTRACT_VERSION,
     InvalidProvisionId,
@@ -4267,6 +4270,7 @@ class _OCKeyMiddleware:
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
+            _usage_stats.note_http_request()  # v0.61.0: 숫자만 센다(never-raise·키 미사용)
             qs = scope.get("query_string", b"").decode()
             params = parse_qs(qs)
             oc = params.get("oc", [""])[0]
@@ -4279,6 +4283,32 @@ class _OCKeyMiddleware:
                 _request_api_key.reset(token)
         else:
             await self.app(scope, receive, send)
+
+
+class _UsageMiddleware(_FastMCPMiddleware):
+    """v0.61.0: 도구 호출 수와 이용자 수 집계(HTTP 전용·숫자만 기록).
+
+    도구 결과와 예외는 그대로 통과시킨다. 집계는 finally 안에서 따로 감싸, 집계 오류가 도구 결과로
+    새지 않게 한다(미들웨어에서 난 예외는 isError 결과로 사용자에게 전달됨 — Fable 실측 2026-10-26).
+    없는 도구·인자 오류·도구 예외도 여기를 지나며 result가 None으로 남는다(Fable 실측 2026-10-27) —
+    tool_calls에는 들어가고 이용자에서는 빠진다. 도구 이름은 클라이언트 입력이라 로그에 쓰지 않는다.
+    키는 세션 생성 때 묶인 값(_request_api_key)을 그대로 쓰고, usage_stats가 메모리 HMAC으로만 다룬다.
+    """
+
+    async def on_call_tool(self, context, call_next):
+        result = None
+        try:
+            result = await call_next(context)
+            return result
+        finally:
+            try:
+                _usage_stats.note_tool_call(
+                    str(getattr(context.message, "name", "") or ""),
+                    _request_api_key.get(""),
+                    _usage_classify_result(result),
+                )
+            except Exception:  # noqa: BLE001 — 집계가 도구 응답을 바꾸지 않게
+                pass
 
 
 # v0.52.0: --http 바인딩 주소. fastmcp 3.4.2 표준 env FASTMCP_HOST를 존중(기존에는 "0.0.0.0" 명시 전달로 덮어씀 —
@@ -4297,6 +4327,14 @@ def _resolve_http_bind_host(env: Mapping[str, str] | None = None) -> str:
 
 async def _run_http(host: str, port: int) -> None:
     logger.info("korean-rnd-regs-mcp HTTP server starting on %s:%d", host, port)
+    # v0.61.0: 일별 이용 현황 집계는 원격(HTTP) 서버에서만 켠다 — stdio 경로는 등록·집계 모두 없음.
+    # 등록이 실패해도 서버는 집계 없이 그대로 뜬다(부팅을 막지 않음).
+    try:
+        if not any(isinstance(m, _UsageMiddleware) for m in mcp.middleware):
+            mcp.add_middleware(_UsageMiddleware())
+        _usage_stats.enable()
+    except Exception:  # noqa: BLE001
+        logger.warning("event=daily_usage_disabled reason=setup_failed")
     from starlette.middleware import Middleware
     await mcp.run_http_async(
         transport="streamable-http",
