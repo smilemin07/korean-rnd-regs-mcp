@@ -1,0 +1,220 @@
+{
+  "_설명": "check_lock_vulns.py가 '새 항목'에서 빼는 검토 완료 공지. 새 공지를 검토하면 사유와 함께 추가한다. lock을 바꾸면 해당 패키지 항목을 다시 확인한다.",
+  "reviewed": {
+    "GHSA-xcq7-p3pf-p88h": {
+      "package": "opentelemetry-api",
+      "decision": "v0.62.0에서 1.45.1로 수정 예정(이벤트 루프 정지, 도달 확인)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-6q48-6c7w-9gw2": {
+      "package": "certifi",
+      "decision": "v0.62.0에서 2026.10.23으로 수정 예정",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4320": {
+      "package": "certifi",
+      "decision": "v0.62.0에서 2026.10.23으로 수정 예정",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-84m7-p3x7-pcfv": {
+      "package": "mcp",
+      "decision": "별도 릴리스(세션 만료 동작 변경·호스트 404 복구 실측·한도 설정 선행)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-7xgj-8392-5q4r": {
+      "package": "fastmcp/fastmcp-slim",
+      "decision": "도달 경로 없음(transform·component auth 미사용)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-2gx3-rcp4-g85q": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-42vr-xj54-vc7v": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-8wjv-2p76-3863": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-9j54-fg26-wv3r": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-9v7f-9g4p-ffgj": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-ffc3-869f-jxw9": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-gvp8-978c-rx2q": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-hxm8-2xgr-2p9m": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-jwrc-g2q2-pq5p": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-p4g4-x82p-q773": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-pxh4-856f-4h89": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-r6x4-923q-g947": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-w2cx-738m-mc7w": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-w6j9-cwv2-h6wq": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-x33g-cr3x-6449": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4140": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4141": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4142": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4143": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4144": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4145": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4146": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4147": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4148": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4149": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4150": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4151": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4152": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4183": {
+      "package": "PyJWT",
+      "decision": "도달 경로 없음(JWT·OAuth 인증 미사용, mcp 의존성으로만 설치)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-v9pg-7xvm-68hf": {
+      "package": "python-multipart",
+      "decision": "도달 경로 없음(폼 파싱 미사용, MCP는 JSON)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-3040": {
+      "package": "python-multipart",
+      "decision": "도달 경로 없음(폼 파싱 미사용, MCP는 JSON)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-8988-9cw3-xx77": {
+      "package": "urllib3",
+      "decision": "다음 lock 재기준화 때 2.8.0(악성 upstream·프록시 전제, 외부 호출은 TLS로 law.go.kr 하나)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-gh4c-6fx4-qh6g": {
+      "package": "urllib3",
+      "decision": "다음 lock 재기준화 때 2.8.0(악성 upstream·프록시 전제, 외부 호출은 TLS로 law.go.kr 하나)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-vxq7-64xx-v4gw": {
+      "package": "urllib3",
+      "decision": "다음 lock 재기준화 때 2.8.0(악성 upstream·프록시 전제, 외부 호출은 TLS로 law.go.kr 하나)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4175": {
+      "package": "urllib3",
+      "decision": "다음 lock 재기준화 때 2.8.0(악성 upstream·프록시 전제, 외부 호출은 TLS로 law.go.kr 하나)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4176": {
+      "package": "urllib3",
+      "decision": "다음 lock 재기준화 때 2.8.0(악성 upstream·프록시 전제, 외부 호출은 TLS로 law.go.kr 하나)",
+      "reviewed": "2026-10-27"
+    },
+    "PYSEC-2026-4177": {
+      "package": "urllib3",
+      "decision": "다음 lock 재기준화 때 2.8.0(악성 upstream·프록시 전제, 외부 호출은 TLS로 law.go.kr 하나)",
+      "reviewed": "2026-10-27"
+    },
+    "GHSA-6v38-4h7w-rj9h": {
+      "package": "Authlib",
+      "decision": "도달 경로 없음(fastmcp OAuth 프록시 전용, 서버 auth 미사용). 2026-10-27 23:50 KST 공개",
+      "reviewed": "2026-10-28"
+    }
+  }
+}
