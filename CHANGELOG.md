@@ -3,6 +3,19 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
+## [0.62.0] - 2026-10-28
+
+**원격 서버 의존성 보안 패치(contract 0.38.0 유지)** — 원격 서버(웹 커넥터용 Docker 이미지)의 고정 의존성 2개를 보안 공지에 따라 올립니다. 앱 코드·도구 응답·입력 스키마는 그대로입니다(**커넥터 재연결 불요**). 패키지 **0.61.0 → 0.62.0**.
+
+### Security
+
+- **opentelemetry-api 1.44.0 → 1.45.1**(GHSA-xcq7-p3pf-p88h): 요청의 `_meta.tracestate`에 공백이 길게 이어진 값을 넣으면 해석에 입력 길이의 제곱에 비례하는 시간이 걸렸습니다. 이 서버(fastmcp 3.4.2)는 도구 목록·도구 호출 요청마다 이 값을 이벤트 루프에서 해석하고, API Key 없이도 이 경로에 닿습니다. 원격 서버와 같은 기기에서 0.61.0 이미지로 잰 결과, 3만 자 값을 담은 요청 1건을 처리하는 2.4초 동안 다른 세션의 요청도 함께 멈췄습니다(0.62.0 후보: 0.008초, 지연 없음). 1.45.1은 해석 방식을 바꾸고 8,192자를 넘는 값은 버립니다.
+- **certifi 2026.7.22 → 2026.10.23**(GHSA-6q48-6c7w-9gw2): 개인키가 유출된 eMudhra 중간 CA로 이어지는 emSign 루트를 신뢰 목록에서 뺍니다(2026.7.22 대비 emSign ECC Root CA - C3·emSign ECC Root CA - G3·emSign Root CA - C1 제거, 추가 없음). 국가법령정보 OpenAPI(www.law.go.kr) 인증서 체인은 GlobalSign Root CA - R3로 이어지며, 새 목록으로 연결·66개 규정 조회가 오류 없이 되는 것을 2026-10-28 확인했습니다.
+
+### Note
+
+- `requirements.lock`의 나머지 69종은 그대로입니다. 이 파일은 원격 서버 이미지에만 쓰입니다. PyPI·uvx·플러그인으로 설치한 경우에는 `pyproject.toml` 범위(변경 없음)에 따라 각자 환경에 설치된 버전을 씁니다.
+
 ## [0.61.0] - 2026-10-27
 
 **일별 이용 현황 기록(contract 0.38.0 유지)** — 원격 서버(`--http`, 웹 커넥터용)가 KST 하루 단위로 이용자 수와 요청 수를 숫자로만 서버 로그에 남깁니다. 도구 응답·입력 스키마는 그대로입니다(**커넥터 재연결 불요**). stdio(Claude Desktop·Claude Code 로컬 실행)에서는 집계가 꺼져 있습니다. 패키지 **0.60.0 → 0.61.0**.

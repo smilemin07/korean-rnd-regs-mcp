@@ -8,6 +8,8 @@
 #       다시 통과시킨 뒤 tests/test_dockerfile_pins.py 의 기대값과 함께 갱신한다.
 # 범위: 이 파일은 NAS Docker 이미지(Dockerfile)에서만 사용된다. PyPI·uvx·플러그인 소비자의 의존성 해석은
 #       pyproject.toml 범위를 따른다(고정되지 않음). 빌드 격리 환경의 빌드 백엔드(hatchling)도 고정 범위 밖이다.
+# 갱신 이력: v0.62.0(2026-10-28) 보안 공지 2건으로 2행만 교체 — opentelemetry-api 1.44.0→1.45.1(GHSA-xcq7-p3pf-p88h),
+#       certifi 2026.7.22→2026.10.23(GHSA-6q48-6c7w-9gw2). 나머지 69종 불변. 후보 이미지 게이트 통과 뒤 반영.
 aiofile==3.12.3
 annotated-types==0.8.0
 anyio==4.14.2
@@ -16,7 +18,7 @@ Authlib==1.7.2
 beartype==0.22.9
 cachetools==5.5.2
 caio==0.12.2
-certifi==2026.7.22
+certifi==2026.10.23
 cffi==2.1.1
 charset-normalizer==3.5.1
 click==8.4.2
@@ -49,7 +51,7 @@ mcp==1.29.0
 mdurl==0.1.2
 more-itertools==11.1.0
 openapi-pydantic==0.5.1
-opentelemetry-api==1.44.0
+opentelemetry-api==1.45.1
 packaging==26.3
 pathable==0.6.0
 platformdirs==4.11.3

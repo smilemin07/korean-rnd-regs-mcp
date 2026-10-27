@@ -117,11 +117,11 @@ def test_contract_version_0_34_0():
     assert CONTRACT_VERSION == "0.38.0"
 
 
-def test_package_version_0_61_0():
-    """패키지 버전 0.61.0(일별 이용 현황 기록 — 원격 서버가 하루 이용자 수·요청 수를 숫자로 로그에 남김 ·
-    도구 응답·입력 스키마 무변 · contract 0.38.0 유지 · 재연결 불요). 배포 전 버전 일치 가드."""
+def test_package_version_0_62_0():
+    """패키지 버전 0.62.0(원격 서버 의존성 보안 패치 — requirements.lock 2행[opentelemetry-api·certifi]만 교체 ·
+    앱 코드·도구 응답·입력 스키마 무변 · contract 0.38.0 유지 · 재연결 불요). 배포 전 버전 일치 가드."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.61.0"
+    assert __version__ == "0.62.0"
 
 
 def test_cache_maxsize_96_v0240():
