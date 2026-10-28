@@ -188,7 +188,7 @@ def test_detail_carries_notice_on_law_article(tmp_path, monkeypatch):
     r = asyncio.run(get_provision_detail("law:281987:JO002703"))
     assert r["article_effective_notice"].startswith("국가법령정보 조문별 변경 이력(2026-10-25 확인)상 조회된 판본까지")
     assert r["content_format"] == "plain_text_verbatim"
-    assert r["contract_version"] == "0.38.0"
+    assert r["contract_version"] == "0.39.0"
     keys = list(r)
     assert keys.index("article_effective_notice") < keys.index("content")  # head 배치(3-tier 전건)
 

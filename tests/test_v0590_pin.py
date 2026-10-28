@@ -444,4 +444,4 @@ def test_tool_descriptions_v0590():
     assert lr == ("본 서버가 수록한 법령·행정규칙 목록입니다. 검색이 0건이거나 질문의 법령이 수록 대상인지 "
                   "불확실할 때 호출하십시오. effective_date는 등록 시점 값이며, 현행 여부는 unit 없이 "
                   "get_provision_detail로 확인하십시오.")
-    assert asyncio.run(list_rule_sets())["contract_version"] == "0.38.0"
+    assert asyncio.run(list_rule_sets())["contract_version"] == "0.39.0"

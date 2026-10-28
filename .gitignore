@@ -35,3 +35,6 @@ CLAUDE.md.*
 
 # Working materials unrelated to the package (공모전 응모서·부처 보고서 초안 등) — never publish
 competition/
+
+# 스냅샷 생성기의 임시 파일(쓰기 도중 끊긴 경우)
+*.tmp
