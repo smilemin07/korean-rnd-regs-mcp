@@ -215,6 +215,111 @@
       "package": "Authlib",
       "decision": "도달 경로 없음(fastmcp OAuth 프록시 전용, 서버 auth 미사용). 2026-10-27 23:50 KST 공개",
       "reviewed": "2026-10-28"
+    },
+    "GHSA-7vr2-2fgp-9w7p": {
+      "package": "Authlib",
+      "decision": "도달 경로 없음(fastmcp OAuth·JWT·OIDC 인증용, 서버는 auth 미설정). OAuth·JWT 인증을 켜거나 lock에서 Authlib가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "GHSA-8m4g-j4wp-wgcg": {
+      "package": "Authlib",
+      "decision": "도달 경로 없음(fastmcp OAuth·JWT·OIDC 인증용, 서버는 auth 미설정). OAuth·JWT 인증을 켜거나 lock에서 Authlib가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "GHSA-c5mf-xmp2-59rc": {
+      "package": "Authlib",
+      "decision": "도달 경로 없음(fastmcp OAuth·JWT·OIDC 인증용, 서버는 auth 미설정). OAuth·JWT 인증을 켜거나 lock에서 Authlib가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "GHSA-c73q-w75p-j82v": {
+      "package": "Authlib",
+      "decision": "도달 경로 없음(fastmcp OAuth·JWT·OIDC 인증용, 서버는 auth 미설정). OAuth·JWT 인증을 켜거나 lock에서 Authlib가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "GHSA-fch4-3c6x-j4gc": {
+      "package": "Authlib",
+      "decision": "도달 경로 없음(fastmcp OAuth·JWT·OIDC 인증용, 서버는 auth 미설정). OAuth·JWT 인증을 켜거나 lock에서 Authlib가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "GHSA-jj7h-c3hg-m23x": {
+      "package": "Authlib",
+      "decision": "도달 경로 없음(fastmcp OAuth·JWT·OIDC 인증용, 서버는 auth 미설정). OAuth·JWT 인증을 켜거나 lock에서 Authlib가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "GHSA-q686-2qmg-hqc7": {
+      "package": "Authlib",
+      "decision": "도달 경로 없음(fastmcp OAuth·JWT·OIDC 인증용, 서버는 auth 미설정). OAuth·JWT 인증을 켜거나 lock에서 Authlib가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "GHSA-x4rv-c3wx-4cr8": {
+      "package": "Authlib",
+      "decision": "도달 경로 없음(fastmcp OAuth·JWT·OIDC 인증용, 서버는 auth 미설정). OAuth·JWT 인증을 켜거나 lock에서 Authlib가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "PYSEC-2026-4354": {
+      "package": "Authlib",
+      "decision": "도달 경로 없음(fastmcp OAuth·JWT·OIDC 인증용, 서버는 auth 미설정). OAuth·JWT 인증을 켜거나 lock에서 Authlib가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "PYSEC-2026-4355": {
+      "package": "Authlib",
+      "decision": "도달 경로 없음(fastmcp OAuth·JWT·OIDC 인증용, 서버는 auth 미설정). OAuth·JWT 인증을 켜거나 lock에서 Authlib가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "PYSEC-2026-4356": {
+      "package": "Authlib",
+      "decision": "도달 경로 없음(fastmcp OAuth·JWT·OIDC 인증용, 서버는 auth 미설정). OAuth·JWT 인증을 켜거나 lock에서 Authlib가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "PYSEC-2026-4357": {
+      "package": "Authlib",
+      "decision": "도달 경로 없음(fastmcp OAuth·JWT·OIDC 인증용, 서버는 auth 미설정). OAuth·JWT 인증을 켜거나 lock에서 Authlib가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "PYSEC-2026-4358": {
+      "package": "Authlib",
+      "decision": "도달 경로 없음(fastmcp OAuth·JWT·OIDC 인증용, 서버는 auth 미설정). OAuth·JWT 인증을 켜거나 lock에서 Authlib가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "PYSEC-2026-4359": {
+      "package": "Authlib",
+      "decision": "도달 경로 없음(fastmcp OAuth·JWT·OIDC 인증용, 서버는 auth 미설정). OAuth·JWT 인증을 켜거나 lock에서 Authlib가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "PYSEC-2026-4360": {
+      "package": "Authlib",
+      "decision": "도달 경로 없음(fastmcp OAuth·JWT·OIDC 인증용, 서버는 auth 미설정). OAuth·JWT 인증을 켜거나 lock에서 Authlib가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "GHSA-9pg5-8c7x-5hfx": {
+      "package": "joserfc",
+      "decision": "도달 경로 없음(fastmcp JWT·JWE 처리용, 서버는 auth 미설정). JWT 인증을 켜거나 lock에서 joserfc가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "GHSA-jpxq-7h8p-2q76": {
+      "package": "joserfc",
+      "decision": "도달 경로 없음(fastmcp JWT·JWE 처리용, 서버는 auth 미설정). JWT 인증을 켜거나 lock에서 joserfc가 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "GHSA-45c3-73f7-pv4m": {
+      "package": "dnspython",
+      "decision": "도달 경로 없음(email-validator 경유 설치, 이메일 검증·DNS wire 파싱 미사용, DNS는 시스템 resolver). 이메일 검증을 쓰거나 lock에서 dnspython이 바뀌면 재검토",
+      "reviewed": "2026-10-31"
+    },
+    "GHSA-5h93-6whr-6q8j": {
+      "package": "mcp",
+      "decision": "도달 경로 없음(클라이언트 transport·출력 스키마 $ref 검증·bearer 토큰 인증 경로, 서버는 클라이언트·auth 미사용). 보안 강화 시리즈 C단계에서 1.30.0으로 함께 해소",
+      "reviewed": "2026-10-31"
+    },
+    "GHSA-rwrf-2pqf-9j8j": {
+      "package": "mcp",
+      "decision": "도달 경로 없음(클라이언트 transport·출력 스키마 $ref 검증·bearer 토큰 인증 경로, 서버는 클라이언트·auth 미사용). 보안 강화 시리즈 C단계에서 1.30.0으로 함께 해소",
+      "reviewed": "2026-10-31"
+    },
+    "GHSA-w4fh-qvv9-3v23": {
+      "package": "mcp",
+      "decision": "도달 경로 없음(클라이언트 transport·출력 스키마 $ref 검증·bearer 토큰 인증 경로, 서버는 클라이언트·auth 미사용). 보안 강화 시리즈 C단계에서 1.30.0으로 함께 해소",
+      "reviewed": "2026-10-31"
     }
   }
 }
