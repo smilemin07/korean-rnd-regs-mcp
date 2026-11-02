@@ -49,7 +49,9 @@ def test_contract_version_pinned():
     #          additive(§5.47·배포 전 스냅샷·런타임 네트워크 0) → minor bump.
     # 0.39.0 = 부칙 시행일 조항 동봉(v0.63.0) — 분리 시행 조문의 article_effective_notice 문장에 그 개정의
     #          부칙 시행일 조항 원문(§5.48·문면 값 변경·새 필드 0) → minor bump.
-    assert CONTRACT_VERSION == "0.39.0"
+    # 0.40.0 = 요청 증폭·과부하 차단(v0.64.0) — HTTP 새 키 확인 관문(auth_failed·rate_limited·parse_failed
+    #          진입부 envelope)과 검색어 길이 상한(invalid_query)의 새 발생 조건(§5.49·새 필드 0) → minor bump.
+    assert CONTRACT_VERSION == "0.40.0"
 
 
 # === unit_label (v0.1.8 — overflow_candidates label용) ===

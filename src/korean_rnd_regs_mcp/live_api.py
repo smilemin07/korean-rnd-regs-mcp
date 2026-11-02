@@ -514,7 +514,10 @@ class LawApiClient:
             self._failure_cache[cache_key] = err
 
     # --- 법령 검색 ---
-    def search_laws(self, query: str, page: int = 1, page_size: int = 10) -> SearchResult:
+    def search_laws(self, query: str, page: int = 1, page_size: int = 10,
+                    max_retries: int = _MAX_RETRIES) -> SearchResult:
+        # v0.64.0: max_retries는 main의 새 키 확인(1회 전송)만 바꾼다. 캐시 키에는 넣지 않는다 —
+        # 확인에 성공한 응답을 같은 규정의 resolve 검색이 그대로 재사용해야 하기 때문이다.
         self._require_key()
         cache_key = ("search_laws", query, page, page_size)
         cached = self._check_caches(cache_key, self._search_cache)
@@ -530,7 +533,7 @@ class LawApiClient:
             "page": page,
         }
         try:
-            response = _request_with_retry(url, params)
+            response = _request_with_retry(url, params, max_retries=max_retries)
             root = _parse_xml(response)
             items = []
             for elem in root.findall(".//law"):

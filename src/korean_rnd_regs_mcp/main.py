@@ -9,11 +9,12 @@ import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from collections import Counter
+from collections import Counter, OrderedDict, deque
 from collections.abc import Mapping
 from typing import Annotated
 from urllib.parse import urljoin, parse_qs
 
+from cachetools import TTLCache
 from dotenv import load_dotenv
 from fastmcp import FastMCP
 from fastmcp.server.middleware import Middleware as _FastMCPMiddleware
@@ -22,7 +23,7 @@ from pydantic import Field
 from . import __version__
 from .article_history import article_effective_notice as _article_effective_notice
 from .article_history import general_notice as _article_general_notice
-from .live_api import LawApiClient, LawApiError, ResolvedDocId
+from .live_api import AUTH_FAILED_BODY_MESSAGE, LawApiClient, LawApiError, ResolvedDocId
 from .manifest import ApiTarget, Retrieval, UnitTypes, load_manifest
 from .manual import (
     FOOTER_LAW_LINE,
@@ -243,6 +244,9 @@ class _FanoutSkipped:
     """search_provision fan-out 응답 예산 초과로 조회를 생략한 규정의 sentinel(v0.2.6)."""
 _SUGGEST_KEYWORDS_MAX = 10  # suggest_review_sources: 클라이언트(LLM) 제공 키워드 사용 상한
 _FALLBACK_KEYWORDS_MAX = 10  # suggest fallback: 규칙추출 키워드 상한 (v0.1.7: 등장순 뒤 핵심어 보존; 제목우선 랭킹이 노이즈 키워드 중화)
+_SUGGEST_KEYWORD_MAX = 100  # v0.64.0(B2): 키워드 1개 길이 상한(초과는 2자 미만처럼 버린다)
+_SUGGEST_QUESTION_SCAN_MAX = 2000  # v0.64.0(B2): fallback 키워드 추출이 보는 질문 앞부분 길이
+_SEARCH_QUERY_MAX = 200  # v0.64.0(B2): search_provision query 길이 상한(search_manual·annex_locate와 같은 값)
 _SUGGEST_CANDIDATES_MAX = 15  # suggest_review_sources: 반환 후보 개수 상한 (토큰 한도 회피)
 _SUGGEST_SNIPPET_MAX = 300   # suggest_review_sources: 반환 후보 snippet 단축 길이 (포인터 도구)
 _OVERFLOW_CANDIDATES_MAX = 30  # suggest overflow_candidates: cap 밖 조문 노출 최대 건수 (v0.1.8)
@@ -513,6 +517,16 @@ def _build_search_terms(keywords: list[str]) -> list[tuple[str, str]]:
     return pairs
 
 
+def _fallback_keywords(question: str | None) -> list[str]:
+    """(v0.64.0 B2) 질문에서 키워드 추출 — 앞 _SUGGEST_QUESTION_SCAN_MAX자만 보고 _SUGGEST_KEYWORD_MAX자 초과는 버린다.
+
+    suggest의 두 추출 경로(키워드 미제공 fallback·결과 0건 사후 보강)가 같은 상한을 쓰도록 한 곳에 둔다.
+    """
+    return [kw for kw in _extract_keywords((question or "")[:_SUGGEST_QUESTION_SCAN_MAX],
+                                           max_count=_FALLBACK_KEYWORDS_MAX)
+            if len(kw) <= _SUGGEST_KEYWORD_MAX]
+
+
 def _sanitize_keywords(keywords: list[str] | None) -> list[str]:
     """클라이언트(호스트 LLM)가 제공한 keywords를 검색용으로 정규화.
 
@@ -529,7 +543,8 @@ def _sanitize_keywords(keywords: list[str] | None) -> list[str]:
         if not isinstance(kw, str):
             continue
         kw = kw.strip()
-        if len(kw) < 2 or kw in seen:
+        # v0.64.0(B2): _SUGGEST_KEYWORD_MAX(100자) 초과도 버린다 — 2자 미만과 같은 방식(오류 아님)
+        if len(kw) < 2 or len(kw) > _SUGGEST_KEYWORD_MAX or kw in seen:
             continue
         seen.add(kw)
         cleaned.append(kw)
@@ -853,14 +868,23 @@ async def _run_offloaded(fn, *args):
     return await loop.run_in_executor(_FANOUT_EXECUTOR, ctx.run, fn, *args)
 
 
+def _register_client(key: str, client: LawApiClient) -> LawApiClient:
+    """키별 클라이언트 등록(상한 초과 시 가장 먼저 들어온 것부터 밀어냄). 이미 있으면 그대로 둔다(warm 캐시 보존)."""
+    existing = _client_by_key.get(key)
+    if existing is not None:
+        return existing
+    if len(_client_by_key) >= _CLIENT_BY_KEY_MAX:
+        oldest = next(iter(_client_by_key))
+        del _client_by_key[oldest]
+    _client_by_key[key] = client
+    return client
+
+
 def _get_client() -> LawApiClient:
     key = _request_api_key.get("")
     if key:
         if key not in _client_by_key:
-            if len(_client_by_key) >= _CLIENT_BY_KEY_MAX:
-                oldest = next(iter(_client_by_key))
-                del _client_by_key[oldest]
-            _client_by_key[key] = LawApiClient(env_override={"LAW_API_KEY": key})
+            _register_client(key, LawApiClient(env_override={"LAW_API_KEY": key}))
         return _client_by_key[key]
     global _client_instance
     if _client_instance is None:
@@ -916,6 +940,188 @@ def _http_no_key_error() -> dict | None:
             "disclaimer": _DISCLAIMER,
         }
     return None
+
+
+# v0.64.0(B1): 새 키 확인 관문. 종전에는 비어 있지 않은 ?oc= 값이면 무엇이든 받아, 틀린 키 1회 검색에
+# 법령정보센터 요청이 약 132건(66개 규정 × resolve 검색·상세) 나갔다. 키를 바꿔 가며 보내면 키별 300초 실패
+# 기억도 소용없고, 새 키마다 클라이언트가 생겨 실사용자 클라이언트(_CLIENT_BY_KEY_MAX)를 밀어냈다. 요청은
+# 모두 NAS IP 하나에서 나가므로 그 IP가 막히면 전 이용자 장애다.
+# 이제 HTTP 요청의 처음 보는 키는 법령 검색 1건(재시도 없음)으로 먼저 확인한다. 그 검색은 해당 규정의 resolve
+# 검색과 같은 호출이라(캐시 키 동일), 확인을 통과한 키의 fan-out은 그 응답을 재사용한다(추가 요청 0).
+# 상태는 이벤트 루프에서만 바꾼다(워커 스레드는 검색 1건만 한다). 키 원문은 메모리에만 두고 기록하지 않는다.
+_KEY_GATE_PROBE_RULE_ID = "innovation_act"  # 확인 검색 = 이 규정의 resolve 검색(국가연구개발혁신법)
+_KEY_GATE_KEY_MAX_LEN = 256          # 이보다 긴 oc 값은 저장하지 않고 인증 실패로 돌려보낸다
+_KEY_GATE_VERIFIED_MAX = 1000        # 확인을 통과한 키(최근 사용 순)
+_KEY_GATE_CHECKS_PER_MIN = 60        # 새 키 확인 시작 횟수 상한(최근 60초, 전역)
+_KEY_GATE_CONCURRENCY = 4            # 동시에 진행하는 확인 수 상한(넘으면 기다리지 않고 거절)
+_KEY_GATE_TRANSIENT_TTL_S = 10.0     # 확인이 일시 오류로 끝난 키를 다시 확인하지 않는 시간
+_KEY_GATE_PROBE_RETRIES = 1          # 확인 검색 전송 횟수(재시도 없음)
+_KEY_GATE_BUSY_MESSAGE = (
+    "새 API Key 확인 요청이 많아 지금은 처리하지 못했습니다. 1분쯤 뒤 다시 시도하십시오."
+)
+_KEY_GATE_TRANSIENT_MESSAGE = (
+    "국가법령정보센터 응답이 일시적으로 원활하지 않아 API Key를 확인하지 못했습니다. "
+    "잠시 후 다시 시도하십시오."
+)
+
+_verified_keys: OrderedDict = OrderedDict()
+_invalid_keys: TTLCache = TTLCache(maxsize=1000, ttl=300)
+_transient_keys: TTLCache = TTLCache(maxsize=1000, ttl=_KEY_GATE_TRANSIENT_TTL_S)
+_key_check_times: deque = deque()
+_key_check_inflight: dict = {}
+_key_probe_tasks: set = set()  # 실행 중 확인 Task의 강한 참조(참조가 없으면 실행 중 회수될 수 있다)
+_key_gate_busy_logged_at = 0.0
+_key_probe_threads = 0  # 실행 중인 확인 검색 스레드 수(동시 확인 상한의 기준)
+
+
+def _gate_envelope(code: str, message: str) -> dict:
+    """관문 거절 응답 — _http_no_key_error와 같은 모양(메시지는 정적 문구라 키가 섞이지 않는다)."""
+    return {
+        "errors": [{"code": code, "message": message}],
+        "contract_version": CONTRACT_VERSION,
+        "disclaimer": _DISCLAIMER,
+    }
+
+
+def _mark_key_verified(key: str) -> None:
+    _verified_keys[key] = None
+    _verified_keys.move_to_end(key)
+    while len(_verified_keys) > _KEY_GATE_VERIFIED_MAX:
+        _verified_keys.popitem(last=False)
+
+
+def _mark_key_invalid(key: str) -> None:
+    _verified_keys.pop(key, None)
+    # 실패 기억이 쌓인 옛 클라이언트도 뺀다 — 300초 뒤 다시 확인을 통과하면 새 클라이언트가 등록된다(Grok).
+    _client_by_key.pop(key, None)
+    _invalid_keys[key] = True
+
+
+def _key_gate_probe_rule():
+    return next((rs for rs in load_manifest()
+                 if rs.id == _KEY_GATE_PROBE_RULE_ID and rs.retrieval == Retrieval.LIVE_API), None)
+
+
+def _key_probe_thread_done() -> None:
+    global _key_probe_threads
+    _key_probe_threads = max(0, _key_probe_threads - 1)
+
+
+def _finish_key_probe(key: str, fut: asyncio.Future, outcome) -> None:
+    _key_check_inflight.pop(key, None)
+    if not fut.done():
+        fut.set_result(outcome)
+
+
+async def _run_key_probe(key: str, title: str, fut: asyncio.Future) -> None:
+    """새 키 확인 검색 1건. 결과(None=통과 또는 거절 envelope)를 fut에 담아 같은 키의 대기 요청과 공유한다.
+
+    동시 확인 수(_key_probe_threads)는 _key_gate가 올리고, 검색 스레드가 실제로 끝날 때 내린다 — 시간 초과로
+    기다림을 끊어도 스레드는 요청 시간 상한(연결 8초·읽기 12초)까지 돌 수 있기 때문이다.
+    """
+    outcome = _gate_envelope("parse_failed", _KEY_GATE_TRANSIENT_MESSAGE)
+    submitted = False
+    try:
+        client = LawApiClient(env_override={"LAW_API_KEY": key})
+        loop = asyncio.get_running_loop()
+        ctx = contextvars.copy_context()
+        cfut = _FANOUT_EXECUTOR.submit(
+            ctx.run, client.search_laws, title, 1, 5, _KEY_GATE_PROBE_RETRIES)
+        submitted = True
+
+        def _on_thread_done(_f, _loop=loop):
+            try:
+                _loop.call_soon_threadsafe(_key_probe_thread_done)
+            except RuntimeError:  # 루프가 이미 닫힘(서버 종료)
+                pass
+        cfut.add_done_callback(_on_thread_done)
+        ok = False
+        try:
+            afut = asyncio.wrap_future(cfut)
+            # 시간 초과로 버려진 뒤 스레드가 예외로 끝나도 "never retrieved" 오류 로그가 남지 않게 결과를 읽어 둔다.
+            afut.add_done_callback(lambda f: f.cancelled() or f.exception())
+            await asyncio.wait_for(asyncio.shield(afut), timeout=_FANOUT_BUDGET_S)
+            ok = True
+        except LawApiError as e:
+            if e.code == "not_found":  # 응답은 정상(검색 0건) — 키는 통했다
+                ok = True
+            elif e.code == "auth_failed":
+                _mark_key_invalid(key)
+                outcome = _gate_envelope("auth_failed", AUTH_FAILED_BODY_MESSAGE)
+            else:
+                code = "rate_limited" if e.code == "rate_limited" else "parse_failed"
+                _transient_keys[key] = code
+                outcome = _gate_envelope(code, _KEY_GATE_TRANSIENT_MESSAGE)
+        except asyncio.TimeoutError:
+            _transient_keys[key] = "parse_failed"
+        except Exception as e:  # 예외 본문은 쓰지 않는다(키·URL 누출 방지)
+            logger.warning("key_gate: probe unexpected error %s", type(e).__name__)
+            _transient_keys[key] = "parse_failed"
+        if ok:
+            _mark_key_verified(key)
+            _register_client(key, client)
+            outcome = None
+    finally:
+        if not submitted:  # 검색을 보내기 전에 끝났으면 _key_gate가 올린 수를 여기서 내린다
+            _key_probe_thread_done()
+        _finish_key_probe(key, fut, outcome)
+
+
+async def _key_gate() -> dict | None:
+    """(v0.64.0) HTTP 요청의 키를 확인한다. 통과면 None, 거절이면 오류 envelope.
+
+    stdio(env 키)와 빈 키(_http_no_key_error가 먼저 처리)는 관여하지 않는다. 확인을 통과한 키는 상한·동시
+    확인 수와 무관하게 바로 통과한다(공격 중에도 기존 이용자는 영향 없음).
+    """
+    global _key_gate_busy_logged_at, _key_probe_threads
+    if not _is_http_request.get(False):
+        return None
+    key = _request_api_key.get("")
+    if not key:
+        return None
+    if key in _verified_keys:
+        _verified_keys.move_to_end(key)
+        return None
+    if len(key) > _KEY_GATE_KEY_MAX_LEN or key in _invalid_keys:
+        return _gate_envelope("auth_failed", AUTH_FAILED_BODY_MESSAGE)
+    transient = _transient_keys.get(key)
+    if transient is not None:
+        return _gate_envelope(transient, _KEY_GATE_TRANSIENT_MESSAGE)
+    fut = _key_check_inflight.get(key)
+    if fut is None:
+        # 상한 검사를 manifest 조회보다 먼저 한다 — 거절은 이벤트 루프를 거의 쓰지 않아야 한다(Fable F1).
+        now = time.monotonic()
+        while _key_check_times and now - _key_check_times[0] >= 60.0:
+            _key_check_times.popleft()
+        if (len(_key_check_times) >= _KEY_GATE_CHECKS_PER_MIN
+                or _key_probe_threads >= _KEY_GATE_CONCURRENCY):
+            if now - _key_gate_busy_logged_at >= 60.0:
+                _key_gate_busy_logged_at = now
+                logger.warning(
+                    "key_gate: busy — new-key checks=%d/60s probes=%d (rejecting new keys)",
+                    len(_key_check_times), _key_probe_threads,
+                )
+            return _gate_envelope("rate_limited", _KEY_GATE_BUSY_MESSAGE)
+        rs = _key_gate_probe_rule()
+        if rs is None:  # 확인용 규정이 manifest에서 빠지면 관문을 열어 둔다(종전 동작)
+            logger.warning("key_gate: probe rule missing — gate disabled")
+            return None
+        _key_check_times.append(now)
+        _key_probe_threads += 1
+        fut = asyncio.get_running_loop().create_future()
+        _key_check_inflight[key] = fut
+        _task = asyncio.ensure_future(_run_key_probe(key, rs.title, fut))
+        _key_probe_tasks.add(_task)
+
+        def _on_task_done(t, _key=key, _fut=fut):
+            _key_probe_tasks.discard(t)
+            # 시작 전에 취소된 Task는 본문(finally)이 돌지 않는다 — 대기 요청이 영원히 기다리지 않게 닫는다.
+            if not _fut.done():
+                _key_probe_thread_done()
+                _finish_key_probe(_key, _fut, _gate_envelope("parse_failed", _KEY_GATE_TRANSIENT_MESSAGE))
+        _task.add_done_callback(_on_task_done)
+    # 기다리던 요청이 취소돼도 확인 작업과 다른 대기 요청에는 영향이 없다(shield).
+    return await asyncio.shield(fut)
 
 
 async def _resolve_doc_id(rs, client: LawApiClient) -> ResolvedDocId:
@@ -2286,6 +2492,23 @@ async def search_provision(query: str) -> dict:
             "contract_version": CONTRACT_VERSION,
             "disclaimer": _DISCLAIMER,
         }
+    # v0.64.0(B2): 길이 상한 — 토큰 AND 매칭이 이벤트 루프에서 66개 규정 본문을 훑으므로, 아주 긴 검색어
+    # 하나가 다른 이용자의 요청까지 멈출 수 있었다. search_manual·annex_locate와 같은 200자.
+    if len(query) > _SEARCH_QUERY_MAX:
+        return {
+            "query": query[:_SEARCH_QUERY_MAX],
+            "total": 0,
+            "results": [],
+            "errors": [{
+                "code": "invalid_query",
+                "message": f"query는 {_SEARCH_QUERY_MAX}자 이하여야 합니다. 핵심 단어로 줄여 다시 검색하십시오.",
+            }],
+            "contract_version": CONTRACT_VERSION,
+            "disclaimer": _DISCLAIMER,
+        }
+    _g = await _key_gate()  # v0.64.0(B1)
+    if _g is not None:
+        return {**_g, "results": []}
 
     # 토큰 AND 매칭 준비: 의미 토큰(2자 이상)이 2개 이상일 때만 토큰 AND.
     # 1개 이하면(단일 개념어, 또는 "별표 1"처럼 짧은 식별 토큰이 탈락한 경우) 리터럴 query로 검색.
@@ -2492,7 +2715,14 @@ async def search_provision(query: str) -> dict:
     # v0.57.0: 인증 오류를 1건으로 합쳐 맨 앞에 둔다 — 크기 예산(base_size) 계산 전이라 축약된 크기가
     # 결과 예산에 반영된다. 응답 모양·footer는 그대로(rule_set_id 없는 항목 = 무키 오류와 같은 형태).
     if _auth_failed:
+        _only_auth = not errors  # 합친 인증 오류를 넣기 전: 다른 규정별 오류(시간 초과 등)가 없는가
         errors.insert(0, _merged_auth_error(_auth_failed))
+        # v0.64.0(B1): 확인을 통과했던 키가 이후 모든 규정에서 인증 실패면(승인 취소 등) 무효로 옮긴다.
+        # 일부 규정은 받은 키(법령·행정규칙 중 한쪽만 승인)는 그대로 둔다 — 종전처럼 부분 결과를 받는다.
+        # 끝난 규정이 모두 인증 실패일 때만이다(시간 초과·다른 오류가 하나라도 있으면 그대로 둔다).
+        if (not _received and _only_auth
+                and _is_http_request.get(False) and _request_api_key.get("")):
+            _mark_key_invalid(_request_api_key.get(""))
 
     # v0.2.8: 절단 전 관련도 정렬 — 정렬키는 결정적(마지막 요소가 append 순서)이라
     # 동률 시 현행 순서를 보존한다. 정렬키는 내부 전용(응답 schema·필드 무변).
@@ -2682,7 +2912,8 @@ async def suggest_review_sources(
         used = provided
         keyword_source = "client"
     else:
-        used = _extract_keywords(question, max_count=_FALLBACK_KEYWORDS_MAX)
+        # v0.64.0(B2): 키워드 추출은 질문 앞부분만 보고, 너무 긴 키워드는 버린다(검색어 상한과 같은 취지).
+        used = _fallback_keywords(question)
         keyword_source = "fallback"
 
     if not used:
@@ -2703,6 +2934,9 @@ async def suggest_review_sources(
             "disclaimer": _DISCLAIMER,
             "contract_version": CONTRACT_VERSION,
         }, include_note=True)
+    _g = await _key_gate()  # v0.64.0(B1): 내부 search_provision 호출도 관문을 지나지만 캐시 적중이다
+    if _g is not None:
+        return _g
 
     async def _search_union(kw_list: list[str]) -> tuple[dict[str, dict], list[dict]]:
         """키워드들을 1-hop 동의어로 확장해 search_provision union (dedupe).
@@ -2745,7 +2979,7 @@ async def suggest_review_sources(
     # post-search 안전망: 클라이언트 키워드가 결과 0건 + 오류 없음이면(과협소 복합어 등)
     # 규칙 추출 키워드로 보강 — question-only 대비 recall 저하 방지. 클라이언트 검색에 오류가 있으면 보강 생략(원인 은폐 방지).
     if keyword_source == "client" and not all_matches and not all_errors:
-        fb = _extract_keywords(question, max_count=_FALLBACK_KEYWORDS_MAX)
+        fb = _fallback_keywords(question)
         if fb and set(fb) != set(used):  # 규칙 추출이 client 키워드와 같은 집합이면 재검색은 무의미
             fb_matches, fb_errors = await _search_union(fb)
             if fb_matches or fb_errors:  # 보강 결과(후보 또는 오류)가 있으면 일괄 채택 — 응답 필드 일관성 유지
@@ -2984,6 +3218,10 @@ async def get_provision_detail(provision_id: str, include_old_and_new: bool = Fa
             "contract_version": CONTRACT_VERSION,
             "disclaimer": _DISCLAIMER,
         }
+
+    _g = await _key_gate()  # v0.64.0(B1): _get_client·resolve 탐색 전에 키를 확인한다
+    if _g is not None:
+        return _g
 
     # manifest에서 매칭 rule_set 찾기 (manifest doc_id 직접 매칭)
     live_items = [r for r in load_manifest() if r.retrieval == Retrieval.LIVE_API]
