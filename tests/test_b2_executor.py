@@ -121,11 +121,11 @@ def test_contract_version_0_34_0():
     assert CONTRACT_VERSION == "0.40.0"
 
 
-def test_package_version_0_64_0():
-    """패키지 버전 0.64.0(요청 증폭·과부하 차단 — HTTP 새 키 확인 관문·검색어 길이 상한 ·
-    입력 스키마 무변 · contract 0.39.0 → 0.40.0 · 재연결 불요). 배포 전 버전 일치 가드."""
+def test_package_version_0_65_0():
+    """패키지 버전 0.65.0(원격 서버 세션 누적 해소 — requirements.lock mcp 1.29.0 → 1.30.0 1행 ·
+    앱 코드·입력 스키마 무변 · contract 0.40.0 유지 · 재연결 불요). 배포 전 버전 일치 가드."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.64.0"
+    assert __version__ == "0.65.0"
 
 
 def test_cache_maxsize_96_v0240():

@@ -18,8 +18,8 @@
     },
     "GHSA-84m7-p3x7-pcfv": {
       "package": "mcp",
-      "decision": "별도 릴리스(세션 만료 동작 변경·호스트 404 복구 실측·한도 설정 선행)",
-      "reviewed": "2026-10-27"
+      "decision": "v0.65.0에서 1.30.0으로 수정 예정(세션 30분 유휴 만료 기본 적용·동시 1만 상한, 보안 강화 시리즈 C단계)",
+      "reviewed": "2026-11-04"
     },
     "GHSA-7xgj-8392-5q4r": {
       "package": "fastmcp/fastmcp-slim",
@@ -308,18 +308,18 @@
     },
     "GHSA-5h93-6whr-6q8j": {
       "package": "mcp",
-      "decision": "도달 경로 없음(클라이언트 transport·출력 스키마 $ref 검증·bearer 토큰 인증 경로, 서버는 클라이언트·auth 미사용). 보안 강화 시리즈 C단계에서 1.30.0으로 함께 해소",
-      "reviewed": "2026-10-31"
+      "decision": "도달 경로 없음(클라이언트 transport·출력 스키마 $ref 검증·bearer 토큰 인증 경로, 서버는 클라이언트·auth 미사용). v0.65.0에서 1.30.0으로 함께 수정 예정",
+      "reviewed": "2026-11-04"
     },
     "GHSA-rwrf-2pqf-9j8j": {
       "package": "mcp",
-      "decision": "도달 경로 없음(클라이언트 transport·출력 스키마 $ref 검증·bearer 토큰 인증 경로, 서버는 클라이언트·auth 미사용). 보안 강화 시리즈 C단계에서 1.30.0으로 함께 해소",
-      "reviewed": "2026-10-31"
+      "decision": "도달 경로 없음(클라이언트 transport·출력 스키마 $ref 검증·bearer 토큰 인증 경로, 서버는 클라이언트·auth 미사용). v0.65.0에서 1.30.0으로 함께 수정 예정",
+      "reviewed": "2026-11-04"
     },
     "GHSA-w4fh-qvv9-3v23": {
       "package": "mcp",
-      "decision": "도달 경로 없음(클라이언트 transport·출력 스키마 $ref 검증·bearer 토큰 인증 경로, 서버는 클라이언트·auth 미사용). 보안 강화 시리즈 C단계에서 1.30.0으로 함께 해소",
-      "reviewed": "2026-10-31"
+      "decision": "도달 경로 없음(클라이언트 transport·출력 스키마 $ref 검증·bearer 토큰 인증 경로, 서버는 클라이언트·auth 미사용). v0.65.0에서 1.30.0으로 함께 수정 예정",
+      "reviewed": "2026-11-04"
     }
   }
 }
