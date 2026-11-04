@@ -3,7 +3,7 @@
 본 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 1.1.0 형식을 따릅니다.
 버전 번호는 [Semantic Versioning](https://semver.org/lang/ko/) 2.0.0을 따르되, 0.x.x 대역은 unstable signal이며 minor bump도 breaking change 허용입니다.
 
-## [0.65.0] - 2026-11-04
+## [0.65.0] - 2026-11-05
 
 **원격 서버 세션 누적 해소(contract 0.40.0 유지)** — 원격 서버(웹 커넥터용 Docker 이미지)의 고정 의존성 mcp를 보안 공지에 따라 올립니다. 앱 코드·도구 응답·입력 스키마는 그대로입니다(**커넥터 재연결 불요**). 패키지 **0.64.0 → 0.65.0**.
 
