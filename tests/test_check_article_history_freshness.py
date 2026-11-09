@@ -336,3 +336,81 @@ def test_non_digit_effective_date_is_failure(tmp_path, monkeypatch, capsys):
     snap = _setup(tmp_path, monkeypatch, _Client({"A법": ("100", "-"), "B법": ("200", "20260202")}), notified)
     assert chk.main(["--notify", "--snapshot", str(snap)]) == 2
     assert "조회 실패: a_act (no_effective_date, 100)" in capsys.readouterr().out
+
+
+
+@pytest.mark.parametrize("raw", [b"\xff\xfe junk", b"[" * 200000])
+def test_unreadable_state_is_corrupt_and_alerted(tmp_path, monkeypatch, raw):
+    notified = []
+    snap = _setup(tmp_path, monkeypatch, _Client(), notified)
+    (tmp_path / "state.json").write_bytes(raw)
+    assert chk.load_state(tmp_path / "state.json") == ({}, True)
+    assert chk.main(["--notify", "--snapshot", str(snap)]) == 2
+    assert notified == ["설정 오류 1건. 로그를 확인하십시오."]
+    assert json.loads((tmp_path / "state.json").read_text(encoding="utf-8"))["trouble_alerted_on"] == "2026-11-10"
+
+
+def test_lone_surrogate_and_unknown_keys_do_not_break_state_write(tmp_path, monkeypatch):
+    notified = []
+    snap = _setup(tmp_path, monkeypatch, _Client({"A법": ("101", "20261001"), "B법": ("200", "20260202")}), notified)
+    (tmp_path / "state.json").write_text('{"alert_sig": "\\ud800", "junk": ' + "[" * 900 + "]" * 900 + "}", encoding="utf-8")
+    assert chk.main(["--notify", "--snapshot", str(snap)]) == 1
+    st = json.loads((tmp_path / "state.json").read_text(encoding="utf-8"))
+    assert "junk" not in st and notified == ["판본 변경 1건. 로그를 확인하십시오."]
+
+
+def _fail_state_write(monkeypatch):
+    real = chk.write_atomic
+
+    def fake(path, text):
+        if path == chk.STATE_PATH:
+            raise OSError("disk full")
+        return real(path, text)
+    monkeypatch.setattr(chk, "write_atomic", fake)
+
+
+def test_state_write_failure_after_trouble_alert_sends_one_alert(tmp_path, monkeypatch):
+    notified = []
+    snap = _setup(tmp_path, monkeypatch, _Client(raise_for={"B법"}), notified)
+    (tmp_path / "state.json").write_text(json.dumps({"fail_streak": 1}), encoding="utf-8")
+    _fail_state_write(monkeypatch)
+    assert chk.main(["--notify", "--snapshot", str(snap)]) == 2
+    assert notified == ["조회 실패 1건. 로그를 확인하십시오."]
+
+
+def test_state_write_failure_after_change_plus_first_failure_sends_one_alert(tmp_path, monkeypatch):
+    notified = []
+    c = _Client({"A법": ("101", "20261001"), "B법": ("200", "20260202")}, raise_for={"B법"})
+    snap = _setup(tmp_path, monkeypatch, c, notified)
+    _fail_state_write(monkeypatch)
+    assert chk.main(["--notify", "--snapshot", str(snap)]) == 2
+    assert notified == ["판본 변경 1건 · 조회 실패 1건. 로그를 확인하십시오."]
+
+
+def test_state_write_failure_after_change_only_alert_is_still_reported(tmp_path, monkeypatch):
+    notified = []
+    snap = _setup(tmp_path, monkeypatch, _Client({"A법": ("101", "20261001"), "B법": ("200", "20260202")}), notified)
+    _fail_state_write(monkeypatch)
+    assert chk.main(["--notify", "--snapshot", str(snap)]) == 2
+    assert notified == ["판본 변경 1건. 로그를 확인하십시오.", "상태 파일을 쓰지 못했습니다. 로그를 확인하십시오."]
+
+
+def test_alert_still_sent_when_trouble_path_itself_fails(tmp_path, monkeypatch):
+    notified = []
+    snap = _setup(tmp_path, monkeypatch, _Client(), notified)
+
+    def boom(*a, **k):
+        raise RuntimeError("x")
+    monkeypatch.setattr(chk, "compare", boom)
+    monkeypatch.setattr(chk, "notify_trouble", boom)
+    assert chk.main(["--notify", "--snapshot", str(snap)]) == 2
+    assert notified == ["확인 중 오류가 났습니다. 로그를 확인하십시오."]
+
+
+
+def test_notify_trouble_does_not_overwrite_unreadable_state(tmp_path, monkeypatch):
+    notified = []
+    _setup(tmp_path, monkeypatch, _Client(), notified)
+    (tmp_path / "state.json").write_bytes(b"\xff\xfe junk")
+    chk.notify_trouble("x", "2026-11-10")
+    assert notified == ["x"] and (tmp_path / "state.json").read_bytes() == b"\xff\xfe junk"

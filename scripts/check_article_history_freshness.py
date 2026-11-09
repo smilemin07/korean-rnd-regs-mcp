@@ -48,7 +48,8 @@ ROOT = Path(__file__).resolve().parents[1]
 STATE_DIR = Path.home() / "Library" / "Application Support" / "korean-rnd-regs-mcp"
 BASELINE_PATH = STATE_DIR / "deployed_article_history.json"
 STATE_PATH = STATE_DIR / "snapshot-check-state.json"
-DONE_MARK_PATH = STATE_DIR / "snapshot-check-done-date"  # 래퍼가 쓰는 "오늘 확인 완료" 표시
+DONE_MARK_PATH = STATE_DIR / "snapshot-check-done-date"  # 래퍼가 읽는 "오늘 확인 완료" 표시(이 스크립트가 씀)
+STATE_KEYS = ("fail_streak", "alert_sig", "alerted_on", "trouble_alerted_on", "last_run", "last_success")
 SNAPSHOT_REL = "src/korean_rnd_regs_mcp/article_history.json"
 GIT = "/usr/bin/git"  # launchd PATH가 짧아 절대경로
 DEADLINE_S = 240.0  # 래퍼 상한(420초)보다 법령 1건 최악(약 41초)·알림(15초)·기동 시간만큼 여유를 둔다
@@ -118,24 +119,24 @@ def decide(changed: list, failed: list, state: dict, today: date) -> tuple[bool,
 
 
 def load_state(path: Path) -> tuple[dict, bool]:
-    """(상태, 손상 여부). 파일이 없으면 빈 상태, 손상(JSON·필드 형식 이상)이면 빈 상태 + True."""
+    """(상태, 손상 여부). 예외를 던지지 않는다 — 알림 경로(main의 except)도 이 함수를 부르기 때문이다.
+    파일이 없으면 빈 상태, 읽기·해석 실패(UTF-8 아님·깊은 중첩 등)나 필드 형식 이상이면 빈 상태 + True.
+    알려진 키만 남겨 돌려준다(모르는 키의 값이 다시 쓸 때 오류를 내지 않게)."""
     try:
-        raw = path.read_text(encoding="utf-8")
+        data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return {}, False
-    except OSError:
-        return {}, True
-    try:
-        data = json.loads(raw)
-    except ValueError:
+    except Exception:  # noqa: BLE001 — OSError·UnicodeDecodeError·JSONDecodeError·RecursionError 등
         return {}, True
     if not isinstance(data, dict):
         return {}, True
+    data = {k: v for k, v in data.items() if k in STATE_KEYS}
     streak = data.get("fail_streak", 0)
     if (streak is not None and (isinstance(streak, bool) or not isinstance(streak, int) or streak < 0)) \
             or not isinstance(data.get("alert_sig", ""), (str, type(None))) \
             or not isinstance(data.get("alerted_on"), (str, type(None))) \
-            or not isinstance(data.get("trouble_alerted_on"), (str, type(None))):
+            or not isinstance(data.get("trouble_alerted_on"), (str, type(None))) \
+            or not all(isinstance(data.get(k), (str, type(None))) for k in ("last_run", "last_success")):
         return {}, True  # 형식이 틀린 값이 남아 매일 같은 예외가 반복되지 않게 빈 상태로 다시 쓴다
     return data, False
 
@@ -246,18 +247,18 @@ def print_header(now: datetime) -> None:
 def notify_trouble(message: str, today: str) -> None:
     """정상 비교 밖의 오류 알림(키 없음·기준 파일·상태 파일 쓰기·예외) — 하루 1회(상태 trouble_alerted_on).
     04:00·08:40·로그인 때 같은 오류가 반복돼도 알림은 하루 1건이다."""
-    state, _ = load_state(STATE_PATH)
+    state, corrupt = load_state(STATE_PATH)
     if state.get("trouble_alerted_on") == today:
         print("알림: 오늘 이미 보냄")
         return
     ok = notify(TITLE, message)
     print(f"알림: {'보냄' if ok else '실패'}")
-    if ok:
+    if ok and not corrupt:  # 읽지 못한 상태 파일을 빈 상태로 덮어쓰지 않는다(일시적 읽기 오류로 이력을 잃지 않게)
         state["trouble_alerted_on"] = today
         try:
-            write_atomic(STATE_PATH, json.dumps(state, ensure_ascii=False, indent=1))
-        except OSError:
-            pass
+            write_atomic(STATE_PATH, json.dumps(state, indent=1))
+        except Exception as e:  # noqa: BLE001 — 기록 실패가 알림 경로를 깨지 않게(다음 실행이 다시 알릴 수 있음)
+            print(f"상태 파일 쓰기 실패: {type(e).__name__}")
 
 
 def run(args) -> int:
@@ -311,6 +312,7 @@ def run(args) -> int:
     notify_change, notify_fail, new_state = decide(changed, failed, state, now.date())
     trouble = bool(notify_fail or config_errors)
     alert_ok = True  # 알림이 필요 없었거나 보냈음
+    trouble_sent = False  # 이번 실행이 조회 실패·설정 오류를 담은 알림을 실제로 보냈는가
     if args.notify and (notify_change or trouble):
         if not notify_change and state.get("trouble_alerted_on") == today:
             print("알림: 오늘 이미 보냄")  # 조회 실패·설정 오류 알림은 하루 1회
@@ -324,6 +326,7 @@ def run(args) -> int:
                 parts.append(f"설정 오류 {len(config_errors)}건")
             alert_ok = notify(TITLE, " · ".join(parts) + ". 로그를 확인하십시오.")
             print(f"알림: {'보냄' if alert_ok else '실패'}")
+            trouble_sent = alert_ok and bool(failed or config_errors)
             if alert_ok and changed:
                 new_state["alert_sig"] = json.dumps(changed, ensure_ascii=False)
                 new_state["alerted_on"] = today
@@ -333,10 +336,10 @@ def run(args) -> int:
     if not failed and not config_errors:
         new_state["last_success"] = new_state["last_run"]
     try:
-        write_atomic(STATE_PATH, json.dumps(new_state, ensure_ascii=False, indent=1))
-    except OSError as e:
+        write_atomic(STATE_PATH, json.dumps(new_state, indent=1))
+    except Exception as e:  # noqa: BLE001 — OSError뿐 아니라 인코딩 오류도 여기서 처리(main까지 가지 않게)
         print(f"상태 파일 쓰기 실패: {type(e).__name__}")
-        if args.notify:
+        if args.notify and not trouble_sent:  # 같은 실행에서 오류 알림을 이미 보냈으면 두 번째 알림을 내지 않는다
             notify_trouble("상태 파일을 쓰지 못했습니다. 로그를 확인하십시오.", today)
         return 2
     if failed or config_errors:
@@ -380,7 +383,11 @@ def main(argv=None) -> int:
             print_header(now)  # 예외로 끝나도 "실행됨"으로 판정되게(래퍼 재시도·알림 중복 방지)
         print(f"오류: {type(e).__name__}")
         if args.notify:
-            notify_trouble("확인 중 오류가 났습니다. 로그를 확인하십시오.", now.date().isoformat())
+            msg = "확인 중 오류가 났습니다. 로그를 확인하십시오."
+            try:
+                notify_trouble(msg, now.date().isoformat())
+            except Exception:  # noqa: BLE001 — 마지막 방어: 알림 경로 오류로 조용히 끝나지 않게 직접 보낸다
+                print(f"알림: {'보냄' if notify(TITLE, msg) else '실패'}")
         return 2
 
 
