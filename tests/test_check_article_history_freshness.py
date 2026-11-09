@@ -1,7 +1,7 @@
 """스냅샷 신선도 매일 확인 도구 — 비교·알림 규칙·키 마스킹·종료 코드(네트워크 0, 알림·git은 mock)."""
 import json
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -93,7 +93,9 @@ def _setup(tmp_path, monkeypatch, client, notified):
     snap = tmp_path / "base.json"
     snap.write_text(json.dumps(_SNAP), encoding="utf-8")
     monkeypatch.setattr(chk, "STATE_PATH", tmp_path / "state.json")
-    monkeypatch.setattr(chk, "RETRY_WAIT_S", 0.0)
+    monkeypatch.setattr(chk, "code_info", lambda: "test 0000000")
+    monkeypatch.setattr(chk, "DONE_MARK_PATH", tmp_path / "done")       # 실제 상태 폴더에 쓰지 않게
+    monkeypatch.setattr(chk, "now_kst", lambda: datetime(2026, 11, 10, 4, 0, tzinfo=chk.KST))
     monkeypatch.setattr(la, "LawApiClient", lambda: client)
     rs = [SimpleNamespace(id="a_act", title="A법", api_doc_id="1", ministry="x", api_target=SimpleNamespace(value="law")),
           SimpleNamespace(id="b_act", title="B법", api_doc_id="2", ministry="x", api_target=SimpleNamespace(value="law"))]
@@ -130,13 +132,14 @@ def test_main_failed_notify_is_retried_next_run(tmp_path, monkeypatch):
     assert notified == ["판본 변경 1건. 로그를 확인하십시오."]  # 알림 실패는 기록하지 않아 다음 실행에 다시 알림
 
 
-def test_main_failure_exit_2_with_retry_and_no_key_in_output(tmp_path, monkeypatch, capsys):
+def test_main_failure_exit_2_no_retry_and_no_key_in_output(tmp_path, monkeypatch, capsys):
     notified = []
     _Client.calls = 0
     snap = _setup(tmp_path, monkeypatch, _Client(raise_for={"B법"}), notified)
     assert chk.main(["--notify", "--snapshot", str(snap)]) == 2
-    assert _Client.calls == 3  # A 1회 + B 2회(재시도)
+    assert _Client.calls == 2  # 법령마다 1회(재시도는 실패 캐시 때문에 무의미해 삭제)
     assert notified == []      # 실패 1회째는 알리지 않음
+    assert "조회 실패: b_act (RuntimeError)" in capsys.readouterr().out
     assert chk.main(["--notify", "--snapshot", str(snap)]) == 2
     assert notified == ["조회 실패 1건. 로그를 확인하십시오."]
     out = capsys.readouterr()
@@ -187,6 +190,149 @@ def test_record_deployed_rejects_option_like_ref():
 
 def test_record_deployed_writes_baseline(tmp_path, monkeypatch):
     monkeypatch.setattr(chk, "BASELINE_PATH", tmp_path / "base.json")
+    monkeypatch.setattr(chk, "DONE_MARK_PATH", tmp_path / "done")  # 실제 완료 표시를 지우지 않게
     assert chk.record_deployed("HEAD") == 0
     gen, laws = chk.parse_snapshot((tmp_path / "base.json").read_text(encoding="utf-8"))
     assert len(laws) >= 30
+
+
+class _FailClient(_Client):
+    """실제 resolver처럼 예외 대신 resolve_failed 결과를 돌려준다(사유 코드 포함)."""
+
+    def __init__(self, codes):
+        super().__init__()
+        self.codes = codes
+
+    def resolve_latest_doc_id(self, title, target, doc_id, ministry):
+        if title in self.codes:
+            _Client.calls += 1
+            return _Res(doc_id=doc_id, effective_date="", resolve_failed=True, resolve_error_code=self.codes[title])
+        return super().resolve_latest_doc_id(title, target, doc_id, ministry)
+
+
+def test_resolve_failed_called_once_and_reason_printed(tmp_path, monkeypatch, capsys):
+    notified = []
+    _Client.calls = 0
+    snap = _setup(tmp_path, monkeypatch, _FailClient({"B법": "zero_rows"}), notified)
+    assert chk.main(["--notify", "--snapshot", str(snap)]) == 2
+    assert _Client.calls == 2
+    assert "조회 실패: b_act (zero_rows)" in capsys.readouterr().out
+
+
+def test_auth_failed_is_config_error_alerted_immediately(tmp_path, monkeypatch):
+    notified = []
+    snap = _setup(tmp_path, monkeypatch, _FailClient({"A법": "auth_failed", "B법": "auth_failed"}), notified)
+    assert chk.main(["--notify", "--snapshot", str(snap)]) == 2
+    assert notified == ["조회 실패 2건 · 설정 오류 1건. 로그를 확인하십시오."]
+
+
+def test_empty_effective_date_is_failure_not_change(tmp_path, monkeypatch, capsys):
+    notified = []
+    c = _Client({"A법": ("999", ""), "B법": ("200", "20260202")})  # 일치 행이 모두 미래 → manifest ID·빈 시행일
+    snap = _setup(tmp_path, monkeypatch, c, notified)
+    assert chk.main(["--notify", "--snapshot", str(snap)]) == 2
+    out = capsys.readouterr().out
+    assert "판본 변경" not in out and "조회 실패: a_act (no_effective_date, 999)" in out
+
+
+def test_decide_keeps_alert_history_when_lookup_failed():
+    ch = [("a_act", "100", "20260101", "101", "20261001")]
+    st = {"alert_sig": json.dumps(ch, ensure_ascii=False), "alerted_on": "2026-11-01"}
+    _, _, new = chk.decide([], ["a_act"], st, date(2026, 11, 2))
+    assert new["alert_sig"] == st["alert_sig"] and new["alerted_on"] == "2026-11-01"
+    assert chk.decide(ch, [], new, date(2026, 11, 3))[0] is False  # 회복 뒤 같은 변경을 다시 알리지 않음
+
+
+@pytest.mark.parametrize("bad", ['{"fail_streak": "x"}', '{"fail_streak": true}', '{"fail_streak": -1}',
+                                 '{"alert_sig": 3}', '{"alerted_on": 5}'])
+def test_load_state_rejects_bad_field_types(tmp_path, bad):
+    p = tmp_path / "s.json"
+    p.write_text(bad, encoding="utf-8")
+    assert chk.load_state(p) == ({}, True)
+
+
+def test_header_printed_when_import_fails(tmp_path, monkeypatch, capsys):
+    notified = []
+    snap = _setup(tmp_path, monkeypatch, _Client(), notified)
+    monkeypatch.setitem(sys.modules, "dotenv", None)  # import 실패 흉내
+    assert chk.main(["--notify", "--snapshot", str(snap)]) == 2
+    out = capsys.readouterr().out
+    assert "스냅샷 신선도 확인" in out and "오류: ModuleNotFoundError" in out and len(notified) == 1
+
+
+def test_record_deployed_clears_done_mark(tmp_path, monkeypatch):
+    monkeypatch.setattr(chk, "BASELINE_PATH", tmp_path / "base.json")
+    mark = tmp_path / "done"
+    mark.write_text("2026-11-10\n", encoding="utf-8")
+    monkeypatch.setattr(chk, "DONE_MARK_PATH", mark)
+    assert chk.record_deployed("HEAD") == 0 and not mark.exists()
+
+
+def test_trouble_alert_once_per_day(tmp_path, monkeypatch):
+    notified = []
+    snap = _setup(tmp_path, monkeypatch, _Client(raise_for={"B법"}), notified)
+    for _ in range(3):                                   # 같은 날 04:00·08:40·로그인
+        assert chk.main(["--notify", "--snapshot", str(snap)]) == 2
+    assert notified == ["조회 실패 1건. 로그를 확인하십시오."]   # 2회째에 1건, 3회째는 억제
+    monkeypatch.setattr(chk, "now_kst", lambda: datetime(2026, 11, 11, 4, 0, tzinfo=chk.KST))
+    chk.main(["--notify", "--snapshot", str(snap)])
+    assert len(notified) == 2                            # 다음 날 다시 1건
+
+
+def test_early_exit_trouble_alert_once_per_day(tmp_path, monkeypatch):
+    notified = []
+    _setup(tmp_path, monkeypatch, _Client(), notified)
+    for _ in range(3):
+        assert chk.main(["--notify", "--snapshot", str(tmp_path / "nope.json")]) == 2
+    assert len(notified) == 1
+
+
+def test_done_mark_written_only_on_full_success_after_4am(tmp_path, monkeypatch, capsys):
+    notified = []
+    snap = _setup(tmp_path, monkeypatch, _Client(), notified)
+    mark = tmp_path / "done"
+    assert chk.main(["--snapshot", str(snap)]) == 0 and not mark.exists()          # --notify 없음(수동) → 안 씀
+    assert chk.main(["--notify", "--snapshot", str(snap)]) == 0
+    assert mark.read_text(encoding="utf-8") == "2026-11-10\n"
+    mark.unlink()
+    monkeypatch.setattr(chk, "now_kst", lambda: datetime(2026, 11, 10, 1, 30, tzinfo=chk.KST))
+    assert chk.main(["--notify", "--snapshot", str(snap)]) == 0 and not mark.exists()  # 04:00 전
+
+
+def test_done_mark_not_written_on_failure_or_failed_alert(tmp_path, monkeypatch):
+    notified = []
+    c = _Client({"A법": ("101", "20261001"), "B법": ("200", "20260202")})
+    snap = _setup(tmp_path, monkeypatch, c, notified)
+    monkeypatch.setattr(chk, "notify", lambda t, m: False)
+    assert chk.main(["--notify", "--snapshot", str(snap)]) == 1 and not (tmp_path / "done").exists()
+    monkeypatch.setattr(chk, "notify", lambda t, m: True)
+    assert chk.main(["--notify", "--snapshot", str(snap)]) == 1 and (tmp_path / "done").exists()
+    (tmp_path / "done").unlink()
+    snap2 = _setup(tmp_path, monkeypatch, _Client(raise_for={"B법"}), notified)
+    assert chk.main(["--notify", "--snapshot", str(snap2)]) == 2 and not (tmp_path / "done").exists()
+
+
+def test_done_mark_not_written_when_baseline_replaced_mid_run(tmp_path, monkeypatch, capsys):
+    notified = []
+    snap = _setup(tmp_path, monkeypatch, _Client(), notified)
+    real_fetch = chk.fetch_current
+
+    def fetch_and_redeploy(*a, **k):
+        snap.write_text(snap.read_text(encoding="utf-8") + " ", encoding="utf-8")  # --record-deployed가 겹침
+        return real_fetch(*a, **k)
+    monkeypatch.setattr(chk, "fetch_current", fetch_and_redeploy)
+    assert chk.main(["--notify", "--snapshot", str(snap)]) == 0
+    assert not (tmp_path / "done").exists() and "기준 파일이 바뀌어" in capsys.readouterr().out
+
+
+def test_decide_future_alerted_on_does_not_suppress_forever():
+    ch = [("a_act", "100", "20260101", "101", "20261001")]
+    st = {"alert_sig": json.dumps(ch, ensure_ascii=False), "alerted_on": "2099-01-01"}
+    assert chk.decide(ch, [], st, date(2026, 11, 2))[0] is True
+
+
+def test_non_digit_effective_date_is_failure(tmp_path, monkeypatch, capsys):
+    notified = []
+    snap = _setup(tmp_path, monkeypatch, _Client({"A법": ("100", "-"), "B법": ("200", "20260202")}), notified)
+    assert chk.main(["--notify", "--snapshot", str(snap)]) == 2
+    assert "조회 실패: a_act (no_effective_date, 100)" in capsys.readouterr().out
