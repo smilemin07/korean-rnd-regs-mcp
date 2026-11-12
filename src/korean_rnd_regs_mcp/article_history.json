@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-28 23:48 KST",
+ "generated_at": "2026-11-12 14:28 KST",
  "laws": {
   "corp_lab_act": {
    "articles": {
@@ -1078,6 +1078,42 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "4",
+         "신설"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2015-12-22",
+       "promulgation_no": "13577",
+       "version_effective_date": "2016-03-23"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2013-03-23",
+       "promulgation_no": "11690",
+       "version_effective_date": "2013-03-23"
+      }
+     ],
      "promulgation_date": "2015-12-22",
      "promulgation_no": "13577",
      "version_effective_date": "2016-03-23"
@@ -1089,6 +1125,52 @@
      "promulgation_date": "2013-03-23",
      "promulgation_no": "11690",
      "version_effective_date": "2013-03-23"
+    },
+    "JO0015": {
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "신설"
+        ],
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2020-12-22",
+       "promulgation_no": "17669",
+       "version_effective_date": "2021-06-23"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2021-03-23",
+       "promulgation_no": "17954",
+       "staged_dates": [
+        "2021-03-23",
+        "2021-06-23"
+       ],
+       "version_effective_date": "2021-03-23"
+      }
+     ]
     },
     "JO0016": {
      "amendment_kind": "타법개정",
@@ -1118,6 +1200,47 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2020-12-22",
+       "promulgation_no": "17669",
+       "version_effective_date": "2021-06-23"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2013-03-23",
+       "promulgation_no": "11690",
+       "version_effective_date": "2013-03-23"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "4",
+         "신설"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2016-05-29",
+       "promulgation_no": "14163",
+       "version_effective_date": "2016-11-30"
+      }
+     ],
      "promulgation_date": "2020-12-22",
      "promulgation_no": "17669",
      "version_effective_date": "2021-06-23"
@@ -1126,6 +1249,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2020-12-22",
+       "promulgation_no": "17669",
+       "version_effective_date": "2021-06-23"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2013-03-23",
+       "promulgation_no": "11690",
+       "version_effective_date": "2013-03-23"
+      }
+     ],
      "promulgation_date": "2020-12-22",
      "promulgation_no": "17669",
      "version_effective_date": "2021-06-23"
@@ -1158,6 +1309,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2016-02-03",
+       "promulgation_no": "13949",
+       "version_effective_date": "2016-08-04"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2013-03-23",
+       "promulgation_no": "11690",
+       "version_effective_date": "2013-03-23"
+      }
+     ],
      "promulgation_date": "2016-02-03",
      "promulgation_no": "13949",
      "version_effective_date": "2016-08-04"
@@ -1309,6 +1488,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "3",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2022-11-08",
+       "promulgation_no": "32979",
+       "version_effective_date": "2022-11-08"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2013-03-23",
+       "promulgation_no": "24423",
+       "version_effective_date": "2013-03-23"
+      }
+     ],
      "promulgation_date": "2022-11-08",
      "promulgation_no": "32979",
      "version_effective_date": "2022-11-08"
@@ -1365,6 +1576,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2016-08-02",
+       "promulgation_no": "27417",
+       "version_effective_date": "2016-08-04"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2013-03-23",
+       "promulgation_no": "24423",
+       "version_effective_date": "2013-03-23"
+      }
+     ],
      "promulgation_date": "2016-08-02",
      "promulgation_no": "27417",
      "version_effective_date": "2016-08-04"
@@ -1511,6 +1750,63 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "5",
+         "신설"
+        ],
+        [
+         "6",
+         "신설"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2013-07-30",
+       "promulgation_no": "11975",
+       "staged_dates": [
+        "2013-07-30",
+        "2014-01-31"
+       ],
+       "version_effective_date": "2013-07-30"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-11-11",
+       "promulgation_no": "21106",
+       "version_effective_date": "2026-02-12"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2018-01-16",
+       "promulgation_no": "15344",
+       "version_effective_date": "2018-04-17"
+      }
+     ],
      "promulgation_date": "2025-11-11",
      "promulgation_no": "21106",
      "version_effective_date": "2026-02-12"
@@ -1519,6 +1815,46 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2013-07-30",
+       "promulgation_no": "11975",
+       "staged_dates": [
+        "2013-07-30",
+        "2014-01-31"
+       ],
+       "version_effective_date": "2013-07-30"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2010-01-18",
+       "promulgation_no": "09932",
+       "version_effective_date": "2010-03-19"
+      }
+     ],
      "promulgation_date": "2013-07-30",
      "promulgation_no": "11975",
      "staged_dates": [
@@ -1531,6 +1867,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2013-07-30",
+       "promulgation_no": "11975",
+       "staged_dates": [
+        "2013-07-30",
+        "2014-01-31"
+       ],
+       "version_effective_date": "2013-07-30"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2024-01-16",
+       "promulgation_no": "20034",
+       "version_effective_date": "2024-07-17"
+      }
+     ],
      "promulgation_date": "2024-01-16",
      "promulgation_no": "20034",
      "version_effective_date": "2024-07-17"
@@ -1575,6 +1943,50 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2010-01-18",
+       "promulgation_no": "09932",
+       "version_effective_date": "2010-03-19"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "7",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2013-07-30",
+       "promulgation_no": "11975",
+       "staged_dates": [
+        "2013-07-30",
+        "2014-01-31"
+       ],
+       "version_effective_date": "2013-07-30"
+      }
+     ],
      "promulgation_date": "2013-07-30",
      "promulgation_no": "11975",
      "staged_dates": [
@@ -1619,6 +2031,34 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "version_effective_date": "2026-01-02"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2010-01-18",
+       "promulgation_no": "09932",
+       "version_effective_date": "2010-03-19"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "21065",
      "version_effective_date": "2026-01-02"
@@ -1635,6 +2075,55 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2010-01-18",
+       "promulgation_no": "09932",
+       "version_effective_date": "2010-03-19"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "version_effective_date": "2026-01-02"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "신설"
+        ],
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2011-08-04",
+       "promulgation_no": "10996",
+       "staged_dates": [
+        "2011-08-04",
+        "2012-02-05"
+       ],
+       "version_effective_date": "2011-08-04"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "21065",
      "version_effective_date": "2026-01-02"
@@ -1702,6 +2191,23 @@
       "2014-01-31"
      ],
      "version_effective_date": "2013-07-30"
+    },
+    "JO0020": {
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2010-01-18",
+       "promulgation_no": "09932",
+       "version_effective_date": "2010-03-19"
+      }
+     ]
     },
     "JO0021": {
      "amendment_kind": "일부개정",
@@ -1950,6 +2456,34 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-01-27",
+       "promulgation_no": "36055",
+       "version_effective_date": "2026-02-01"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2010-03-15",
+       "promulgation_no": "22075",
+       "version_effective_date": "2010-03-19"
+      }
+     ],
      "promulgation_date": "2026-01-27",
      "promulgation_no": "36055",
      "version_effective_date": "2026-02-01"
@@ -1958,6 +2492,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2010-03-15",
+       "promulgation_no": "22075",
+       "version_effective_date": "2010-03-19"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2021-08-03",
+       "promulgation_no": "31926",
+       "version_effective_date": "2021-08-03"
+      }
+     ],
      "promulgation_date": "2021-08-03",
      "promulgation_no": "31926",
      "version_effective_date": "2021-08-03"
@@ -1974,6 +2536,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "3",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2021-08-03",
+       "promulgation_no": "31926",
+       "version_effective_date": "2021-08-03"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2010-03-15",
+       "promulgation_no": "22075",
+       "version_effective_date": "2010-03-19"
+      }
+     ],
      "promulgation_date": "2021-08-03",
      "promulgation_no": "31926",
      "version_effective_date": "2021-08-03"
@@ -2014,6 +2608,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2010-05-18",
+       "promulgation_no": "22163",
+       "version_effective_date": "2010-05-18"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2021-08-03",
+       "promulgation_no": "31926",
+       "version_effective_date": "2021-08-03"
+      }
+     ],
      "promulgation_date": "2021-08-03",
      "promulgation_no": "31926",
      "version_effective_date": "2021-08-03"
@@ -2054,6 +2680,47 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2021-08-03",
+       "promulgation_no": "31926",
+       "version_effective_date": "2021-08-03"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2010-05-18",
+       "promulgation_no": "22163",
+       "version_effective_date": "2010-05-18"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "4",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2016-05-10",
+       "promulgation_no": "27129",
+       "version_effective_date": "2016-05-10"
+      }
+     ],
      "promulgation_date": "2021-08-03",
      "promulgation_no": "31926",
      "version_effective_date": "2021-08-03"
@@ -2070,6 +2737,76 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2019-07-02",
+       "promulgation_no": "29950",
+       "version_effective_date": "2019-07-02"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2011-05-03",
+       "promulgation_no": "22914",
+       "version_effective_date": "2011-05-03"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ],
+        [
+         "7",
+         "개정"
+        ],
+        [
+         "8",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2010-03-15",
+       "promulgation_no": "22075",
+       "version_effective_date": "2010-03-19"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "6",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2018-02-13",
+       "promulgation_no": "28654",
+       "version_effective_date": "2018-02-13"
+      }
+     ],
      "promulgation_date": "2019-07-02",
      "promulgation_no": "29950",
      "version_effective_date": "2019-07-02"
@@ -2086,6 +2823,51 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2021-08-03",
+       "promulgation_no": "31926",
+       "version_effective_date": "2021-08-03"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2019-04-02",
+       "promulgation_no": "29677",
+       "version_effective_date": "2019-04-02"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2010-03-15",
+       "promulgation_no": "22075",
+       "version_effective_date": "2010-03-19"
+      }
+     ],
      "promulgation_date": "2021-08-03",
      "promulgation_no": "31926",
      "version_effective_date": "2021-08-03"
@@ -2102,6 +2884,46 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2011-05-03",
+       "promulgation_no": "22914",
+       "version_effective_date": "2011-05-03"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2010-03-15",
+       "promulgation_no": "22075",
+       "version_effective_date": "2010-03-19"
+      }
+     ],
      "promulgation_date": "2011-05-03",
      "promulgation_no": "22914",
      "version_effective_date": "2011-05-03"
@@ -2110,6 +2932,42 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2010-03-15",
+       "promulgation_no": "22075",
+       "version_effective_date": "2010-03-19"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-12-30",
+       "promulgation_no": "35947",
+       "version_effective_date": "2026-01-02"
+      }
+     ],
      "promulgation_date": "2025-12-30",
      "promulgation_no": "35947",
      "version_effective_date": "2026-01-02"
@@ -2365,6 +3223,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "보건복지부령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "보건복지부령",
+       "promulgation_date": "2015-09-02",
+       "promulgation_no": "00351",
+       "version_effective_date": "2015-09-02"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "보건복지부령",
+       "promulgation_date": "2018-02-13",
+       "promulgation_no": "00556",
+       "version_effective_date": "2018-02-13"
+      }
+     ],
      "promulgation_date": "2018-02-13",
      "promulgation_no": "00556",
      "version_effective_date": "2018-02-13"
@@ -2381,6 +3267,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "보건복지부령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "보건복지부령",
+       "promulgation_date": "2010-06-01",
+       "promulgation_no": "00011",
+       "version_effective_date": "2010-06-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "보건복지부령",
+       "promulgation_date": "2022-10-26",
+       "promulgation_no": "00915",
+       "version_effective_date": "2022-10-26"
+      }
+     ],
      "promulgation_date": "2022-10-26",
      "promulgation_no": "00915",
      "version_effective_date": "2022-10-26"
@@ -2481,6 +3399,55 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "staged_dates": [
+        "2025-10-01",
+        "2026-01-02"
+       ],
+       "version_effective_date": "2025-10-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2011-05-24",
+       "promulgation_no": "10708",
+       "version_effective_date": "2011-11-25"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2026-06-02",
+       "promulgation_no": "21738",
+       "version_effective_date": "2026-06-02"
+      }
+     ],
      "promulgation_date": "2026-06-02",
      "promulgation_no": "21738",
      "version_effective_date": "2026-06-02"
@@ -2489,6 +3456,54 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ],
+        [
+         "6",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "staged_dates": [
+        "2025-10-01",
+        "2026-01-02"
+       ],
+       "version_effective_date": "2025-10-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2023-06-20",
+       "promulgation_no": "19496",
+       "version_effective_date": "2023-09-21"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "21065",
      "staged_dates": [
@@ -2549,6 +3564,59 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "staged_dates": [
+        "2025-10-01",
+        "2026-01-02"
+       ],
+       "version_effective_date": "2025-10-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-12-02",
+       "promulgation_no": "21154",
+       "version_effective_date": "2026-06-03"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2014-12-23",
+       "promulgation_no": "12858",
+       "version_effective_date": "2015-01-01"
+      }
+     ],
      "promulgation_date": "2025-12-02",
      "promulgation_no": "21154",
      "version_effective_date": "2026-06-03"
@@ -2557,6 +3625,67 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ],
+        [
+         "6",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "staged_dates": [
+        "2025-10-01",
+        "2026-01-02"
+       ],
+       "version_effective_date": "2025-10-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2017-03-14",
+       "promulgation_no": "14592",
+       "version_effective_date": "2017-09-15"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "7",
+         "삭제"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2014-05-20",
+       "promulgation_no": "12607",
+       "version_effective_date": "2014-05-20"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "21065",
      "staged_dates": [
@@ -2581,6 +3710,42 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "staged_dates": [
+        "2025-10-01",
+        "2026-01-02"
+       ],
+       "version_effective_date": "2025-10-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2014-12-23",
+       "promulgation_no": "12858",
+       "version_effective_date": "2015-01-01"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "21065",
      "staged_dates": [
@@ -2593,6 +3758,38 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2014-12-23",
+       "promulgation_no": "12858",
+       "version_effective_date": "2015-01-01"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "staged_dates": [
+        "2025-10-01",
+        "2026-01-02"
+       ],
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "21065",
      "staged_dates": [
@@ -2629,6 +3826,42 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "staged_dates": [
+        "2025-10-01",
+        "2026-01-02"
+       ],
+       "version_effective_date": "2025-10-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2014-05-20",
+       "promulgation_no": "12607",
+       "version_effective_date": "2014-05-20"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "21065",
      "staged_dates": [
@@ -2657,6 +3890,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-12-02",
+       "promulgation_no": "21154",
+       "version_effective_date": "2026-06-03"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "staged_dates": [
+        "2025-10-01",
+        "2026-01-02"
+       ],
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2025-12-02",
      "promulgation_no": "21154",
      "version_effective_date": "2026-06-03"
@@ -2673,6 +3938,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-12-02",
+       "promulgation_no": "21154",
+       "version_effective_date": "2026-06-03"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "staged_dates": [
+        "2025-10-01",
+        "2026-01-02"
+       ],
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2025-12-02",
      "promulgation_no": "21154",
      "version_effective_date": "2026-06-03"
@@ -2689,6 +3986,46 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-12-02",
+       "promulgation_no": "21154",
+       "version_effective_date": "2026-06-03"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "삭제"
+        ],
+        [
+         "4",
+         "삭제"
+        ],
+        [
+         "5",
+         "삭제"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2012-01-26",
+       "promulgation_no": "11233",
+       "version_effective_date": "2012-07-27"
+      }
+     ],
      "promulgation_date": "2025-12-02",
      "promulgation_no": "21154",
      "version_effective_date": "2026-06-03"
@@ -2697,6 +4034,66 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "7",
+         "개정"
+        ],
+        [
+         "8",
+         "개정"
+        ],
+        [
+         "9",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-12-02",
+       "promulgation_no": "21154",
+       "version_effective_date": "2026-06-03"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ],
+        [
+         "6",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "staged_dates": [
+        "2025-10-01",
+        "2026-01-02"
+       ],
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2025-12-02",
      "promulgation_no": "21154",
      "version_effective_date": "2026-06-03"
@@ -2713,6 +4110,42 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "staged_dates": [
+        "2025-10-01",
+        "2026-01-02"
+       ],
+       "version_effective_date": "2025-10-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2014-05-20",
+       "promulgation_no": "12607",
+       "version_effective_date": "2014-05-20"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "21065",
      "staged_dates": [
@@ -2829,6 +4262,51 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "staged_dates": [
+        "2025-10-01",
+        "2026-01-02"
+       ],
+       "version_effective_date": "2025-10-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2014-05-20",
+       "promulgation_no": "12607",
+       "version_effective_date": "2014-05-20"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "삭제"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2011-05-24",
+       "promulgation_no": "10708",
+       "version_effective_date": "2011-11-25"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "21065",
      "staged_dates": [
@@ -2921,6 +4399,38 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2014-01-21",
+       "promulgation_no": "12307",
+       "version_effective_date": "2014-07-22"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "staged_dates": [
+        "2025-10-01",
+        "2026-01-02"
+       ],
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "21065",
      "staged_dates": [
@@ -3049,6 +4559,42 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2023-06-20",
+       "promulgation_no": "19496",
+       "version_effective_date": "2023-09-21"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "staged_dates": [
+        "2025-10-01",
+        "2026-01-02"
+       ],
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "21065",
      "staged_dates": [
@@ -3081,6 +4627,67 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "8",
+         "개정"
+        ],
+        [
+         "9",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "staged_dates": [
+        "2025-10-01",
+        "2026-01-02"
+       ],
+       "version_effective_date": "2025-10-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2017-03-14",
+       "promulgation_no": "14592",
+       "version_effective_date": "2017-09-15"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "5",
+         "신설"
+        ],
+        [
+         "6",
+         "개정"
+        ],
+        [
+         "7",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2016-01-06",
+       "promulgation_no": "13736",
+       "version_effective_date": "2016-04-07"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "21065",
      "staged_dates": [
@@ -3165,6 +4772,38 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2024-02-06",
+       "promulgation_no": "20198",
+       "version_effective_date": "2024-05-07"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "staged_dates": [
+        "2025-10-01",
+        "2026-01-02"
+       ],
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "21065",
      "staged_dates": [
@@ -3248,6 +4887,42 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35803",
+       "version_effective_date": "2025-10-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "5",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2011-11-23",
+       "promulgation_no": "23313",
+       "version_effective_date": "2011-11-25"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "35803",
      "version_effective_date": "2025-10-01"
@@ -3272,6 +4947,54 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ],
+        [
+         "6",
+         "개정"
+        ],
+        [
+         "7",
+         "개정"
+        ],
+        [
+         "8",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35803",
+       "version_effective_date": "2025-10-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2017-09-15",
+       "promulgation_no": "28291",
+       "version_effective_date": "2017-09-15"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "35803",
      "version_effective_date": "2025-10-01"
@@ -3280,6 +5003,47 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2017-09-15",
+       "promulgation_no": "28291",
+       "version_effective_date": "2017-09-15"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2014-08-06",
+       "promulgation_no": "25540",
+       "version_effective_date": "2014-08-06"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35803",
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "35803",
      "version_effective_date": "2025-10-01"
@@ -3288,6 +5052,54 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "7",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35803",
+       "version_effective_date": "2025-10-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "5",
+         "신설"
+        ],
+        [
+         "6",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2016-01-12",
+       "promulgation_no": "26889",
+       "version_effective_date": "2016-01-12"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "35803",
      "version_effective_date": "2025-10-01"
@@ -3312,6 +5124,42 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35803",
+       "version_effective_date": "2025-10-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "삭제"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2014-12-30",
+       "promulgation_no": "25921",
+       "version_effective_date": "2015-01-01"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "35803",
      "version_effective_date": "2025-10-01"
@@ -3320,6 +5168,50 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "신설"
+        ],
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2012-06-05",
+       "promulgation_no": "23836",
+       "staged_dates": [
+        "2012-06-05",
+        "2012-07-27"
+       ],
+       "version_effective_date": "2012-07-27"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2020-12-29",
+       "promulgation_no": "31297",
+       "version_effective_date": "2021-01-01"
+      }
+     ],
      "promulgation_date": "2020-12-29",
      "promulgation_no": "31297",
      "version_effective_date": "2021-01-01"
@@ -3336,6 +5228,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-05-19",
+       "promulgation_no": "36338",
+       "version_effective_date": "2026-06-03"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35803",
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2026-05-19",
      "promulgation_no": "36338",
      "version_effective_date": "2026-06-03"
@@ -3344,6 +5264,58 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "6",
+         "개정"
+        ],
+        [
+         "7",
+         "개정"
+        ],
+        [
+         "8",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-05-19",
+       "promulgation_no": "36338",
+       "version_effective_date": "2026-06-03"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35803",
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2026-05-19",
      "promulgation_no": "36338",
      "version_effective_date": "2026-06-03"
@@ -3368,6 +5340,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35803",
+       "version_effective_date": "2025-10-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-05-19",
+       "promulgation_no": "36338",
+       "version_effective_date": "2026-06-03"
+      }
+     ],
      "promulgation_date": "2026-05-19",
      "promulgation_no": "36338",
      "version_effective_date": "2026-06-03"
@@ -3392,6 +5392,71 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ],
+        [
+         "6",
+         "개정"
+        ],
+        [
+         "8",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-05-19",
+       "promulgation_no": "36338",
+       "version_effective_date": "2026-06-03"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "7",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2021-01-19",
+       "promulgation_no": "31406",
+       "version_effective_date": "2021-01-19"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "9",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35803",
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2026-05-19",
      "promulgation_no": "36338",
      "version_effective_date": "2026-06-03"
@@ -3440,6 +5505,42 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-05-19",
+       "promulgation_no": "36338",
+       "version_effective_date": "2026-06-03"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35803",
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2026-05-19",
      "promulgation_no": "36338",
      "version_effective_date": "2026-06-03"
@@ -3448,6 +5549,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-05-19",
+       "promulgation_no": "36338",
+       "version_effective_date": "2026-06-03"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35803",
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2026-05-19",
      "promulgation_no": "36338",
      "version_effective_date": "2026-06-03"
@@ -3464,6 +5593,42 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-05-19",
+       "promulgation_no": "36338",
+       "version_effective_date": "2026-06-03"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35803",
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2026-05-19",
      "promulgation_no": "36338",
      "version_effective_date": "2026-06-03"
@@ -3472,6 +5637,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-05-19",
+       "promulgation_no": "36338",
+       "version_effective_date": "2026-06-03"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35803",
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2026-05-19",
      "promulgation_no": "36338",
      "version_effective_date": "2026-06-03"
@@ -3480,6 +5673,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-12-30",
+       "promulgation_no": "35947",
+       "version_effective_date": "2026-01-02"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-05-19",
+       "promulgation_no": "36338",
+       "version_effective_date": "2026-06-03"
+      }
+     ],
      "promulgation_date": "2026-05-19",
      "promulgation_no": "36338",
      "version_effective_date": "2026-06-03"
@@ -3664,6 +5885,42 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2024-04-30",
+       "promulgation_no": "34468",
+       "staged_dates": [
+        "2024-04-30",
+        "2024-05-07"
+       ],
+       "version_effective_date": "2024-04-30"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35803",
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "35803",
      "version_effective_date": "2025-10-01"
@@ -3768,6 +6025,66 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ],
+        [
+         "6",
+         "개정"
+        ],
+        [
+         "7",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-05-19",
+       "promulgation_no": "36338",
+       "version_effective_date": "2026-06-03"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "8",
+         "개정"
+        ],
+        [
+         "9",
+         "개정"
+        ],
+        [
+         "10",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35803",
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2026-05-19",
      "promulgation_no": "36338",
      "version_effective_date": "2026-06-03"
@@ -3790,6 +6107,9 @@
     }
    },
    "clauses": {
+    "23836|2012-06-05": {
+     "text": "제1조(시행일) 이 영은 2012년 7월 27일부터 시행한다. 다만, 제11조 및 제16조의 개정규정은 공포한 날부터 시행한다."
+    },
     "34468|2024-04-30": {
      "text": "제1조(시행일) 이 영은 공포한 날부터 시행한다. 다만, 별표 4 제2호다목의 개정규정은 2024년 5월 7일부터 시행한다."
     }
@@ -3820,6 +6140,38 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "산업통상부령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "산업통상자원부령",
+       "promulgation_date": "2019-12-27",
+       "promulgation_no": "00357",
+       "version_effective_date": "2019-12-27"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "산업통상부령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "00001",
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "00001",
      "version_effective_date": "2025-10-01"
@@ -3844,6 +6196,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "산업통상부령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "산업통상부령",
+       "promulgation_date": "2026-05-27",
+       "promulgation_no": "00012",
+       "version_effective_date": "2026-06-03"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "산업통상자원부령",
+       "promulgation_date": "2017-09-15",
+       "promulgation_no": "00271",
+       "version_effective_date": "2017-09-15"
+      }
+     ],
      "promulgation_date": "2026-05-27",
      "promulgation_no": "00012",
      "version_effective_date": "2026-06-03"
@@ -3860,6 +6244,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "산업통상부령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "산업통상부령",
+       "promulgation_date": "2026-05-27",
+       "promulgation_no": "00012",
+       "version_effective_date": "2026-06-03"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "산업통상자원부령",
+       "promulgation_date": "2017-09-15",
+       "promulgation_no": "00271",
+       "version_effective_date": "2017-09-15"
+      }
+     ],
      "promulgation_date": "2026-05-27",
      "promulgation_no": "00012",
      "version_effective_date": "2026-06-03"
@@ -3876,6 +6288,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "산업통상부령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "산업통상부령",
+       "promulgation_date": "2026-05-27",
+       "promulgation_no": "00012",
+       "version_effective_date": "2026-06-03"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "산업통상자원부령",
+       "promulgation_date": "2017-09-15",
+       "promulgation_no": "00271",
+       "version_effective_date": "2017-09-15"
+      }
+     ],
      "promulgation_date": "2026-05-27",
      "promulgation_no": "00012",
      "version_effective_date": "2026-06-03"
@@ -3916,6 +6360,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "산업통상자원부령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "산업통상자원부령",
+       "promulgation_date": "2017-09-15",
+       "promulgation_no": "00271",
+       "version_effective_date": "2017-09-15"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "산업통상자원부령",
+       "promulgation_date": "2021-01-18",
+       "promulgation_no": "00408",
+       "version_effective_date": "2021-01-18"
+      }
+     ],
      "promulgation_date": "2021-01-18",
      "promulgation_no": "00408",
      "version_effective_date": "2021-01-18"
@@ -3932,6 +6408,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "산업통상부령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "산업통상자원부령",
+       "promulgation_date": "2017-09-15",
+       "promulgation_no": "00271",
+       "version_effective_date": "2017-09-15"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "산업통상부령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "00001",
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2026-05-27",
      "promulgation_no": "00012",
      "version_effective_date": "2026-06-03"
@@ -4115,6 +6619,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "8",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2024-02-27",
+       "promulgation_no": "20354",
+       "version_effective_date": "2025-02-28"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2026-02-19",
+       "promulgation_no": "21347",
+       "version_effective_date": "2026-08-20"
+      }
+     ],
      "promulgation_date": "2026-02-19",
      "promulgation_no": "21347",
      "version_effective_date": "2026-08-20"
@@ -4139,6 +6675,58 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "3",
+         "신설"
+        ],
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ],
+        [
+         "6",
+         "개정"
+        ],
+        [
+         "7",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2026-03-10",
+       "promulgation_no": "21421",
+       "staged_dates": [
+        "2026-06-11",
+        "2026-09-11"
+       ],
+       "version_effective_date": "2026-09-11"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2026-02-19",
+       "promulgation_no": "21347",
+       "version_effective_date": "2026-08-20"
+      }
+     ],
      "promulgation_date": "2026-03-10",
      "promulgation_no": "21421",
      "staged_dates": [
@@ -4151,6 +6739,46 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2026-03-10",
+       "promulgation_no": "21421",
+       "staged_dates": [
+        "2026-06-11",
+        "2026-09-11"
+       ],
+       "version_effective_date": "2026-09-11"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "6",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2021-12-28",
+       "promulgation_no": "18645",
+       "staged_dates": [
+        "2022-03-29",
+        "2022-06-29"
+       ],
+       "version_effective_date": "2022-06-29"
+      }
+     ],
      "promulgation_date": "2026-03-10",
      "promulgation_no": "21421",
      "staged_dates": [
@@ -4287,6 +6915,47 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2026-02-19",
+       "promulgation_no": "21347",
+       "version_effective_date": "2026-08-20"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "7",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2023-03-21",
+       "promulgation_no": "19235",
+       "version_effective_date": "2023-09-22"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "8",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2022-01-06",
+       "promulgation_no": "18725",
+       "version_effective_date": "2022-03-01"
+      }
+     ],
      "promulgation_date": "2026-02-19",
      "promulgation_no": "21347",
      "version_effective_date": "2026-08-20"
@@ -4442,6 +7111,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-08-18",
+       "promulgation_no": "36580",
+       "version_effective_date": "2026-08-20"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2023-12-05",
+       "promulgation_no": "33899",
+       "version_effective_date": "2023-12-14"
+      }
+     ],
      "promulgation_date": "2026-08-18",
      "promulgation_no": "36580",
      "version_effective_date": "2026-08-20"
@@ -4502,6 +7203,23 @@
      "promulgation_no": "36580",
      "version_effective_date": "2026-08-20"
     },
+    "JO0017": {
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2021-12-31",
+       "promulgation_no": "32287",
+       "version_effective_date": "2022-01-01"
+      }
+     ]
+    },
     "JO0018": {
      "amendment_kind": "제정",
      "change_reason": "제정",
@@ -4514,6 +7232,64 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2021-12-31",
+       "promulgation_no": "32287",
+       "version_effective_date": "2022-01-01"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2021-10-19",
+       "promulgation_no": "32063",
+       "version_effective_date": "2021-10-21"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2022-02-28",
+       "promulgation_no": "32508",
+       "staged_dates": [
+        "2022-03-01",
+        "2022-06-29"
+       ],
+       "version_effective_date": "2022-03-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "5",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2024-12-31",
+       "promulgation_no": "35134",
+       "version_effective_date": "2024-12-31"
+      }
+     ],
      "promulgation_date": "2024-12-31",
      "promulgation_no": "35134",
      "version_effective_date": "2024-12-31"
@@ -4522,6 +7298,59 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "삭제"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2022-02-28",
+       "promulgation_no": "32508",
+       "staged_dates": [
+        "2022-03-01",
+        "2022-06-29"
+       ],
+       "version_effective_date": "2022-03-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-03-10",
+       "promulgation_no": "36163",
+       "staged_dates": [
+        "2026-03-10",
+        "2026-06-11"
+       ],
+       "version_effective_date": "2026-03-10"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-08-18",
+       "promulgation_no": "36580",
+       "version_effective_date": "2026-08-20"
+      }
+     ],
      "promulgation_date": "2026-08-18",
      "promulgation_no": "36580",
      "version_effective_date": "2026-08-20"
@@ -4570,6 +7399,50 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-03-10",
+       "promulgation_no": "36163",
+       "staged_dates": [
+        "2026-03-10",
+        "2026-06-11"
+       ],
+       "version_effective_date": "2026-03-10"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ],
+        [
+         "6",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-08-18",
+       "promulgation_no": "36580",
+       "version_effective_date": "2026-08-20"
+      }
+     ],
      "promulgation_date": "2026-08-18",
      "promulgation_no": "36580",
      "version_effective_date": "2026-08-20"
@@ -4611,6 +7484,23 @@
      "promulgation_no": "31297",
      "version_effective_date": "2021-01-01"
     },
+    "JO0031": {
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2021-12-31",
+       "promulgation_no": "32287",
+       "version_effective_date": "2022-01-01"
+      }
+     ]
+    },
     "JO0032": {
      "amendment_kind": "제정",
      "change_reason": "제정",
@@ -4623,6 +7513,54 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "삭제"
+        ],
+        [
+         "2",
+         "삭제"
+        ],
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "삭제"
+        ],
+        [
+         "6",
+         "삭제"
+        ],
+        [
+         "7",
+         "삭제"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2022-06-28",
+       "promulgation_no": "32725",
+       "version_effective_date": "2022-06-29"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35801",
+       "version_effective_date": "2025-10-01"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "35801",
      "version_effective_date": "2025-10-01"
@@ -4631,6 +7569,51 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-07-28",
+       "promulgation_no": "36525",
+       "staged_dates": [
+        "2026-07-28",
+        "2026-09-11",
+        "2027-01-01"
+       ],
+       "version_effective_date": "2026-07-28"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "신설"
+        ],
+        [
+         "6",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2023-09-19",
+       "promulgation_no": "33726",
+       "staged_dates": [
+        "2023-09-19",
+        "2023-09-22"
+       ],
+       "version_effective_date": "2023-09-19"
+      }
+     ],
      "promulgation_date": "2026-07-28",
      "promulgation_no": "36525",
      "staged_dates": [
@@ -4644,6 +7627,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2022-06-28",
+       "promulgation_no": "32725",
+       "version_effective_date": "2022-06-29"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-08-18",
+       "promulgation_no": "36580",
+       "version_effective_date": "2026-08-20"
+      }
+     ],
      "promulgation_date": "2026-08-18",
      "promulgation_no": "36580",
      "version_effective_date": "2026-08-20"
@@ -4704,6 +7719,63 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ],
+        [
+         "6",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-07-28",
+       "promulgation_no": "36525",
+       "staged_dates": [
+        "2026-07-28",
+        "2026-09-11",
+        "2027-01-01"
+       ],
+       "version_effective_date": "2026-07-28"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "7",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2023-09-19",
+       "promulgation_no": "33726",
+       "staged_dates": [
+        "2023-09-19",
+        "2023-09-22"
+       ],
+       "version_effective_date": "2023-09-19"
+      }
+     ],
      "promulgation_date": "2026-07-28",
      "promulgation_no": "36525",
      "staged_dates": [
@@ -4751,6 +7823,50 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2024-02-06",
+       "promulgation_no": "34174",
+       "version_effective_date": "2024-02-06"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "신설"
+        ],
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2022-02-28",
+       "promulgation_no": "32508",
+       "staged_dates": [
+        "2022-03-01",
+        "2022-06-29"
+       ],
+       "version_effective_date": "2022-03-01"
+      }
+     ],
      "promulgation_date": "2024-02-06",
      "promulgation_no": "34174",
      "version_effective_date": "2024-02-06"
@@ -4927,6 +8043,42 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2023-09-19",
+       "promulgation_no": "33726",
+       "staged_dates": [
+        "2023-09-19",
+        "2023-09-22"
+       ],
+       "version_effective_date": "2023-09-19"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2022-02-28",
+       "promulgation_no": "32508",
+       "staged_dates": [
+        "2022-03-01",
+        "2022-06-29"
+       ],
+       "version_effective_date": "2022-03-01"
+      }
+     ],
      "promulgation_date": "2023-09-19",
      "promulgation_no": "33726",
      "staged_dates": [
@@ -4994,6 +8146,9 @@
     },
     "33726|2023-09-19": {
      "text": "제1조(시행일) 이 영은 공포한 날부터 시행한다. 다만, 제34조제4항부터 제6항까지, 제62조제1항 및 제68조제3호의 개정규정은 2023년 9월 22일부터 시행한다."
+    },
+    "36163|2026-03-10": {
+     "text": "제1조(시행일) 이 영은 공포한 날부터 시행한다. 다만, 제26조제1항의 개정규정은 공포 후 3개월이 경과한 날부터 시행한다."
     },
     "36291|2026-05-06": {
      "text": "제1조(시행일) 이 영은 공포한 날부터 시행한다. 다만, 별표 2 제1호카목 및 같은 표 비고 제2호의3의 개정규정은 2026년 6월 11일부터 시행한다."
@@ -5311,6 +8466,47 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2026-02-19",
+       "promulgation_no": "21349",
+       "version_effective_date": "2026-05-20"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "신설"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2021-08-10",
+       "promulgation_no": "18374",
+       "version_effective_date": "2022-01-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "4",
+         "신설"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2023-10-31",
+       "promulgation_no": "19785",
+       "version_effective_date": "2024-05-01"
+      }
+     ],
      "promulgation_date": "2026-02-19",
      "promulgation_no": "21349",
      "version_effective_date": "2026-05-20"
@@ -5571,6 +8767,34 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "35801",
+       "version_effective_date": "2025-10-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2024-04-30",
+       "promulgation_no": "34457",
+       "version_effective_date": "2024-05-01"
+      }
+     ],
      "promulgation_date": "2025-10-01",
      "promulgation_no": "35801",
      "version_effective_date": "2025-10-01"
@@ -5643,6 +8867,42 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2021-12-31",
+       "promulgation_no": "32286",
+       "staged_dates": [
+        "2021-12-31",
+        "2022-01-01"
+       ],
+       "version_effective_date": "2021-12-31"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "7",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2024-04-30",
+       "promulgation_no": "34457",
+       "version_effective_date": "2024-05-01"
+      }
+     ],
      "promulgation_date": "2024-04-30",
      "promulgation_no": "34457",
      "version_effective_date": "2024-05-01"
@@ -5683,6 +8943,68 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-05-19",
+       "promulgation_no": "36330",
+       "version_effective_date": "2026-05-20"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2022-02-22",
+       "promulgation_no": "32458",
+       "version_effective_date": "2022-06-10"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-01-27",
+       "promulgation_no": "36055",
+       "version_effective_date": "2026-02-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "5",
+         "신설"
+        ],
+        [
+         "6",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2021-12-31",
+       "promulgation_no": "32286",
+       "staged_dates": [
+        "2021-12-31",
+        "2022-01-01"
+       ],
+       "version_effective_date": "2021-12-31"
+      }
+     ],
      "promulgation_date": "2026-05-19",
      "promulgation_no": "36330",
      "version_effective_date": "2026-05-20"
@@ -7009,6 +10331,59 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "5",
+         "신설"
+        ],
+        [
+         "6",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2017-11-28",
+       "promulgation_no": "15041",
+       "version_effective_date": "2018-05-29"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "신설"
+        ],
+        [
+         "3",
+         "신설"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2015-03-27",
+       "promulgation_no": "13225",
+       "version_effective_date": "2015-09-28"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2022-12-13",
+       "promulgation_no": "19067",
+       "version_effective_date": "2022-12-13"
+      }
+     ],
      "promulgation_date": "2022-12-13",
      "promulgation_no": "19067",
      "version_effective_date": "2022-12-13"
@@ -7081,6 +10456,46 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2011-07-25",
+       "promulgation_no": "10907",
+       "version_effective_date": "2012-01-26"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "신설"
+        ],
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2013-12-30",
+       "promulgation_no": "12126",
+       "version_effective_date": "2014-07-01"
+      }
+     ],
      "promulgation_date": "2013-12-30",
      "promulgation_no": "12126",
      "version_effective_date": "2014-07-01"
@@ -7089,6 +10504,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2011-07-25",
+       "promulgation_no": "10907",
+       "version_effective_date": "2012-01-26"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2020-03-24",
+       "promulgation_no": "17079",
+       "version_effective_date": "2020-09-25"
+      }
+     ],
      "promulgation_date": "2020-03-24",
      "promulgation_no": "17079",
      "version_effective_date": "2020-09-25"
@@ -7129,6 +10572,46 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "신설"
+        ],
+        [
+         "3",
+         "신설"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2011-07-25",
+       "promulgation_no": "10907",
+       "version_effective_date": "2012-01-26"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "4",
+         "신설"
+        ],
+        [
+         "5",
+         "신설"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2013-12-30",
+       "promulgation_no": "12126",
+       "version_effective_date": "2014-07-01"
+      }
+     ],
      "promulgation_date": "2013-12-30",
      "promulgation_no": "12126",
      "version_effective_date": "2014-07-01"
@@ -7137,6 +10620,59 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2013-12-30",
+       "promulgation_no": "12126",
+       "version_effective_date": "2014-07-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "6",
+         "신설"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2024-12-20",
+       "promulgation_no": "20563",
+       "version_effective_date": "2025-06-21"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "신설"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2011-07-25",
+       "promulgation_no": "10907",
+       "version_effective_date": "2012-01-26"
+      }
+     ],
      "promulgation_date": "2024-12-20",
      "promulgation_no": "20563",
      "version_effective_date": "2025-06-21"
@@ -7145,6 +10681,54 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2013-12-30",
+       "promulgation_no": "12126",
+       "version_effective_date": "2014-07-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "신설"
+        ],
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "4",
+         "삭제"
+        ],
+        [
+         "5",
+         "삭제"
+        ],
+        [
+         "6",
+         "삭제"
+        ],
+        [
+         "7",
+         "삭제"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2011-07-25",
+       "promulgation_no": "10907",
+       "version_effective_date": "2012-01-26"
+      }
+     ],
      "promulgation_date": "2013-12-30",
      "promulgation_no": "12126",
      "version_effective_date": "2014-07-01"
@@ -7169,6 +10753,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2013-12-30",
+       "promulgation_no": "12126",
+       "version_effective_date": "2014-07-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "신설"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2011-07-25",
+       "promulgation_no": "10907",
+       "version_effective_date": "2012-01-26"
+      }
+     ],
      "promulgation_date": "2013-12-30",
      "promulgation_no": "12126",
      "version_effective_date": "2014-07-01"
@@ -7185,6 +10797,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2024-12-20",
+       "promulgation_no": "20563",
+       "version_effective_date": "2025-06-21"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2013-03-23",
+       "promulgation_no": "11682",
+       "version_effective_date": "2013-03-23"
+      }
+     ],
      "promulgation_date": "2024-12-20",
      "promulgation_no": "20563",
      "version_effective_date": "2025-06-21"
@@ -7241,6 +10881,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2013-12-30",
+       "promulgation_no": "12126",
+       "version_effective_date": "2014-07-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2011-07-25",
+       "promulgation_no": "10907",
+       "version_effective_date": "2012-01-26"
+      }
+     ],
      "promulgation_date": "2013-12-30",
      "promulgation_no": "12126",
      "version_effective_date": "2014-07-01"
@@ -7348,6 +11016,51 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2021-06-15",
+       "promulgation_no": "31767",
+       "version_effective_date": "2021-06-23"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2016-09-21",
+       "promulgation_no": "27501",
+       "version_effective_date": "2016-09-23"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2013-03-23",
+       "promulgation_no": "24423",
+       "version_effective_date": "2013-03-23"
+      }
+     ],
      "promulgation_date": "2021-06-15",
      "promulgation_no": "31767",
      "version_effective_date": "2021-06-23"
@@ -7364,6 +11077,75 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2024-12-03",
+       "promulgation_no": "35021",
+       "version_effective_date": "2024-12-03"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "7",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2023-03-28",
+       "promulgation_no": "33342",
+       "version_effective_date": "2023-03-28"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "8",
+         "신설"
+        ],
+        [
+         "9",
+         "개정"
+        ],
+        [
+         "10",
+         "개정"
+        ],
+        [
+         "11",
+         "개정"
+        ],
+        [
+         "12",
+         "개정"
+        ],
+        [
+         "13",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-06-02",
+       "promulgation_no": "35555",
+       "version_effective_date": "2025-06-21"
+      }
+     ],
      "promulgation_date": "2025-06-02",
      "promulgation_no": "35555",
      "version_effective_date": "2025-06-21"
@@ -7808,6 +11590,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2019-12-10",
+       "promulgation_no": "30235",
+       "version_effective_date": "2019-12-10"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2025-06-02",
+       "promulgation_no": "35555",
+       "version_effective_date": "2025-06-21"
+      }
+     ],
      "promulgation_date": "2025-06-02",
      "promulgation_no": "35555",
      "version_effective_date": "2025-06-21"
@@ -8278,6 +12092,34 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2020-12-29",
+       "promulgation_no": "31297",
+       "version_effective_date": "2021-01-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2019-05-14",
+       "promulgation_no": "29761",
+       "version_effective_date": "2019-05-14"
+      }
+     ],
      "promulgation_date": "2020-12-29",
      "promulgation_no": "31297",
      "version_effective_date": "2021-01-01"
@@ -8393,6 +12235,54 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "4",
+         "신설"
+        ],
+        [
+         "5",
+         "신설"
+        ],
+        [
+         "6",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2019-12-10",
+       "promulgation_no": "16816",
+       "version_effective_date": "2020-06-11"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2017-07-26",
+       "promulgation_no": "14839",
+       "staged_dates": [
+        "2017-07-26",
+        "2017-09-22"
+       ],
+       "version_effective_date": "2017-07-26"
+      }
+     ],
      "promulgation_date": "2019-12-10",
      "promulgation_no": "16816",
      "version_effective_date": "2020-06-11"
@@ -8441,6 +12331,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-12-30",
+       "promulgation_no": "21289",
+       "version_effective_date": "2026-07-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "신설"
+        ],
+        [
+         "4",
+         "신설"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2023-06-20",
+       "promulgation_no": "19506",
+       "version_effective_date": "2023-12-21"
+      }
+     ],
      "promulgation_date": "2025-12-30",
      "promulgation_no": "21289",
      "version_effective_date": "2026-07-01"
@@ -8469,6 +12391,76 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "6",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2015-01-28",
+       "promulgation_no": "13093",
+       "staged_dates": [
+        "2015-04-29",
+        "2015-07-29"
+       ],
+       "version_effective_date": "2015-04-29"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2024-01-09",
+       "promulgation_no": "19990",
+       "version_effective_date": "2024-07-10"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2017-07-26",
+       "promulgation_no": "14839",
+       "staged_dates": [
+        "2017-07-26",
+        "2017-09-22"
+       ],
+       "version_effective_date": "2017-07-26"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2023-10-31",
+       "promulgation_no": "19825",
+       "version_effective_date": "2024-05-01"
+      }
+     ],
      "promulgation_date": "2024-01-09",
      "promulgation_no": "19990",
      "version_effective_date": "2024-07-10"
@@ -8553,6 +12545,46 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2017-07-26",
+       "promulgation_no": "14839",
+       "staged_dates": [
+        "2017-07-26",
+        "2017-09-22"
+       ],
+       "version_effective_date": "2017-07-26"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "신설"
+        ],
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-12-30",
+       "promulgation_no": "21289",
+       "version_effective_date": "2026-07-01"
+      }
+     ],
      "promulgation_date": "2025-12-30",
      "promulgation_no": "21289",
      "version_effective_date": "2026-07-01"
@@ -8585,6 +12617,46 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ],
+        [
+         "5",
+         "신설"
+        ],
+        [
+         "6",
+         "개정"
+        ],
+        [
+         "7",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2012-12-11",
+       "promulgation_no": "11538",
+       "version_effective_date": "2013-06-12"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "8",
+         "신설"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2024-01-09",
+       "promulgation_no": "19994",
+       "version_effective_date": "2024-01-09"
+      }
+     ],
      "promulgation_date": "2024-01-09",
      "promulgation_no": "19994",
      "version_effective_date": "2024-01-09"
@@ -8677,6 +12749,53 @@
      ],
      "version_effective_date": "2015-04-29"
     },
+    "JO002702": {
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-10-01",
+       "promulgation_no": "21065",
+       "version_effective_date": "2025-10-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2025-12-30",
+       "promulgation_no": "21289",
+       "version_effective_date": "2026-07-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "삭제"
+        ],
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2026-05-26",
+       "promulgation_no": "21704",
+       "version_effective_date": "2026-05-26"
+      }
+     ]
+    },
     "JO002703": {
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
@@ -8725,6 +12844,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "법률",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2019-12-10",
+       "promulgation_no": "16816",
+       "version_effective_date": "2020-06-11"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2017-07-26",
+       "promulgation_no": "14839",
+       "staged_dates": [
+        "2017-07-26",
+        "2017-09-22"
+       ],
+       "version_effective_date": "2017-07-26"
+      }
+     ],
      "promulgation_date": "2019-12-10",
      "promulgation_no": "16816",
      "version_effective_date": "2020-06-11"
@@ -8736,6 +12887,86 @@
      "promulgation_date": "2023-10-31",
      "promulgation_no": "19825",
      "version_effective_date": "2024-05-01"
+    },
+    "JO0031": {
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2017-07-26",
+       "promulgation_no": "14839",
+       "staged_dates": [
+        "2017-07-26",
+        "2017-09-22"
+       ],
+       "version_effective_date": "2017-07-26"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2017-03-21",
+       "promulgation_no": "14683",
+       "version_effective_date": "2017-09-22"
+      }
+     ]
+    },
+    "JO0032": {
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2017-07-26",
+       "promulgation_no": "14839",
+       "staged_dates": [
+        "2017-07-26",
+        "2017-09-22"
+       ],
+       "version_effective_date": "2017-07-26"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "법률",
+       "promulgation_date": "2017-03-21",
+       "promulgation_no": "14683",
+       "version_effective_date": "2017-09-22"
+      }
+     ]
     },
     "JO0033": {
      "amendment_kind": "일부개정",
@@ -8777,6 +13008,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "삭제"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2009-07-27",
+       "promulgation_no": "21644",
+       "version_effective_date": "2009-07-31"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-09-22",
+       "promulgation_no": "36699",
+       "version_effective_date": "2026-09-22"
+      }
+     ],
      "promulgation_date": "2026-09-22",
      "promulgation_no": "36699",
      "version_effective_date": "2026-09-22"
@@ -8785,6 +13048,55 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-06-30",
+       "promulgation_no": "36482",
+       "version_effective_date": "2026-07-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "신설"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2020-06-09",
+       "promulgation_no": "30777",
+       "version_effective_date": "2020-06-11"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "4",
+         "신설"
+        ],
+        [
+         "5",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2021-06-08",
+       "promulgation_no": "31760",
+       "version_effective_date": "2021-06-09"
+      }
+     ],
      "promulgation_date": "2026-06-30",
      "promulgation_no": "36482",
      "version_effective_date": "2026-07-01"
@@ -8809,6 +13121,38 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-06-30",
+       "promulgation_no": "36482",
+       "version_effective_date": "2026-07-01"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2017-07-26",
+       "promulgation_no": "28213",
+       "version_effective_date": "2017-07-26"
+      }
+     ],
      "promulgation_date": "2026-06-30",
      "promulgation_no": "36482",
      "version_effective_date": "2026-07-01"
@@ -8833,6 +13177,55 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "6",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-06-30",
+       "promulgation_no": "36482",
+       "version_effective_date": "2026-07-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "5",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2017-09-19",
+       "promulgation_no": "28336",
+       "version_effective_date": "2017-09-22"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "4",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2019-07-09",
+       "promulgation_no": "29970",
+       "version_effective_date": "2019-07-09"
+      }
+     ],
      "promulgation_date": "2026-06-30",
      "promulgation_no": "36482",
      "version_effective_date": "2026-07-01"
@@ -8873,6 +13266,89 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ],
+        [
+         "6",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-06-30",
+       "promulgation_no": "36482",
+       "version_effective_date": "2026-07-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ],
+        [
+         "7",
+         "삭제"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2024-05-14",
+       "promulgation_no": "34514",
+       "version_effective_date": "2024-05-14"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ],
+        [
+         "5",
+         "개정"
+        ],
+        [
+         "9",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2017-07-26",
+       "promulgation_no": "28213",
+       "version_effective_date": "2017-07-26"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "4",
+         "신설"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2015-08-11",
+       "promulgation_no": "26481",
+       "version_effective_date": "2015-08-11"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "8",
+         "삭제"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2021-06-08",
+       "promulgation_no": "31760",
+       "version_effective_date": "2021-06-09"
+      }
+     ],
      "promulgation_date": "2026-06-30",
      "promulgation_no": "36482",
      "version_effective_date": "2026-07-01"
@@ -8897,6 +13373,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-06-30",
+       "promulgation_no": "36482",
+       "version_effective_date": "2026-07-01"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2017-07-26",
+       "promulgation_no": "28213",
+       "version_effective_date": "2017-07-26"
+      }
+     ],
      "promulgation_date": "2026-06-30",
      "promulgation_no": "36482",
      "version_effective_date": "2026-07-01"
@@ -8921,6 +13425,34 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-01-27",
+       "promulgation_no": "36055",
+       "version_effective_date": "2026-02-01"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2024-07-02",
+       "promulgation_no": "34657",
+       "version_effective_date": "2024-07-10"
+      }
+     ],
      "promulgation_date": "2026-01-27",
      "promulgation_no": "36055",
      "version_effective_date": "2026-02-01"
@@ -8929,6 +13461,34 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-06-30",
+       "promulgation_no": "36482",
+       "version_effective_date": "2026-07-01"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2017-07-26",
+       "promulgation_no": "28213",
+       "version_effective_date": "2017-07-26"
+      }
+     ],
      "promulgation_date": "2026-06-30",
      "promulgation_no": "36482",
      "version_effective_date": "2026-07-01"
@@ -9001,6 +13561,47 @@
      "amendment_kind": "일부개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2021-06-08",
+       "promulgation_no": "31760",
+       "version_effective_date": "2021-06-09"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2026-06-30",
+       "promulgation_no": "36482",
+       "version_effective_date": "2026-07-01"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2019-07-09",
+       "promulgation_no": "29970",
+       "version_effective_date": "2019-07-09"
+      }
+     ],
      "promulgation_date": "2026-06-30",
      "promulgation_no": "36482",
      "version_effective_date": "2026-07-01"
@@ -9025,6 +13626,34 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "대통령령",
+     "paragraphs": [
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2016-01-06",
+       "promulgation_no": "26864",
+       "version_effective_date": "2016-01-06"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "대통령령",
+       "promulgation_date": "2017-07-26",
+       "promulgation_no": "28213",
+       "version_effective_date": "2017-07-26"
+      }
+     ],
      "promulgation_date": "2017-07-26",
      "promulgation_no": "28213",
      "version_effective_date": "2017-07-26"
@@ -9104,6 +13733,34 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "중소벤처기업부령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "지식경제부령",
+       "promulgation_date": "2012-11-30",
+       "promulgation_no": "00274",
+       "version_effective_date": "2012-11-30"
+      },
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "3",
+         "개정"
+        ]
+       ],
+       "law_kind": "중소벤처기업부령",
+       "promulgation_date": "2017-07-26",
+       "promulgation_no": "00001",
+       "version_effective_date": "2017-07-26"
+      }
+     ],
      "promulgation_date": "2017-07-26",
      "promulgation_no": "00001",
      "version_effective_date": "2017-07-26"
@@ -9120,6 +13777,34 @@
      "amendment_kind": "타법개정",
      "change_reason": "조문변경",
      "law_kind": "중소벤처기업부령",
+     "paragraphs": [
+      {
+       "amendment_kind": "타법개정",
+       "items": [
+        [
+         "1",
+         "개정"
+        ]
+       ],
+       "law_kind": "중소벤처기업부령",
+       "promulgation_date": "2017-07-26",
+       "promulgation_no": "00001",
+       "version_effective_date": "2017-07-26"
+      },
+      {
+       "amendment_kind": "일부개정",
+       "items": [
+        [
+         "2",
+         "개정"
+        ]
+       ],
+       "law_kind": "산업자원부령",
+       "promulgation_date": "2006-02-28",
+       "promulgation_no": "00326",
+       "version_effective_date": "2006-03-01"
+      }
+     ],
      "promulgation_date": "2017-07-26",
      "promulgation_no": "00001",
      "version_effective_date": "2017-07-26"
@@ -9154,7 +13839,7 @@
    "mst": "220365"
   }
  },
- "rules_version": 4,
+ "rules_version": 5,
  "schema": 1,
  "source": "국가법령정보 공동활용 OpenAPI lawService target=lsJoHstInf(조문별 변경 이력)"
 }

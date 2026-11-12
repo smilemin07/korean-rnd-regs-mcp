@@ -28,18 +28,29 @@ v0.63.0 부칙 시행일 조항: 분리 시행 판본 조문 중 최근 변경�
 
 저장 게이트(하나라도 걸리면 기존 JSON·보고서를 건드리지 않고 종료 코드 2):
   - 대상 법령 전부 수록, 이력·부칙 조회 실패 0
-  - 기존 스냅샷과 같은 판본(mst·efyd)인 법령은 조문 레코드가 같고 조항이 줄지 않음. 판본이 바뀌었거나
-    조문이 달라졌거나 새 법령이면 --accept-diff 로 지정한 법령만 허용한다(보고서에 차이 기록)
+  - 기존 스냅샷과 같은 판본(mst·efyd)인 법령은 조문 단위 기존 필드가 바이트 동일해야 한다 — 다르면 어떤
+    플래그로도 저장하지 않는다(v0.66.0 Redteam diff Codex MAJOR). 같은 판본에서 조항이 줄거나 원문이 바뀐 경우,
+    판본이 바뀐 법령·새 법령은 --accept-diff 로 지정한 법령만 허용한다(보고서에 차이 기록)
   - --require-all-clauses 면 대상 조문 중 조항이 없는 것이 0건
   - 법령 id를 인자로 일부만 지정한 실행은 저장하지 않는다(부분 결과가 전체 파일을 덮지 않게)
 저장은 임시 파일에 쓴 뒤 교체한다(쓰는 도중 끊겨도 기존 파일이 남는다). JSON → 보고서 순서이며, 보고서에
 JSON 해시를 적는다(테스트가 짝을 대조).
+
+v0.66.0 항별 개정 표지: 항번호가 있는 항의 `항내용` 끝 꺾쇠 표지(서버 main의 정규식·라벨 규칙)에서 표지 안
+가장 늦은 날짜(공포일)를 같은 조문 이력의 공포일자 항목(공포번호 1개)과 대응시켜 공포번호별 그룹을 만든다.
+대응 실패(공포번호 0·복수, 단계 표 없음, 호·목 표지가 더 늦음, 한 항 다중 표지 유형 다름, 빈 라벨)면 그 조문은
+싣지 않는다. 그룹 2개 이상이거나 조문 단위 레코드가 없는 조문만 싣는다(조문 레코드에 `paragraphs`, 레코드가
+없으면 `paragraphs`만 가진 레코드). 분리 시행 그룹은 부칙 시행일 조항도 찾되, 못 찾아도 저장은 막지 않는다.
+저장 게이트: 같은 판본 법령의 조문 단위 기존 필드는 바이트 동일해야 하고(다르면 무조건 중단), 항별 데이터의 추가·변경은
+--accept-paragraphs 로만 허용한다. 대상과 대응 실패 집합의 교집합, 항별 블록으로 인한 크기 단계 변화가 있으면
+저장하지 않는다. 보고서에 결박 수치(계획서 5-3)를 적는다.
 
 사용:
   /Users/andykim/my_project/venv/bin/python scripts/extract_article_history.py            # law 전체
   /Users/andykim/my_project/venv/bin/python scripts/extract_article_history.py --dry-run  # 저장 없이 보고만
   ... --require-all-clauses                    # 대상 조문 모두 조항이 있어야 저장(릴리스 재생성)
   ... --accept-diff innovation_act,hakjin_act  # 판본 변경·조문 차이를 허용할 법령
+  ... --accept-paragraphs                      # 항별 데이터 추가·변경 허용(v0.66.0)
 종료 코드: 0 = 저장 완료(또는 dry-run 정상) / 2 = 게이트 미통과(저장 안 함, 사유 출력) / 3 = 키 없음·키 혼입 등 중단
 """
 
@@ -62,7 +73,7 @@ OUT_PATH = ROOT / "src" / "korean_rnd_regs_mcp" / "article_history.json"
 REPORT_PATH = ROOT / "scripts" / "article_history_extract_report.md"
 SCHEMA_VERSION = 1
 # 추출 규칙이 바뀌면 올린다 — JSON에 기록하고 테스트가 스크립트 값과 대조한다(낡은 데이터 배포 차단).
-RULES_VERSION = 4  # v0.63.0: 부칙 시행일 조항(clauses) 추가
+RULES_VERSION = 5  # v0.63.0: 부칙 시행일 조항(clauses) · v0.66.0: 항별 개정 표지(paragraphs)
 _MAX_STAGES = 6  # 런타임 로더(article_history._MAX_STAGES)와 같은 상한
 _MAX_PROMULGATION_NO_LEN = 8
 _KEEP_REASONS = frozenset({"제정", "조문변경", "본조신설", "전부개정"})
@@ -255,6 +266,220 @@ def build_record(chosen: dict, stage_dates: list[str]) -> dict:
     return rec
 
 
+# === v0.66.0 항별 개정 표지(항 본문 끝 꺾쇠 표지) ===
+# 표지 해석은 서버(main)의 정규식·라벨 규칙을 그대로 쓴다(측정용 별도 정규식 금지 — 계획서 5-3).
+_PARA_LABELS = frozenset({"개정", "신설", "삭제"})
+_MAX_PARA_NO = 99
+_AMENDMENT_KIND_PATTERN = re.compile(r"[가-힣]{0,10}")  # 런타임 로더(article_history._AMENDMENT_KIND)와 같은 형식
+
+
+def para_number(raw: str) -> int | None:
+    """항번호("①"·"⑳"·"㉑"·"㊱" 또는 숫자) → 정수. 해석 불가면 None."""
+    s = (raw or "").strip()
+    if len(s) == 1:
+        c = ord(s)
+        if 0x2460 <= c <= 0x2473:
+            return c - 0x2460 + 1
+        if 0x3251 <= c <= 0x325F:
+            return c - 0x3251 + 21
+        if 0x32B1 <= c <= 0x32BF:
+            return c - 0x32B1 + 36
+    s = s.rstrip(".")
+    if s.isascii() and s.isdigit() and 1 <= len(s) <= 2 and int(s) >= 1:
+        return int(s)
+    return None
+
+
+def scan_markers(text: str) -> list[dict]:
+    """본문 조각의 꺾쇠 표지(날짜 있는 것만) → [{"label", "dates": [(y, m, d), ...]}]. 순수 함수."""
+    from korean_rnd_regs_mcp.main import (_CONTENT_HISTORY_MARKER, _HISTORY_DATE_PATTERN,
+                                          _content_marker_label, _parse_history_date)
+    out = []
+    for m in _CONTENT_HISTORY_MARKER.finditer(text or ""):
+        del_prefix, inner = m.group(1), m.group(2)
+        raw_dates = _HISTORY_DATE_PATTERN.findall(inner)
+        if not raw_dates:
+            continue
+        dates = [d for d in (_parse_history_date(x) for x in raw_dates) if d is not None]
+        if not dates:
+            continue
+        out.append({"label": _content_marker_label(del_prefix, inner), "dates": dates})
+    return out
+
+
+def _d8(dt: tuple) -> str:
+    return f"{dt[0]:04d}{dt[1]:02d}{dt[2]:02d}"
+
+
+def paragraph_markers(art: dict) -> tuple[list[dict] | None, str, dict]:
+    """조문 1개 → (항별 표지 목록, "ok" 또는 실패 사유, 통계). 순수 함수(테스트 대상).
+
+    항 표지 = 항번호가 있는 항의 `항내용`에 있는 꺾쇠 표지. 날짜는 표지 안 가장 늦은 날짜(달력 비교).
+    조문내용 제목 줄·호·목 표지는 쓰지 않되, 항 아래 호·목(조문내용에서 그 항 뒤 ~ 다음 항 앞)에 항 표지보다
+    늦은 날짜가 있으면 그 조문은 실패로 둔다(항 표지가 항 전체의 최근 변경을 말하지 않음).
+    목록 원소: {"no": int, "label": str, "date8": 가장 늦은 날짜, "first8": 첫 날짜, "n_dates": 날짜 수}.
+    """
+    stats = {"self_markers": 0, "multi_date": 0, "multi_marker_paras": 0, "sub_only_paras": 0, "sub_later_paras": 0,
+             "sub_only_wrappers": 0, "relabel_new_to_amend": 0, "marker_dates": []}
+    structured = art.get("structured")
+    paras = [p for p in ((structured or {}).get("paragraphs") or []) if isinstance(p, dict)] \
+        if isinstance(structured, dict) else []
+    if not paras:
+        return [], "ok", stats
+    content = art.get("조문내용") or ""
+    # 조문내용 = 제목 줄 + 항내용 + 호·목 원문을 순서대로 이은 것(live_api._build_article_content) — 항 위치를 차례로 찾는다.
+    positions: list[tuple[int, int] | None] = []
+    cursor = 0
+    for p in paras:
+        src = p.get("source_text") or ""
+        if not src:
+            positions.append(None)
+            continue
+        at = content.find(src, cursor)
+        if at < 0:
+            if any(scan_markers(q.get("source_text") or "") for q in paras):
+                return None, "항 본문 위치 불일치", stats
+            return [], "ok", stats
+        positions.append((at, at + len(src)))
+        cursor = at + len(src)
+    starts = [pos[0] for pos in positions if pos is not None]
+    out: list[dict] = []
+    failure = ""
+    seen_no: set[int] = set()
+    for p, pos in zip(paras, positions):
+        if pos is None:
+            # 번호·본문 없는 항(호만 묶는 틀) — 쓰지 않되 호 표지 수만 센다(보고서용).
+            if any(scan_markers((s or {}).get("source_text") or "") for s in p.get("subparagraphs") or []
+                   if isinstance(s, dict)):
+                stats["sub_only_wrappers"] += 1
+            continue
+        nxt = min((s for s in starts if s > pos[0]), default=len(content))
+        sub = content[pos[1]:nxt]
+        own = scan_markers(p.get("source_text") or "")
+        sub_m = scan_markers(sub)
+        if not own:
+            if sub_m:
+                stats["sub_only_paras"] += 1
+            continue
+        stats["self_markers"] += len(own)
+        stats["multi_date"] += sum(1 for m in own if len(m["dates"]) > 1)
+        latest = max(d for m in own for d in m["dates"])
+        first = own[0]["dates"][0]
+        n_dates = sum(len(m["dates"]) for m in own)
+        stats["marker_dates"].append((_d8(latest), _d8(first)))
+        if len(own) > 1:
+            stats["multi_marker_paras"] += 1
+            if len({m["label"] for m in own}) > 1:
+                failure = failure or "한 항 다중 표지 유형 다름"
+                continue
+        label = own[0]["label"]
+        if label == "신설" and n_dates > 1:
+            # 표지 안 가장 늦은 날짜는 신설 뒤의 개정이다(예 `<신설 2021.1.19, 2026.5.19>`의 2026.5.19) — 그 날짜와
+            # 대응한 판본은 이 항을 만든 판본이 아니므로 '개정'으로 적는다(Redteam diff Fable MAJOR). 서버의
+            # latest_history 라벨 규칙(main._content_marker_label)은 별도 계약이라 바꾸지 않는다.
+            label = "개정"
+            stats["relabel_new_to_amend"] += 1
+        if sub_m and max(d for m in sub_m for d in m["dates"]) > latest:
+            stats["sub_later_paras"] += 1
+            failure = failure or "호·목 표지가 항 표지보다 늦음"
+            continue
+        no = para_number(p.get("number") or "")
+        if no is None or no > _MAX_PARA_NO:
+            failure = failure or "항 번호 해석 불가"
+            continue
+        if no in seen_no:
+            failure = failure or "항 번호 중복"
+            continue
+        seen_no.add(no)
+        if label not in _PARA_LABELS:
+            failure = failure or "빈 라벨"
+            continue
+        out.append({"no": no, "label": label, "date8": _d8(latest), "first8": _d8(first), "n_dates": n_dates})
+    if failure:
+        return None, failure, stats
+    return out, "ok", stats
+
+
+def match_paragraphs(markers: list[dict], entries: list[dict], jo6: str, rows: list[dict]) -> tuple[list[dict] | None, str]:
+    """항 표지 → 공포번호별 그룹 목록(또는 None, 실패 사유). 순수 함수(테스트 대상).
+
+    표지 날짜(공포일)와 같은 공포일자의 이력 항목이 공포번호 1개로 정해져야 하고, 그 판본(법령일련번호)이
+    시행 단계 표에 있어야 한다. 하나라도 어긋나면 그 조문은 항별 블록을 싣지 않는다(안전 쪽 실패).
+    그룹: {"promulgation_no","promulgation_date","law_kind","amendment_kind","version_effective_date",
+           ["staged_dates"], "items": [[항번호 문자열, 라벨], ...]} — 항번호 순.
+    """
+    if not markers:
+        return [], "ok"
+    if not entries:
+        return None, "이력 없음"
+    if any((e.get("조문번호") or "") != jo6 for e in entries):
+        return None, "조문번호 왕복 불일치"
+    if any(not (_valid_date(e.get("시행일자", "")) and _valid_date(e.get("공포일자", ""))) for e in entries):
+        return None, "날짜 형식 이상"
+    groups: dict[str, dict] = {}
+    for mk in markers:
+        hits = [e for e in entries if e["공포일자"] == mk["date8"]]
+        nos = {e.get("공포번호", "") for e in hits}
+        if not hits:
+            return None, "이력에 없음"
+        if len(nos) > 1:
+            return None, "공포번호 복수"
+        keys = {(e.get("법령일련번호", ""), e["시행일자"], (e.get("법령구분명") or "").strip(),
+                 (e.get("제개정구분명") or "").strip()) for e in hits}
+        if len(keys) > 1:
+            return None, "같은 공포번호에 항목 불일치"
+        e = hits[0]
+        no = e.get("공포번호", "")
+        if not (no.isascii() and no.isdigit() and len(no) <= _MAX_PROMULGATION_NO_LEN):
+            return None, "공포번호 형식 이상"
+        kind = (e.get("법령구분명") or "").strip()
+        if not LAW_KIND_PATTERN.fullmatch(kind):
+            return None, "법령구분명 허용 밖"
+        amendment_kind = (e.get("제개정구분명") or "").strip()
+        if not _AMENDMENT_KIND_PATTERN.fullmatch(amendment_kind):
+            return None, "제개정구분명 형식 밖"  # 런타임 로더와 같은 형식 — 잘라 저장하지 않는다
+        dates = stage_dates_for(rows, e.get("법령일련번호", ""))
+        if not dates:
+            return None, "단계 표 없음"
+        if len(dates) > _MAX_STAGES:
+            return None, "시행 단계 상한 초과"
+        if e["시행일자"] not in dates:
+            return None, "단계 표 불일치"
+        g = groups.get(no)
+        if g is None:
+            g = {
+                "promulgation_no": no,
+                "promulgation_date": _iso(e["공포일자"]),
+                "law_kind": kind,
+                "amendment_kind": amendment_kind,
+                "version_effective_date": _iso(e["시행일자"]),
+                "items": [],
+            }
+            if len(dates) > 1:
+                g["staged_dates"] = [_iso(d) for d in dates]
+            groups[no] = g
+        g["items"].append([str(mk["no"]), mk["label"]])
+    out = []
+    for g in groups.values():
+        g["items"].sort(key=lambda it: int(it[0]))
+        out.append(g)
+    out.sort(key=lambda g: int(g["items"][0][0]))
+    return out, "ok"
+
+
+def paragraph_decision(groups: list[dict], record: dict | None) -> str:
+    """그룹 목록과 조문 단위 레코드 → "attach"·"none"·"single_same"·"single_differs". 순수 함수(테스트 대상).
+
+    붙이는 조건(계획서 5-1): 그룹 2개 이상이거나 조문 단위 레코드가 없는 조문. 그룹 1개면 레코드와 같든
+    다르든 붙이지 않는다(같으면 중복, 다르면 2건뿐이라 단순성 우선).
+    """
+    if not groups:
+        return "none"
+    if record is None or len(groups) >= 2:
+        return "attach"
+    return "single_same" if _num_eq(groups[0]["promulgation_no"], record["promulgation_no"]) else "single_differs"
+
+
 # === v0.63.0 부칙 시행일 조항 ===
 
 def fetch_buchik_units(client, mst: str, efyd8: str, law_id: str) -> list[dict]:
@@ -376,8 +601,101 @@ def build_clauses(articles: dict, units: list[dict], api_key: str = "") -> tuple
     return clauses, missing
 
 
+def paragraph_clause_targets(articles: dict) -> dict[str, dict]:
+    """v0.66.0 조항을 실어야 할 항별 그룹 {"조문 키|공포번호": 그룹} — 분리 시행 + 허용 개정(조문 단위와 같은 규칙)."""
+    out = {}
+    for uid, r in articles.items():
+        for g in r.get("paragraphs") or []:
+            if g.get("staged_dates") and g.get("amendment_kind") in _CLAUSE_AMENDMENTS:
+                out[f"{uid}|{g['promulgation_no']}"] = g
+    return out
+
+
+def build_paragraph_clauses(articles: dict, units: list[dict], clauses: dict,
+                            api_key: str = "") -> tuple[dict, dict[str, str]]:
+    """항별 분리 시행 그룹의 부칙 시행일 조항 — (새로 더할 조항, 못 붙인 그룹 {"조문 키|공포번호": 사유}).
+
+    키는 조문 단위와 같은 "공포번호|공포일". 조문 단위가 이미 실은 조항은 그대로 쓴다. 같은 개정인데 단계 목록이
+    조문 단위·다른 그룹과 다르면 넣지 않는다. 못 붙여도 저장은 막지 않는다(런타임이 목록 문장으로 낸다).
+    """
+    added: dict = {}
+    missing: dict[str, str] = {}
+    targets = paragraph_clause_targets(articles)
+    stages_by_key: dict[str, set] = {}
+    for r in clause_targets(articles).values():
+        stages_by_key.setdefault(f"{r['promulgation_no']}|{r['promulgation_date']}", set()).add(tuple(r["staged_dates"]))
+    for g in targets.values():
+        stages_by_key.setdefault(f"{g['promulgation_no']}|{g['promulgation_date']}", set()).add(tuple(g["staged_dates"]))
+    cache: dict[str, tuple[str | None, str]] = {}
+    for tid, g in sorted(targets.items()):
+        key = f"{g['promulgation_no']}|{g['promulgation_date']}"
+        if key not in cache:
+            if len(stages_by_key.get(key, set())) > 1:
+                cache[key] = (None, "단계 목록 불일치")
+            elif key in clauses:
+                cache[key] = (clauses[key]["text"], "ok")
+            else:
+                date8 = g["promulgation_date"].replace("-", "")
+                hits = [u for u in units if _num_eq(u["no"], g["promulgation_no"]) and u["date"] == date8]
+                if len(hits) != 1:
+                    cache[key] = (None, "부칙 0건" if not hits else "부칙 복수")
+                else:
+                    cache[key] = extract_clause(hits[0]["text"], g["promulgation_no"], g["promulgation_date"],
+                                                len(g["staged_dates"]), api_key)
+        text, why = cache[key]
+        if text is None:
+            missing[tid] = why
+        elif key not in clauses:
+            added[key] = {"text": text}
+    return added, missing
+
+
+def _legacy_view(articles: dict) -> dict:
+    """조문 단위 레코드의 기존 필드만(항별 `paragraphs` 제외, 항별 전용 레코드 제외) — 저장 게이트 비교용."""
+    out = {}
+    for uid, r in (articles or {}).items():
+        if isinstance(r, dict) and "promulgation_no" in r:
+            out[uid] = {k: v for k, v in r.items() if k != "paragraphs"}
+        elif not (isinstance(r, dict) and set(r) == {"paragraphs"}):
+            out[uid] = r  # 형식 밖 레코드는 그대로 비교(차이로 잡힘)
+    return out
+
+
+def _paragraph_view(articles: dict) -> dict:
+    return {uid: r.get("paragraphs") for uid, r in (articles or {}).items()
+            if isinstance(r, dict) and r.get("paragraphs") is not None}
+
+
+def legacy_bytes_equal(old: dict, new: dict) -> bool:
+    """두 조문 단위 레코드 묶음이 직렬화 바이트까지 같은지(정렬 키·같은 인코딩)."""
+    def _b(x):
+        return json.dumps(x, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    return _b(_legacy_view(old)) == _b(_legacy_view(new))
+
+
+def paragraph_diff(old_laws: dict, new_laws: dict) -> dict[str, str]:
+    """v0.66.0 저장 게이트 — 항별 데이터(`paragraphs`·항별 전용 레코드·그 조항)가 기존과 다른 법령 {id: 요약}.
+
+    --accept-paragraphs 가 있어야 저장한다. 조문 단위 기존 필드의 차이는 diff_against_existing이 따로 잡는다.
+    """
+    out: dict[str, str] = {}
+    for rid, new in new_laws.items():
+        old = old_laws.get(rid) if isinstance(old_laws.get(rid), dict) else {}
+        o, n = _paragraph_view(old.get("articles")), _paragraph_view(new.get("articles"))
+        if o != n:
+            changed = sum(1 for k in set(o) | set(n) if o.get(k) != n.get(k))
+            out[rid] = f"항별 데이터 {changed}개 조문 차이"
+    return out
+
+
+LEGACY_DIFF_PREFIX = "같은 판본에서 조문 레코드"
+
+
 def diff_against_existing(old_laws: dict, new_laws: dict) -> dict[str, str]:
-    """저장 게이트 G2 — 기존 스냅샷과 다른 법령 {rule_set_id: 사유}. 같은 판본이면 조문 레코드가 같고 조항이 줄지 않아야 한다."""
+    """저장 게이트 G2 — 기존 스냅샷과 다른 법령 {rule_set_id: 사유}. 같은 판본이면 조문 레코드가 같고 조항이 줄지 않아야 한다.
+
+    사유가 LEGACY_DIFF_PREFIX로 시작하면(같은 판본에서 조문 단위 기존 필드 차이) 호출부는 --accept-diff와 무관하게 중단한다.
+    """
     out: dict[str, str] = {}
     for rid, new in new_laws.items():
         old = old_laws.get(rid)
@@ -387,10 +705,11 @@ def diff_against_existing(old_laws: dict, new_laws: dict) -> dict[str, str]:
         if (old.get("mst"), old.get("efyd")) != (new.get("mst"), new.get("efyd")):
             out[rid] = f"판본 변경 {old.get('mst')}·{old.get('efyd')} → {new.get('mst')}·{new.get('efyd')}"
             continue
-        if old.get("articles") != new.get("articles"):
-            o, n = old.get("articles") or {}, new.get("articles") or {}
+        # v0.66.0: 조문 단위 기존 필드만 바이트 대조(항별 `paragraphs`·항별 전용 레코드는 paragraph_diff가 본다).
+        if not legacy_bytes_equal(old.get("articles") or {}, new.get("articles") or {}):
+            o, n = _legacy_view(old.get("articles")), _legacy_view(new.get("articles"))
             changed = sum(1 for k in set(o) | set(n) if o.get(k) != n.get(k))
-            out[rid] = f"같은 판본에서 조문 레코드 {changed}건 차이"
+            out[rid] = f"{LEGACY_DIFF_PREFIX} {changed}건 차이"
             continue
         oc, nc = old.get("clauses") or {}, new.get("clauses") or {}
         lost = set(oc) - set(nc)
@@ -437,6 +756,139 @@ def _write_atomic(path: Path, text: str) -> None:
         raise
 
 
+_PLAN_TARGET = 119  # 계획서 4-2 재측정(2026-11-09) 대상 수 — 15% 넘게 벗어나면 보고서에 경고
+
+
+def _tier(resp: dict) -> int:
+    if resp.get("content_format") == "oversized_pointer":
+        return 3
+    return 2 if resp.get("structure_omitted") else 1
+
+
+def _paragraph_report(payload: dict, law_details: dict, pst: dict, group_dist: dict, para_fail: dict,
+                      para_targets: dict, para_out1: list, single_same: int, single_differs: list,
+                      record_absent: list, para_clause_missing: dict) -> tuple[list[str], int, set]:
+    """v0.66.0 결박 수치 보고(계획서 5-3) — (보고서 줄, 항별 블록으로 크기 단계가 바뀐 조문 수, 교집합).
+
+    크기 단계는 서버와 같은 조립 함수(article_history.notice_from_snapshot·main._build_article_detail)로 서빙
+    본문의 모든 조문에 대해 잰다: 안내 없음 → 새 안내, 기존 문장 → 기존 문장 + 항별 블록.
+    """
+    from korean_rnd_regs_mcp import article_history as ah
+    from korean_rnd_regs_mcp.main import _article_unit_id, _build_article_detail, _resolve_effective_date
+
+    parsed = ah._parse_snapshot(payload)
+    snap, load_stats = parsed if parsed else ({"generated_date": "", "laws": {}}, {"articles": 0, "paragraphs": 0, "dropped": 0})
+    n_all = 0
+    none_full = base_full = none_base = 0
+    changed_ids: list[str] = []
+    max_resp = max_notice = max_block = 0
+    raw_over_cap = omitted = staged_targets = 0
+    rows: list[str] = []
+    for rid, (rs, resolved, detail, dup) in sorted(law_details.items()):
+        mst = resolved.doc_id
+        efyd_raw = detail.get("시행일자", "")
+        eff = _resolve_effective_date(rs, resolved)
+        seen: set[str] = set()
+        for art in detail.get("articles", []):
+            uid = _article_unit_id(art)
+            if uid is None or uid in seen:
+                continue
+            seen.add(uid)
+            n_all += 1
+            full_n = ah.notice_from_snapshot(snap, rid, uid, mst, efyd_raw, "eflaw", eff)
+            base_n = ah.notice_from_snapshot(snap, rid, uid, mst, efyd_raw, "eflaw", eff, with_paragraphs=False)
+            pid = f"law:{mst}:{uid}"
+            r_none = _build_article_detail(pid, uid, rs, art, eff)
+            r_base = _build_article_detail(pid, uid, rs, art, eff, article_notice=base_n)
+            r_full = _build_article_detail(pid, uid, rs, art, eff, article_notice=full_n)
+            t0, t1, t2 = _tier(r_none), _tier(r_base), _tier(r_full)
+            none_full += t0 != t2
+            none_base += t0 != t1
+            if t1 != t2:
+                base_full += 1
+                changed_ids.append(f"{rid}|{uid}")
+            size = len(json.dumps(r_full, ensure_ascii=False))
+            max_resp = max(max_resp, size)
+            max_notice = max(max_notice, len(full_n))
+            key = f"{rid}|{uid}"
+            if key in para_targets:
+                block = full_n[len(base_n) + 1:] if full_n != base_n else ""
+                max_block = max(max_block, len(block))
+                omitted += ah._PARA_OMITTED in block
+                rec = snap["laws"].get(rid, {}).get("articles", {}).get(uid) or {}
+                law = snap["laws"].get(rid, {})
+                if rec.get("paragraphs"):
+                    raw = ah._assemble_block(rec, rec["paragraphs"], law.get("clauses") or {}, None, True)
+                    raw_over_cap += len(raw) > ah._PARA_BLOCK_MAX_CHARS
+                staged_g = sum(1 for g in rec.get("paragraphs") or [] if g.get("staged_dates"))
+                staged_targets += staged_g > 0
+                rows.append(f"| {key} | {para_targets[key]} | {staged_g} | {len(block)} | {len(full_n)} | {size} | "
+                            f"{t1}→{t2} |")
+    overlap = set(para_targets) & (set(para_fail) | set(single_differs))
+    # 분리 시행 그룹의 조항 상태 — 추출 대상(제정·일부개정·전부개정) 중 미수록과, 조항 없이 목록 문장으로 나가는 그룹
+    staged_groups = listed = listed_other = extract_targets = 0
+    for rid, law in (payload.get("laws") or {}).items():
+        extract_targets += len(paragraph_clause_targets(law.get("articles") or {}))
+        keys = set(law.get("clauses") or {})
+        for rec in (law.get("articles") or {}).values():
+            for g in rec.get("paragraphs") or []:
+                if not g.get("staged_dates"):
+                    continue
+                staged_groups += 1
+                if f"{g['promulgation_no']}|{g['promulgation_date']}" not in keys:
+                    listed += 1
+                    listed_other += g.get("amendment_kind") == "타법개정"
+    n_ge2 = sum(1 for v in para_targets.values() if v >= 2)
+    n_target = len(para_targets)
+    dev = abs(n_target - _PLAN_TARGET) / _PLAN_TARGET
+    marked = pst["self_markers"]
+    pct = f"{pst['latest_match'] / marked * 100:.1f}%" if marked else "-"
+    fail_by: dict[str, int] = {}
+    for why in para_fail.values():
+        fail_by[why] = fail_by.get(why, 0) + 1
+    lines = [
+        "## 항별 개정 표지(v0.66.0 결박 수치)",
+        "",
+        f"- 항 자기 표지 {marked}개 · 날짜 2개 이상 {pst['multi_date']}개 · 가장 늦은 날짜가 이력 공포일과 일치 "
+        f"{pst['latest_match']}/{marked}({pct}) · 첫 날짜 일치 {pst['first_match']} · 어느 쪽도 아님 {pst['neither']}",
+        f"- 한 항 다중 표지 {pst['multi_marker_paras']} · 호·목 표지만 있는 항 {pst['sub_only_paras']}(번호 있는 항) + "
+        f"{pst['sub_only_wrappers']}(번호·본문 없이 호만 묶는 항, 호 표지 기준) · "
+        f"호·목 표지가 항 표지보다 늦은 항 {pst['sub_later_paras']}",
+        f"- 전부 대응 조문의 그룹 수 분포: {dict(sorted(group_dist.items()))}",
+        f"- 대응 실패 조문 {len(para_fail)}건: {dict(sorted(fail_by.items()))}",
+        f"- 대상 {n_target} = 그룹 2개 이상 {n_ge2} + 스냅샷 밖 1그룹 {len(para_out1)} · 그중 분리 시행 그룹 보유 "
+        f"{staged_targets} · 계획 119 대비 {dev * 100:.1f}%" + (" ★15% 초과 — 원인 확인 필요" if dev > 0.15 else ""),
+        f"- 그룹 1개: 조문 레코드와 같음 {single_same}(붙이지 않음) · 다름 {len(single_differs)}(붙이지 않음) "
+        f"{sorted(single_differs)}",
+        f"- 레코드 공포번호가 어느 그룹에도 없는 대상 {len(record_absent)}건: {sorted(record_absent)}",
+        f"- 대상 ∩ (대응 실패 ∪ 그룹 1개 다름) = {len(overlap)}건" + (f" {sorted(overlap)}" if overlap else ""),
+        f"- 로더 재검사: 조문 {load_stats['articles']}, paragraphs {load_stats['paragraphs']}, 형식 탈락 "
+        f"{load_stats['dropped']}",
+        f"- 크기 단계(서빙 본문 {n_all}개 조문): 기존 문장→기존+항별 블록 변화 {base_full}건"
+        f"{' ' + str(changed_ids) if changed_ids else ''} · 안내 없음→새 안내 변화 {none_full}건 · 안내 없음→기존 문장 "
+        f"변화 {none_base}건 · 최대 응답 직렬화 {max_resp}자 · 최대 안내 {max_notice}자 · 최대 항별 블록 {max_block}자 · "
+        f"1,500자 상한 축약 발동 {raw_over_cap}건(그룹 생략 {omitted}건)",
+        f"- 항별 분리 시행 그룹 {staged_groups}개: 조항 추출 대상 {extract_targets}개 중 미수록 {len(para_clause_missing)} · "
+        f"조항 없이 목록 문장으로 나가는 그룹 {listed}(그중 타법개정 {listed_other})",
+        f"- 다중 날짜 신설 표지 → 개정 재라벨 {pst['relabel_new_to_amend']}",
+        "",
+        "### 대응 실패 조문",
+        "",
+        *([f"- {k}: {v}" for k, v in sorted(para_fail.items())] or ["- 없음"]),
+        "",
+        "### 항별 조항 없는 분리 시행 그룹",
+        "",
+        *([f"- {k}: {v}" for k, v in sorted(para_clause_missing.items())] or ["- 없음"]),
+        "",
+        "### 대상 조문(그룹 수·분리 시행 그룹 수·블록 길이·안내 길이·응답 직렬화 길이·크기 단계 기존→새)",
+        "",
+        "| 조문 | 그룹 | 분리 | 블록 | 안내 | 응답 | 단계 |",
+        "|---|---|---|---|---|---|---|",
+        *rows,
+    ]
+    return lines, base_full, overlap, load_stats["dropped"]
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("ids", nargs="*")
@@ -444,7 +896,10 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--require-all-clauses", action="store_true",
                     help="대상 조문 중 부칙 시행일 조항이 없는 것이 하나라도 있으면 저장하지 않음")
     ap.add_argument("--accept-diff", default="",
-                    help="기존 스냅샷과의 차이(판본 변경·조문 차이·새 법령)를 허용할 rule_set_id 목록(쉼표 구분)")
+                    help="판본(mst·efyd)이 바뀐 법령·새 법령, 같은 판본의 조항 감소·원문 변경을 허용할 rule_set_id 목록"
+                         "(쉼표 구분). 같은 판본에서 조문 단위 기존 필드가 달라진 법령은 이 플래그로도 저장하지 않음")
+    ap.add_argument("--accept-paragraphs", action="store_true",
+                    help="항별 데이터(paragraphs·항별 전용 레코드)의 추가·변경을 허용(조문 단위 기존 필드는 그대로여야 함)")
     args = ap.parse_args(argv)
     accept = {s.strip() for s in args.accept_diff.split(",") if s.strip()}
     save = not args.dry_run and not args.ids  # 일부 법령만 지정한 실행은 저장하지 않는다
@@ -454,7 +909,7 @@ def main(argv: list[str]) -> int:
     sys.path.insert(0, str(ROOT / "src"))
     sys.path.insert(0, str(ROOT / "scripts"))
     from korean_rnd_regs_mcp.live_api import LawApiClient, LawApiError
-    from korean_rnd_regs_mcp.main import _article_amendment_history, _article_unit_id
+    from korean_rnd_regs_mcp.main import _article_amendment_history, _article_unit_id, _resolve_effective_date
     from korean_rnd_regs_mcp.manifest import load_manifest
     from audit_law_stage_diff import Collector
 
@@ -470,6 +925,18 @@ def main(argv: list[str]) -> int:
     excluded_total: dict[str, int] = {}
     clause_missing: dict[str, str] = {}  # "rule_set_id|JO…" → 사유
     clause_targets_n = 0
+    # v0.66.0 항별 표지 집계(보고서 결박 수치)
+    pst = {"self_markers": 0, "multi_date": 0, "multi_marker_paras": 0, "sub_only_paras": 0, "sub_later_paras": 0,
+           "sub_only_wrappers": 0, "relabel_new_to_amend": 0, "latest_match": 0, "first_match": 0, "neither": 0}
+    group_dist: dict[int, int] = {}
+    para_fail: dict[str, str] = {}      # "rid|JO…" → 사유
+    para_targets: dict[str, int] = {}   # "rid|JO…" → 그룹 수
+    para_out1: list[str] = []           # 대상 중 스냅샷 밖(조문 단위 레코드 없음) 1그룹
+    single_same = 0
+    single_differs: list[str] = []
+    record_absent: list[str] = []
+    para_clause_missing: dict[str, str] = {}
+    law_details: dict[str, tuple] = {}  # rid → (rs, resolved, detail) — 크기 단계 전수 확인용
     for rs in targets:
         try:
             resolved = client.resolve_latest_doc_id(rs.title, "law", rs.api_doc_id, rs.ministry)
@@ -489,56 +956,129 @@ def main(argv: list[str]) -> int:
             excl: dict[str, int] = {}
 
             def _one(art):
+                out = {"uid": None, "rec": None, "why": "", "groups": [], "pwhy": "ok", "pstats": None,
+                       "pub_dates": set()}
                 uid = _article_unit_id(art)
                 if uid is None:
-                    return None, None, "JO 인코딩 불가"
+                    out["why"] = "JO 인코딩 불가"
+                    return out
+                out["uid"] = uid
                 digits = uid[2:]
                 jo6 = digits if len(digits) == 6 else digits + "00"
                 try:
                     entries = fetch_article_history(client, law_id, jo6)
                 except LawApiError as e:
-                    return uid, None, f"이력 조회 실패({e.code})"
+                    out["why"] = f"이력 조회 실패({e.code})"
+                    return out
                 chosen, why = select_entry(entries, jo6, efyd)
                 if chosen is not None:
                     why = stage_gate(chosen, entries, rows, efyd)
                 if why == "ok":
                     why = marker_gate(chosen, _article_amendment_history(art), art.get("조문내용", ""))
-                if why != "ok":
-                    return uid, None, why
-                return uid, build_record(chosen, stage_dates_for(rows, chosen.get("법령일련번호", ""))), "ok"
+                out["why"] = why
+                if why == "ok":
+                    out["rec"] = build_record(chosen, stage_dates_for(rows, chosen.get("법령일련번호", "")))
+                # v0.66.0 항별 표지 — 같은 이력 응답만 쓴다(추가 조회 없음).
+                markers, pwhy, pstats = paragraph_markers(art)
+                out["pstats"] = pstats
+                out["pub_dates"] = {e.get("공포일자", "") for e in entries}
+                if markers is None:
+                    out["pwhy"] = pwhy
+                else:
+                    groups, gwhy = match_paragraphs(markers, entries, jo6, rows)
+                    out["pwhy"] = gwhy
+                    out["groups"] = groups or []
+                return out
 
             with ThreadPoolExecutor(max_workers=6) as ex:
                 results = list(ex.map(_one, detail.get("articles", [])))
             # 같은 JO가 본문에 두 번 나오면 서버가 서빙하는 쪽(첫 번째)과 검증한 쪽이 다를 수 있다 — 제외.
             seen_uid: dict[str, int] = {}
-            for uid, _rec, _why in results:
-                if uid is not None:
-                    seen_uid[uid] = seen_uid.get(uid, 0) + 1
+            for r in results:
+                if r["uid"] is not None:
+                    seen_uid[r["uid"]] = seen_uid.get(r["uid"], 0) + 1
             dup = {u for u, n in seen_uid.items() if n > 1}
-            results = [(u, None, "조문 번호 중복") if u in dup else (u, r, w) for u, r, w in results]
-            for uid, rec, why in results:
-                if rec is None:
-                    excl[why] = excl.get(why, 0) + 1
+            for r in results:
+                if r["uid"] in dup:
+                    r.update(rec=None, why="조문 번호 중복", groups=[], pwhy="조문 번호 중복")
+            for r in results:
+                if r["rec"] is None:
+                    excl[r["why"]] = excl.get(r["why"], 0) + 1
                 else:
-                    arts[uid] = rec
+                    arts[r["uid"]] = r["rec"]
+            # v0.66.0 항별 그룹 — 붙이기 판단과 집계
+            for r in results:
+                ps = r["pstats"]
+                if ps is None or r["uid"] in dup:
+                    continue
+                for k in ("self_markers", "multi_date", "multi_marker_paras", "sub_only_paras", "sub_later_paras",
+                          "sub_only_wrappers", "relabel_new_to_amend"):
+                    pst[k] += ps[k]
+                for latest8, first8 in ps["marker_dates"]:
+                    hit_l, hit_f = latest8 in r["pub_dates"], first8 in r["pub_dates"]
+                    pst["latest_match"] += hit_l
+                    pst["first_match"] += hit_f
+                    pst["neither"] += not (hit_l or hit_f)
+                key = f"{rs.id}|{r['uid']}"
+                if r["pwhy"] != "ok":
+                    para_fail[key] = r["pwhy"]
+                    continue
+                groups = r["groups"]
+                if not groups:
+                    continue
+                group_dist[len(groups)] = group_dist.get(len(groups), 0) + 1
+                decision = paragraph_decision(groups, r["rec"])
+                if decision == "single_same":
+                    single_same += 1
+                elif decision == "single_differs":
+                    single_differs.append(key)
+                elif decision == "attach":
+                    para_targets[key] = len(groups)
+                    if r["rec"] is None:
+                        arts[r["uid"]] = {"paragraphs": groups}
+                        if len(groups) == 1:
+                            para_out1.append(key)
+                    else:
+                        r["rec"]["paragraphs"] = groups
+                        if not any(_num_eq(g["promulgation_no"], r["rec"]["promulgation_no"]) for g in groups):
+                            record_absent.append(key)
             entry = {"mst": resolved.doc_id, "efyd": _iso(efyd), "law_id": law_id, "articles": arts}
             note = ""
+            units = None
+            clauses: dict = {}
             if clause_targets(arts):
                 units = fetch_buchik_units(client, resolved.doc_id, efyd, law_id)
                 clauses, missing = build_clauses(arts, units, client.api_key)
-                if clauses:
-                    entry["clauses"] = clauses
                 clause_targets_n += len(clause_targets(arts))
                 for uid, why in missing.items():
                     clause_missing[f"{rs.id}|{uid}"] = why
                 note = f" · 부칙 조항 {len(clauses)}건(대상 {len(clause_targets(arts))}, 미수록 {len(missing)})"
+            ptargets = paragraph_clause_targets(arts)
+            if ptargets:
+                # 항별 그룹의 조항은 못 붙여도 저장을 막지 않는다(런타임이 목록 문장으로 낸다).
+                try:
+                    if units is None:
+                        units = fetch_buchik_units(client, resolved.doc_id, efyd, law_id)
+                    added, pmissing = build_paragraph_clauses(arts, units, clauses, client.api_key)
+                except LawApiError as e:
+                    added, pmissing = {}, {tid: f"부칙 조회 실패({e.code})" for tid in ptargets}
+                clauses.update(added)
+                for tid, why in pmissing.items():
+                    para_clause_missing[f"{rs.id}|{tid}"] = why
+                note += f" · 항별 조항 추가 {len(added)}건(항별 대상 {len(ptargets)}, 미수록 {len(pmissing)})"
+            if clauses:
+                entry["clauses"] = clauses
             laws[rs.id] = entry
+            law_details[rs.id] = (rs, resolved, detail, dup)
             staged = sum(1 for a in arts.values() if "staged_dates" in a)
+            n_legacy = sum(1 for a in arts.values() if "promulgation_no" in a)
+            n_para = sum(1 for a in arts.values() if a.get("paragraphs"))
             n = len(detail.get("articles", []))
-            report.append(f"| {rs.id} | {len(arts)}/{n} | 분리 시행 {staged} · 제외 {dict(sorted(excl.items()))}{note} |")
+            report.append(f"| {rs.id} | {n_legacy}/{n} | 분리 시행 {staged} · 항별 {n_para} · "
+                          f"제외 {dict(sorted(excl.items()))}{note} |")
             for k, v in excl.items():
                 excluded_total[k] = excluded_total.get(k, 0) + v
-            print(f"{rs.id}: {len(arts)}/{n} staged={staged}", flush=True)
+            print(f"{rs.id}: {n_legacy}/{n} staged={staged} paragraphs={n_para}", flush=True)
         except LawApiError as e:
             failed += 1
             report.append(f"| {rs.id} | 미수록 | 오류 {e.code} |")
@@ -559,9 +1099,13 @@ def main(argv: list[str]) -> int:
         print("출력에 키 혼입 — 저장 중단")
         return 3
     json_text = text + "\n"
-    total = sum(len(v["articles"]) for v in laws.values())
+    total = sum(1 for v in laws.values() for a in v["articles"].values() if "promulgation_no" in a)
+    para_only = sum(1 for v in laws.values() for a in v["articles"].values() if "promulgation_no" not in a)
     n_clauses = sum(len(v.get("clauses") or {}) for v in laws.values())
     fetch_failures = sum(v for k, v in excluded_total.items() if k.startswith("이력 조회 실패"))
+    para_lines, tier_block_changes, overlap, reload_dropped = _paragraph_report(
+        json.loads(json_text), law_details, pst, group_dist, para_fail, para_targets, para_out1, single_same,
+        single_differs, record_absent, para_clause_missing)
 
     # 저장 게이트 — 하나라도 걸리면 기존 파일을 건드리지 않는다.
     blocks: list[str] = []
@@ -580,25 +1124,44 @@ def main(argv: list[str]) -> int:
         old_laws = {}
         blocks.append("기존 스냅샷을 읽지 못해 비교할 수 없음(파일 확인 필요)")
     diffs = diff_against_existing(old_laws, laws) if old_laws and not args.ids else {}
-    unaccepted = {rid: why for rid, why in diffs.items() if rid not in accept}
+    # 같은 판본에서 조문 단위 기존 필드가 달라진 법령은 --accept-diff로도 허용하지 않는다(판본 변경만 그 플래그 대상).
+    legacy_hard = {rid: why for rid, why in diffs.items() if why.startswith(LEGACY_DIFF_PREFIX)}
+    if legacy_hard:
+        blocks.append("같은 판본에서 조문 단위 기존 필드 차이(어떤 플래그로도 저장 불가 — 원인 확인 필요): "
+                      + "; ".join(f"{rid} {why}" for rid, why in sorted(legacy_hard.items())))
+    unaccepted = {rid: why for rid, why in diffs.items() if rid not in accept and rid not in legacy_hard}
     if unaccepted:
         blocks.append("기존 스냅샷과 차이(--accept-diff 필요): "
                       + "; ".join(f"{rid} {why}" for rid, why in sorted(unaccepted.items())))
     if args.require_all_clauses and clause_missing:
         blocks.append(f"부칙 시행일 조항 미수록 {len(clause_missing)}건")
+    # v0.66.0: 항별 데이터의 추가·변경은 명시 플래그로만(조문 단위 기존 필드 차이는 위 게이트가 잡는다).
+    pdiffs = paragraph_diff(old_laws, laws) if not args.ids else {}
+    if pdiffs and not args.accept_paragraphs:
+        blocks.append(f"항별 데이터 차이 {len(pdiffs)}개 법령(--accept-paragraphs 필요)")
+    if overlap:
+        blocks.append(f"항별 대상과 대응 실패·불일치 집합의 교집합 {len(overlap)}건")
+    if reload_dropped:
+        blocks.append(f"생성한 항별 데이터를 런타임 로더가 {reload_dropped}건 버림(형식 탈락 J>0)")
+    if tier_block_changes:
+        blocks.append(f"항별 블록으로 크기 단계가 바뀐 조문 {tier_block_changes}건(상한 하향 필요)")
 
     lines = [
         "# 조문별 변경 이력 스냅샷 생성 보고",
         "",
-        f"- 생성: {now} · 법령 {len(laws)}/{len(targets)} 수록 · 조문 {total}건 · 미수록 법령 {failed}",
+        f"- 생성: {now} · 법령 {len(laws)}/{len(targets)} 수록 · 조문 {total}건 · 항별 전용 레코드 {para_only}건 · "
+        f"미수록 법령 {failed}",
         f"- 제외 사유 합계: {dict(sorted(excluded_total.items()))}",
         f"- 부칙 시행일 조항: 대상 {clause_targets_n}건 · 수록 조항 {n_clauses}개 · 조항 없는 대상 {len(clause_missing)}건",
-        f"- 기존 스냅샷과 차이: {dict(sorted(diffs.items())) or '없음'}",
+        f"- 기존 스냅샷과 차이: {dict(sorted(diffs.items())) or '없음'} · 항별 데이터 차이: "
+        f"{dict(sorted(pdiffs.items())) or '없음'}",
         f"- JSON sha256: {hashlib.sha256(json_text.encode('utf-8')).hexdigest()}",
         "",
         "| rule_set_id | 수록/전체 조문 | 비고 |",
         "|---|---|---|",
         *report,
+        "",
+        *para_lines,
         "",
         "## 조항 없는 대상",
         "",
@@ -619,6 +1182,7 @@ def main(argv: list[str]) -> int:
         return 3
 
     print("\n".join(lines[:7]))
+    print("\n".join(ln for ln in para_lines if not ln.startswith("| ")))
     if blocks:
         for row in report:
             if "미수록" in row.split("|")[2]:

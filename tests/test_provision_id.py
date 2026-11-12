@@ -51,7 +51,9 @@ def test_contract_version_pinned():
     #          부칙 시행일 조항 원문(§5.48·문면 값 변경·새 필드 0) → minor bump.
     # 0.40.0 = 요청 증폭·과부하 차단(v0.64.0) — HTTP 새 키 확인 관문(auth_failed·rate_limited·parse_failed
     #          진입부 envelope)과 검색어 길이 상한(invalid_query)의 새 발생 조건(§5.49·새 필드 0) → minor bump.
-    assert CONTRACT_VERSION == "0.40.0"
+    # 0.41.0 = 항별 개정 표지 기반 조문 시행일 안내(v0.66.0) — article_effective_notice 문장 뒤 항별 블록과
+    #          일반 문장 (c) 개정(§5.50·문면 값 변경·새 필드 0) → minor bump.
+    assert CONTRACT_VERSION == "0.41.0"
 
 
 # === unit_label (v0.1.8 — overflow_candidates label용) ===

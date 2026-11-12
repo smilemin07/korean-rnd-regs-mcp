@@ -80,9 +80,11 @@ def test_staged_sentence_gives_no_article_date(tmp_path):
 def test_general_sentence_paths(tmp_path, args):
     _snap(tmp_path, _LAW)
     s = ah.article_effective_notice(*args)
-    assert s == (
-        f"effective_date({args[5]})는 조회된 법령 판본 전체의 시행일이며, 이 조문의 시행일과 같다는 뜻은 "
-        "아닙니다. 조문별 시행일은 국가법령정보센터의 조문 연혁과 부칙에서 확인하십시오."
+    assert s == (  # v0.66.0 (c) 새 문장 전체 동등
+        f"effective_date({args[5]})는 조회된 법령 판본 전체의 시행일이며, 이 조문의 시행일과 같다는 뜻은 아닙니다. "
+        "개정 판본의 시행일은 이 조문이 처음 시행된 날과 다를 수 있으므로, 이 응답의 근거만으로 이 조문이 처음 "
+        "시행된 날을 단정하지 마십시오. 필요하면 사용자가 국가법령정보센터의 조문 연혁과 부칙에서 확인하도록 "
+        "안내하십시오."
     )
 
 
@@ -188,7 +190,7 @@ def test_detail_carries_notice_on_law_article(tmp_path, monkeypatch):
     r = asyncio.run(get_provision_detail("law:281987:JO002703"))
     assert r["article_effective_notice"].startswith("국가법령정보 조문별 변경 이력(2026-10-25 확인)상 조회된 판본까지")
     assert r["content_format"] == "plain_text_verbatim"
-    assert r["contract_version"] == "0.40.0"
+    assert r["contract_version"] == "0.41.0"
     keys = list(r)
     assert keys.index("article_effective_notice") < keys.index("content")  # head 배치(3-tier 전건)
 
@@ -244,7 +246,8 @@ def test_real_snapshot_loads_and_is_clean():
     assert len(snap["laws"]) == 35
     rpt = (ROOT / "scripts" / "article_history_extract_report.md").read_text(encoding="utf-8")
     m = re.search(r"조문 (\d+)건", rpt)
-    assert m and sum(len(v["articles"]) for v in snap["laws"].values()) == int(m.group(1))  # 보고서와 같은 건수
+    legacy = sum(1 for v in snap["laws"].values() for a in v["articles"].values() if "promulgation_no" in a)
+    assert m and legacy == int(m.group(1))  # 보고서와 같은 건수(조문 단위 레코드 — v0.66.0 항별 전용 레코드 제외)
     assert int(m.group(1)) >= 900
     raw = json.loads(text)
     assert sum(len(v["articles"]) for v in raw["laws"].values()) == sum(len(v["articles"]) for v in snap["laws"].values())

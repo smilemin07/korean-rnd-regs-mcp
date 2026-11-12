@@ -116,16 +116,19 @@ def test_contract_version_0_34_0():
     → 0.38.0 → 0.39.0 minor bump(v0.63.0 부칙 시행일 조항 동봉 — 분리 시행 조문의
     article_effective_notice 문장에 부칙 시행일 조항 원문·입력 스키마 무변·재연결 불요. §5.48 참조)
     → 0.39.0 → 0.40.0 minor bump(v0.64.0 요청 증폭·과부하 차단 — HTTP 새 키 확인 관문과 검색어 길이
-    상한의 새 오류 조건·입력 스키마 무변·재연결 불요. §5.49 참조)."""
+    상한의 새 오류 조건·입력 스키마 무변·재연결 불요. §5.49 참조)
+    → 0.40.0 → 0.41.0 minor bump(v0.66.0 항별 개정 표지 기반 조문 시행일 안내 — law 조문 상세의
+    article_effective_notice 문장 뒤 항별 블록과 일반 문장 (c) 개정·새 필드 0·입력 스키마 무변·재연결 불요.
+    §5.50 참조)."""
     from korean_rnd_regs_mcp.provision_id import CONTRACT_VERSION
-    assert CONTRACT_VERSION == "0.40.0"
+    assert CONTRACT_VERSION == "0.41.0"
 
 
-def test_package_version_0_65_0():
-    """패키지 버전 0.65.0(원격 서버 세션 누적 해소 — requirements.lock mcp 1.29.0 → 1.30.0 1행 ·
-    앱 코드·입력 스키마 무변 · contract 0.40.0 유지 · 재연결 불요). 배포 전 버전 일치 가드."""
+def test_package_version_0_66_0():
+    """패키지 버전 0.66.0(조문 시행일 근거 보강 — 항별 개정 표지 대응 · contract 0.41.0 · 입력 스키마 무변 ·
+    재연결 불요). 배포 전 버전 일치 가드."""
     from korean_rnd_regs_mcp import __version__
-    assert __version__ == "0.65.0"
+    assert __version__ == "0.66.0"
 
 
 def test_cache_maxsize_96_v0240():

@@ -1477,6 +1477,21 @@ def _parse_history_date(date_str: str):
         return None
 
 
+def _content_marker_label(del_prefix: str | None, inner: str) -> str:
+    """content 꺾쇠 마커 1개의 유형 라벨 — 개정·신설(내부 문자열)·삭제(무접두 날짜)·""(그 밖).
+
+    v0.66.0: 조문 이력 힌트(_article_amendment_history)와 스냅샷 생성기의 항별 표지 해석
+    (scripts/extract_article_history.py)이 같은 규칙을 쓰도록 분리했다(동작 무변).
+    """
+    if "개정" in inner:
+        return "개정"
+    if "신설" in inner:
+        return "신설"
+    if del_prefix:
+        return "삭제"  # 무접두 <날짜> = 삭제(census 85/85) — bare 노출·개정 오귀속 방지
+    return ""  # 무접두·비삭제(실측 0건) — bare date로 graceful
+
+
 def _article_amendment_history(art: dict) -> str | None:
     """조문 dict → 최신 이력 힌트 문자열 "유형 공포일(공포)"(예 "개정 2025.12.30(공포)"·"본조신설 2026.6.30(공포)"·
     "삭제 2020.3.3(공포)"), 마커 없으면 None. never-raise (doc-level articles 조립·JO 상세 head 호출 — 예외 시 응답 전체 실패).
@@ -1498,14 +1513,7 @@ def _article_amendment_history(art: dict) -> str | None:
             dates = _HISTORY_DATE_PATTERN.findall(inner)
             if not dates:
                 continue  # 날짜 없는 꺾쇠(비-이력) 무시
-            if "개정" in inner:
-                mtype = "개정"
-            elif "신설" in inner:
-                mtype = "신설"
-            elif del_prefix:
-                mtype = "삭제"  # 무접두 <날짜> = 삭제(census 85/85) — bare 노출·개정 오귀속 방지
-            else:
-                mtype = ""  # 무접두·비삭제(실측 0건) — bare date로 graceful
+            mtype = _content_marker_label(del_prefix, inner)
             for d in dates:
                 dt = _parse_history_date(d)
                 if dt is None:

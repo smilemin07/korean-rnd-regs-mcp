@@ -384,7 +384,7 @@ def test_main_saves_with_clause_and_hash(tmp_path, monkeypatch):
     code, out, rpt = _run_main(tmp_path, monkeypatch, ["--require-all-clauses"])
     assert code == 0
     data = json.loads(out.read_text(encoding="utf-8"))
-    assert data["rules_version"] == 4 and data["schema"] == 1
+    assert data["rules_version"] == 5 and data["schema"] == 1
     assert data["laws"]["innovation_act"]["clauses"] == {"21421|2026-03-10": {"text": _CLAUSE_21421}}
     r = rpt.read_text(encoding="utf-8")
     assert hashlib.sha256(out.read_bytes()).hexdigest() in r
@@ -464,7 +464,7 @@ _KNOWN_CLAUSE_EXCLUSIONS: dict[str, str] = {}
 
 def test_real_snapshot_rules_and_schema():
     raw = json.loads(_REAL.read_text(encoding="utf-8"))
-    assert raw["schema"] == 1 and raw["rules_version"] == ext.RULES_VERSION == 4
+    assert raw["schema"] == 1 and raw["rules_version"] == ext.RULES_VERSION == 5
 
 
 def test_real_snapshot_clause_keys_match_targets():
@@ -475,6 +475,9 @@ def test_real_snapshot_clause_keys_match_targets():
     for rid, law in raw["laws"].items():
         targets = ext.clause_targets(law["articles"])
         expected = {f"{r['promulgation_no']}|{r['promulgation_date']}" for r in targets.values()}
+        # v0.66.0: 항별 분리 시행 그룹의 조항도 대상(못 붙여도 저장은 막지 않으므로 누락 검사는 조문 단위만)
+        expected |= {f"{g['promulgation_no']}|{g['promulgation_date']}"
+                     for g in ext.paragraph_clause_targets(law["articles"]).values()}
         keys = set(law.get("clauses") or {})
         assert keys <= expected, f"{rid}: 대상이 아닌 조항 {keys - expected}"  # 타법개정·단일 시행에 조항 없음
         assert set(loaded["laws"][rid]["clauses"]) == keys, f"{rid}: 로더가 버린 조항"
